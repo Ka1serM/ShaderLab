@@ -4,8 +4,10 @@ import { TaskPanel } from "./TaskPanel";
 import { MonacoEditor } from "./MonacoEditor";
 import { DualOutputPanel } from "./DualOutputPanel";
 
-interface Lesson {
-  type: "3D" | "2D";
+export type LessonType = "3D" | "2D";
+
+export interface Lesson {
+  type: LessonType;
   title: string;
   task: string;
   theory: string;

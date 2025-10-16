@@ -13,10 +13,10 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter basename={import.meta.env.DEV ? "/" : "/ShaderLab"}>
+     <BrowserRouter basename={import.meta.env.DEV ? "/" : "/ShaderLab"}>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/lesson/:id" element={<Index />} />
+          <Route path="/lessons/:idOrName" element={<Index />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -20,8 +20,8 @@ export const TaskPanel = ({ title, task, theory, hints }: TaskPanelProps) => {
 
       <Tabs defaultValue="task" className="flex-1 flex flex-col">
         <TabsList className="w-full justify-start rounded-none bg-secondary border-b border-panel-border px-6">
-          <TabsTrigger value="task" className="data-[state=active]:bg-muted">Task</TabsTrigger>
-          <TabsTrigger value="theory" className="data-[state=active]:bg-muted">Theory</TabsTrigger>
+          <TabsTrigger value="task" className="data-[state=active]:bg-muted">Aufgabe</TabsTrigger>
+          <TabsTrigger value="theory" className="data-[state=active]:bg-muted">Theorie</TabsTrigger>
         </TabsList>
         
         <div className="flex-1 overflow-auto">

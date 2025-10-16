@@ -6,7 +6,6 @@
       "task": "Erstelle ein Programm, das diffuse Beleuchtung basierend auf einer Richtungslichtquelle implementiert.",
       "theory": "Lambert-Beleuchtung ist ein einfaches Modell für diffuse Lichtberechnung, bei dem die Helligkeit einer Oberfläche vom Winkel zwischen der Oberflächennormalen und der Richtung der Lichtquelle abhängt. In GLSL werden die Normalen der Vertices über `varying`-Variablen an den Fragment-Shader weitergegeben. Der diffuse Beleuchtungsfaktor wird als Skalarprodukt zwischen der normalisierten Normalen und der normalisierten Licht-Richtung berechnet. Anschließend multipliziert man die Basisfarbe der Oberfläche mit diesem Faktor, um die beleuchtete Farbe zu erhalten. Lambert-Beleuchtung erzeugt Oberflächen, die heller erscheinen, wenn sie dem Licht zugewandt sind, und dunkler, wenn sie abgewandt sind, wodurch ein realistischer diffuser Effekt entsteht.",
       "hints": [
-        "Verwende eine `varying`-Variable, um die Vertex-Normalen vom Vertex-Shader an den Fragment-Shader weiterzugeben",
         "Transformiere die Normalen korrekt mit der `normalMatrix` für eine richtige Beleuchtung",
         "Berechne den Diffusfaktor mit dot(normal, lightDir)",
         "Klippe den Diffuswert mit max(), um negative Beleuchtung zu vermeiden",
@@ -15,7 +14,7 @@
       "expectedVertexShader": "precision highp float;\n\nattribute vec3 position;\nattribute vec3 normal;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\nuniform mat3 normalMatrix;\nvarying vec3 vNormal;\n\nvoid main() {\n  vNormal = normalize(normalMatrix * normal);\n  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}",
       "expectedFragmentShader": "precision highp float;\nvarying vec3 vNormal;\n\nvoid main() {\n  vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));\n  vec3 baseColor = vec3(0.8, 0.4, 0.2);\n  float diffuse = max(dot(vNormal, lightDir), 0.0);\n  vec3 color = baseColor * diffuse;\n  gl_FragColor = vec4(color, 1.0);\n}",
       "starterVertexShader": "precision highp float;\n\nattribute vec3 position;\nattribute vec3 normal;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\nuniform mat3 normalMatrix;\nvarying vec3 vNormal;\n\n// Write your vertex shader here\nvoid main() {\n  // compute normal in world/view space and pass to fragment\n  vNormal = normalize(normalMatrix * normal);\n  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}",
-      "starterFragmentShader": "precision highp float;\nvarying vec3 vNormal;\n\n// Write your fragment shader here\nvoid main() {\n  vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));\n  vec3 baseColor = vec3(0.8, 0.4, 0.2);\n  float diffuse = max(dot(vNormal, lightDir), 0.0);\n  vec3 color = baseColor * diffuse;\n  gl_FragColor = vec4(color, 1.0);\n}"
+      "starterFragmentShader": "precision highp float;\nvarying vec3 vNormal;\n\n// Write your fragment shader here\nvoid main() {\n gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);\n}"
     },
   {
     "type": "2D",

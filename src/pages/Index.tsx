@@ -3,11 +3,27 @@ import lessonsData from "@/data/lessons.json";
 import { useParams } from "react-router-dom";
 
 const Index = () => {
-  const { id } = useParams();
+  const { idOrName } = useParams();
   
-  // Get the specified lesson or default to first lesson
-  const lessonIndex = id ? parseInt(id) - 1 : 0;
-  const lesson = lessonsData.lessons[lessonIndex] || lessonsData.lessons[0];
+  const findLesson = () => {
+    if (!idOrName) return lessonsData.lessons[0];
+
+    // Try to parse as number first
+    const numericIndex = parseInt(idOrName) - 1;
+    if (!isNaN(numericIndex) && numericIndex >= 0) {
+      return lessonsData.lessons[numericIndex] || lessonsData.lessons[0];
+    }
+
+    // If not a number, try to match by name
+    const normalizedName = idOrName.toLowerCase();
+    const foundLesson = lessonsData.lessons.find(
+      lesson => lesson.title.toLowerCase() === normalizedName
+    );
+    
+    return foundLesson || lessonsData.lessons[0];
+  };
+
+  const lesson = findLesson();
 
   return <ShaderLesson lesson={lesson} />;
 };
