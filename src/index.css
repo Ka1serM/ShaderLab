@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 215 28% 8%;
+    --foreground: 210 20% 95%;
+
+    --card: 217 25% 12%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 217 25% 12%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 189 95% 52%;
+    --primary-foreground: 217 28% 8%;
+
+    --secondary: 217 25% 16%;
+    --secondary-foreground: 210 20% 95%;
+
+    --muted: 217 20% 18%;
+    --muted-foreground: 210 15% 60%;
+
+    --accent: 189 95% 52%;
+    --accent-foreground: 217 28% 8%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 20% 95%;
+
+    --border: 217 20% 20%;
+    --input: 217 20% 18%;
+    --ring: 189 95% 52%;
+
+    --radius: 0.5rem;
+
+    /* Code editor colors */
+    --code-bg: 217 28% 10%;
+    --code-line-number: 210 15% 40%;
+    --code-keyword: 282 85% 70%;
+    --code-type: 189 95% 52%;
+    --code-function: 140 60% 60%;
+    --code-string: 40 90% 65%;
+    --code-comment: 210 15% 50%;
+
+    /* Custom semantic tokens */
+    --editor-bg: 217 28% 10%;
+    --panel-bg: 217 25% 12%;
+    --panel-border: 217 20% 20%;
+    --output-bg: 0 0% 85%;
+    
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    --background: 215 28% 8%;
+    --foreground: 210 20% 95%;
+
+    --card: 217 25% 12%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 217 25% 12%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 189 95% 52%;
+    --primary-foreground: 217 28% 8%;
+
+    --secondary: 217 25% 16%;
+    --secondary-foreground: 210 20% 95%;
+
+    --muted: 217 20% 18%;
+    --muted-foreground: 210 15% 60%;
+
+    --accent: 189 95% 52%;
+    --accent-foreground: 217 28% 8%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 20% 95%;
+
+    --border: 217 20% 20%;
+    --input: 217 20% 18%;
+    --ring: 189 95% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  }
+
+  code, pre {
+    font-family: 'Fira Code', 'Monaco', 'Courier New', monospace;
+  }
+}
+
+@layer utilities {
+  .code-editor {
+    @apply bg-[hsl(var(--editor-bg))] rounded-lg overflow-hidden;
+  }
+  
+  .panel {
+    @apply bg-[hsl(var(--panel-bg))] border border-[hsl(var(--panel-border))] rounded-lg;
+  }
+
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+}

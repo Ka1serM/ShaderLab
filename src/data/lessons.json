@@ -1,0 +1,36 @@
+{
+  "lessons": [
+    {
+      "type": "3D",
+      "title": "Lambert",
+      "task": "Erstelle ein Programm, das diffuse Beleuchtung basierend auf einer Richtungslichtquelle implementiert.",
+      "theory": "Lambert-Beleuchtung ist ein einfaches Modell für diffuse Lichtberechnung, bei dem die Helligkeit einer Oberfläche vom Winkel zwischen der Oberflächennormalen und der Richtung der Lichtquelle abhängt. In GLSL werden die Normalen der Vertices über `varying`-Variablen an den Fragment-Shader weitergegeben. Der diffuse Beleuchtungsfaktor wird als Skalarprodukt zwischen der normalisierten Normalen und der normalisierten Licht-Richtung berechnet. Anschließend multipliziert man die Basisfarbe der Oberfläche mit diesem Faktor, um die beleuchtete Farbe zu erhalten. Lambert-Beleuchtung erzeugt Oberflächen, die heller erscheinen, wenn sie dem Licht zugewandt sind, und dunkler, wenn sie abgewandt sind, wodurch ein realistischer diffuser Effekt entsteht.",
+      "hints": [
+        "Verwende eine `varying`-Variable, um die Vertex-Normalen vom Vertex-Shader an den Fragment-Shader weiterzugeben",
+        "Transformiere die Normalen korrekt mit der `normalMatrix` für eine richtige Beleuchtung",
+        "Berechne den Diffusfaktor mit dot(normal, lightDir)",
+        "Klippe den Diffuswert mit max(), um negative Beleuchtung zu vermeiden",
+        "Multipliziere die Basisfarbe mit dem Diffusfaktor, um die endgültige Beleuchtung zu erhalten"
+      ],
+      "expectedVertexShader": "precision highp float;\n\nattribute vec3 position;\nattribute vec3 normal;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\nuniform mat3 normalMatrix;\nvarying vec3 vNormal;\n\nvoid main() {\n  vNormal = normalize(normalMatrix * normal);\n  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}",
+      "expectedFragmentShader": "precision highp float;\nvarying vec3 vNormal;\n\nvoid main() {\n  vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));\n  vec3 baseColor = vec3(0.8, 0.4, 0.2);\n  float diffuse = max(dot(vNormal, lightDir), 0.0);\n  vec3 color = baseColor * diffuse;\n  gl_FragColor = vec4(color, 1.0);\n}",
+      "starterVertexShader": "precision highp float;\n\nattribute vec3 position;\nattribute vec3 normal;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\nuniform mat3 normalMatrix;\nvarying vec3 vNormal;\n\n// Write your vertex shader here\nvoid main() {\n  // compute normal in world/view space and pass to fragment\n  vNormal = normalize(normalMatrix * normal);\n  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}",
+      "starterFragmentShader": "precision highp float;\nvarying vec3 vNormal;\n\n// Write your fragment shader here\nvoid main() {\n  vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));\n  vec3 baseColor = vec3(0.8, 0.4, 0.2);\n  float diffuse = max(dot(vNormal, lightDir), 0.0);\n  vec3 color = baseColor * diffuse;\n  gl_FragColor = vec4(color, 1.0);\n}"
+    },
+  {
+    "type": "2D",
+    "title": "Color Mixing",
+    "task": "Erstelle einen Shader, der zwei Farben basierend auf der Vertex-Position mischt. Verwende die y-Koordinate, um zwischen einer unteren Farbe (blau) und einer oberen Farbe (gelb) zu interpolieren.",
+    "theory": "GLSL bietet die eingebaute Funktion mix() für lineare Interpolation zwischen zwei Werten. Die Funktion nimmt drei Parameter: mix(x, y, a) ergibt x*(1-a) + y*a.\n\nVarying-Variablen werden automatisch über die Oberfläche interpoliert. Wenn du an jedem Vertex unterschiedliche Werte setzt, erhält der Fragment-Shader interpolierte Werte über das Primitive.",
+    "hints": [
+      "Verwende eine `varying`-Variable, um die Vertex-Position vom Vertex-Shader an den Fragment-Shader weiterzugeben",
+      "Skaliere oder verschiebe die y-Koordinate, um sie in den Bereich 0–1 für den mix-Faktor zu bringen",
+      "Benutze die eingebaute mix()-Funktion, um die beiden Farben zu mischen"
+    ],
+    "expectedVertexShader": "precision highp float;\n\nattribute vec3 position;\nvarying float vY;\n\nvoid main() {\n  vY = (position.y + 1.0) * 0.5;\n  gl_Position = vec4(position.xy, 0.0, 1.0);\n}",
+    "expectedFragmentShader": "precision highp float;\nvarying float vY;\n\nvoid main() {\n  vec3 colorBottom = vec3(0.2, 0.4, 0.8);\n  vec3 colorTop = vec3(0.9, 0.9, 0.3);\n  vec3 color = mix(colorBottom, colorTop, vY);\n  gl_FragColor = vec4(color, 1.0);\n}",
+    "starterVertexShader": "precision highp float;\n\nattribute vec3 position;\nvarying float vY;\n\n// Pass position y for color mixing\nvoid main() {\n  vY = (position.y + 1.0) * 0.5;\n  gl_Position = vec4(position.xy, 0.0, 1.0);\n}",
+    "starterFragmentShader": "precision highp float;\nvarying float vY;\n\n// Mix colors based on vertex y-coordinate\nvoid main() {\n  vec3 colorBottom = vec3(0.2, 0.4, 0.8);\n  vec3 colorTop = vec3(0.9, 0.9, 0.3);\n  vec3 color = mix(colorBottom, colorTop, vY);\n  gl_FragColor = vec4(color, 1.0);\n}"
+  }
+  ]
+}
