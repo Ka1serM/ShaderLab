@@ -1,9 +1,9 @@
-import { useRef, useMemo } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 
-/* ------------------ Types ------------------ */
+export const SyncedOrbitControls = ({ cameraRef, sharedTarget, }: { cameraRef: React.MutableRefObject<THREE.PerspectiveCamera | null>; sharedTarget: THREE.Vector3; }) => { const controlsRef = useRef<any>(); useFrame(() => { if (!controlsRef.current || !cameraRef.current) return; cameraRef.current.position.copy(controlsRef.current.object.position); cameraRef.current.quaternion.copy(controlsRef.current.object.quaternion); controlsRef.current.target.copy(sharedTarget); }); useEffect(() => { if (!controlsRef.current) return; const callback = () => sharedTarget.copy(controlsRef.current.target); controlsRef.current.addEventListener("change", callback); return () => controlsRef.current.removeEventListener("change", callback); }, [sharedTarget]); return <OrbitControls ref={controlsRef} camera={cameraRef.current!} enableZoom enablePan enableRotate />; };
 
 interface ShaderError {
   line: number;
@@ -13,11 +13,10 @@ interface ShaderError {
 interface ShaderPreviewProps {
   vertexShader: string;
   fragmentShader: string;
-  type?: "3D" | "2D";
+  modelPath?: string;
+  sharedCameraRef?: React.MutableRefObject<THREE.PerspectiveCamera | null>;
   onError?: (errors: ShaderError[]) => void;
 }
-
-/* ------------------ GLSL Error Parser ------------------ */
 
 function parseGLSLErrors(message: string): ShaderError[] {
   const lines: ShaderError[] = [];
@@ -30,16 +29,17 @@ function parseGLSLErrors(message: string): ShaderError[] {
   return lines;
 }
 
-/* ------------------ ShaderMesh ------------------ */
-
-export const ShaderMesh = ({
+/* 3D Shader Renderer - REFACTORED */
+const Shader3D = ({
   vertexShader,
   fragmentShader,
-  type = "3D",
+  modelPath,
   onError,
-}: ShaderPreviewProps) => {
+  sharedCameraRef,
+}: Omit<ShaderPreviewProps, never>) => {
   const meshRef = useRef<THREE.Group>(null);
 
+  // Create the material only ONCE and keep a stable reference to it.
   const shaderMaterial = useMemo(() => {
     try {
       const mat = new THREE.RawShaderMaterial({
@@ -47,86 +47,98 @@ export const ShaderMesh = ({
         fragmentShader,
         uniforms: { time: { value: 0 } },
       });
-      onError?.([]); // clear previous errors
+      onError?.([]); // Clear errors on successful initial creation
       return mat;
     } catch (err: any) {
-      const errors = parseGLSLErrors(err.message || String(err));
-      onError?.(errors);
-      return new THREE.MeshBasicMaterial({ color: 0xff0000 }); // fallback
+      onError?.(parseGLSLErrors(err.message || String(err)));
+      // Return a fallback material if initial creation fails
+      return new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
     }
-  }, [vertexShader, fragmentShader, type, onError]);
+  }, []); // <-- Empty dependency array ensures this runs only once on mount.
 
-  // Update rotation + uniform time
-  useFrame((state) => {
-    if (type === "3D" && meshRef.current) {
-      if (shaderMaterial instanceof THREE.ShaderMaterial) {
-        shaderMaterial.uniforms.time.value = state.clock.elapsedTime;
+  // Use useEffect to UPDATE the existing material when shader props change.
+  useEffect(() => {
+    if (shaderMaterial instanceof THREE.RawShaderMaterial) {
+      shaderMaterial.vertexShader = vertexShader;
+      shaderMaterial.fragmentShader = fragmentShader;
+      // Tell Three.js to recompile the shader
+      shaderMaterial.needsUpdate = true;
+      onError?.([]); // Clear any previous errors on a successful update
+    }
+  }, [vertexShader, fragmentShader, shaderMaterial, onError]);
+
+  const { scene: originalScene } = useGLTF(modelPath as string);
+
+  // Clone and apply the material to the scene only ONCE when the model loads.
+  const scene = useMemo(() => {
+    const cloned = originalScene.clone(true);
+    cloned.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        // Dispose of the original materials that came with the model
+        if (Array.isArray(mesh.material)) {
+          mesh.material.forEach(m => m.dispose());
+        } else if (mesh.material) {
+          mesh.material.dispose();
+        }
+        // Apply our shader material
+        mesh.material = shaderMaterial;
       }
-      meshRef.current.rotation.y += 0.002;
+    });
+    return cloned;
+  }, [originalScene, shaderMaterial]); // Depends on the stable material instance
+
+  // Cleanup material only on component unmount
+  useEffect(() => {
+    return () => {
+      shaderMaterial.dispose();
+    };
+  }, [shaderMaterial]);
+
+  useFrame((state) => {
+    if (sharedCameraRef?.current) {
+      state.camera.position.copy(sharedCameraRef.current.position);
+      state.camera.quaternion.copy(sharedCameraRef.current.quaternion);
+    } else if (sharedCameraRef) {
+      sharedCameraRef.current = state.camera as THREE.PerspectiveCamera;
+    }
+
+    if (meshRef.current && shaderMaterial instanceof THREE.RawShaderMaterial) {
+      shaderMaterial.uniforms.time.value = state.clock.elapsedTime;
+      meshRef.current.rotation.y += 0.001;
     }
   });
 
-  // Load model and clone it for isolated copies
-  const { scene: originalScene } = useGLTF(`${import.meta.env.BASE_URL}models/HeadDavid.glb`);;
-  const scene = useMemo(() => originalScene.clone(true), [originalScene]);
-
-  // Apply shader material to each mesh
-  useMemo(() => {
-    scene.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        (child as THREE.Mesh).material = shaderMaterial;
-      }
-    });
-  }, [scene, shaderMaterial]);
-
-  // Optional 2D plane for fragment-only shaders
-  if (type === "2D") {
-    const positions = new Float32Array([
-      -1, -1, 0,
-       1, -1, 0,
-      -1,  1, 0,
-      -1,  1, 0,
-       1, -1, 0,
-       1,  1, 0,
-    ]);
-    const geometry = useMemo(() => {
-      const geom = new THREE.BufferGeometry();
-      geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-      return geom;
-    }, []);
-    return <mesh key="2d" material={shaderMaterial} geometry={geometry} />;
-  }
-
-  // 3D model
-  return <primitive key="3d" ref={meshRef} object={scene} />;
+  return <primitive ref={meshRef} object={scene} />;
 };
 
-useGLTF.preload(`${import.meta.env.BASE_URL}models/HeadDavid.glb`);
-
-/* ------------------ ShaderPreview ------------------ */
 export const ShaderPreview = ({
   vertexShader,
   fragmentShader,
-  type = "3D",
+  modelPath,
+  sharedCameraRef,
   onError,
 }: ShaderPreviewProps) => {
-  const cameraPosition: [number, number, number] = type === "3D" ? [0, 0, 3] : [0, 0, 1];
+  const target = useMemo(() => new THREE.Vector3(0, 0, 0), []);
+  const localCameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const cameraRef = sharedCameraRef ?? localCameraRef;
+  const finalModelPath = `${import.meta.env.BASE_URL}${modelPath}`
+
   return (
-    <div
-      className="w-full h-full bg-output-bg"
-      style={{ borderRadius: 16, overflow: "hidden" }}
-    >
-      <Canvas camera={{ position: cameraPosition, fov: 50 }}>
-        <ShaderMesh
+    <div className="absolute inset-0 w-full h-full bg-background rounded-xl overflow-hidden">
+      <Canvas
+        key={finalModelPath} //force full remount when model changes
+        camera={{ position: [0, 0, 3], fov: 50 }}
+      >
+        <Shader3D
           vertexShader={vertexShader}
           fragmentShader={fragmentShader}
-          type={type}
+          modelPath={finalModelPath}
+          sharedCameraRef={cameraRef}
           onError={onError}
         />
-        {type === "3D" && <OrbitControls enableZoom enablePan enableRotate />}
+        <SyncedOrbitControls cameraRef={cameraRef} sharedTarget={target} />
       </Canvas>
     </div>
   );
 };
-
-export default ShaderPreview;

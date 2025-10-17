@@ -5,7 +5,9 @@ import path from "path";
 export default defineConfig(({ mode }) => ({
   // use root during dev so `npm run dev` works; use repo base for production builds
   base: mode === "development" ? "/" : "/ShaderLab/",
-  plugins: [react()],
+  plugins: [
+    react()
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

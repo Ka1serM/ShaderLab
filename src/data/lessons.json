@@ -2,34 +2,54 @@
   "lessons": [
     {
       "type": "3D",
+      "modelPath": "models/HeadDavid.glb",
       "title": "Lambert",
-      "task": "Erstelle ein Programm, das diffuse Beleuchtung basierend auf einer Richtungslichtquelle implementiert.",
-      "theory": "Lambert-Beleuchtung ist ein einfaches Modell für diffuse Lichtberechnung, bei dem die Helligkeit einer Oberfläche vom Winkel zwischen der Oberflächennormalen und der Richtung der Lichtquelle abhängt. In GLSL werden die Normalen der Vertices über `varying`-Variablen an den Fragment-Shader weitergegeben. Der diffuse Beleuchtungsfaktor wird als Skalarprodukt zwischen der normalisierten Normalen und der normalisierten Licht-Richtung berechnet. Anschließend multipliziert man die Basisfarbe der Oberfläche mit diesem Faktor, um die beleuchtete Farbe zu erhalten. Lambert-Beleuchtung erzeugt Oberflächen, die heller erscheinen, wenn sie dem Licht zugewandt sind, und dunkler, wenn sie abgewandt sind, wodurch ein realistischer diffuser Effekt entsteht.",
       "hints": [
         "Transformiere die Normalen korrekt mit der `normalMatrix` für eine richtige Beleuchtung",
         "Berechne den Diffusfaktor mit dot(normal, lightDir)",
         "Klippe den Diffuswert mit max(), um negative Beleuchtung zu vermeiden",
         "Multipliziere die Basisfarbe mit dem Diffusfaktor, um die endgültige Beleuchtung zu erhalten"
       ],
-      "expectedVertexShader": "precision highp float;\n\nattribute vec3 position;\nattribute vec3 normal;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\nuniform mat3 normalMatrix;\nvarying vec3 vNormal;\n\nvoid main() {\n  vNormal = normalize(normalMatrix * normal);\n  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}",
-      "expectedFragmentShader": "precision highp float;\nvarying vec3 vNormal;\n\nvoid main() {\n  vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));\n  vec3 baseColor = vec3(0.8, 0.4, 0.2);\n  float diffuse = max(dot(vNormal, lightDir), 0.0);\n  vec3 color = baseColor * diffuse;\n  gl_FragColor = vec4(color, 1.0);\n}",
+      "task": "<p>Erstelle ein Programm, das diffuse Beleuchtung basierend auf einer Richtungslichtquelle implementiert.  </p>\n<ul>\n<li>erster Stichpunkt</li>\n<li>zweiter Stichpunkt</li>\n</ul>\n",
+      "theory": "<p>Lambert-Beleuchtung ist ein einfaches Modell für diffuse Lichtberechnung, bei dem die Helligkeit einer Oberfläche vom Winkel zwischen der <strong>Oberflächennormalen</strong> und der <strong>Richtung der Lichtquelle</strong> abhängt.</p>\n<p>In <strong>GLSL</strong> werden die Normalen der Vertices über <code>varying</code>-Variablen an den Fragment-Shader weitergegeben. Der diffuse Beleuchtungsfaktor wird als <strong>Skalarprodukt</strong> zwischen der normalisierten Normalen und der normalisierten Licht-Richtung berechnet:</p>\n",
       "starterVertexShader": "precision highp float;\n\nattribute vec3 position;\nattribute vec3 normal;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\nuniform mat3 normalMatrix;\nvarying vec3 vNormal;\n\n// Write your vertex shader here\nvoid main() {\n  // compute normal in world/view space and pass to fragment\n  vNormal = normalize(normalMatrix * normal);\n  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}",
-      "starterFragmentShader": "precision highp float;\nvarying vec3 vNormal;\n\n// Write your fragment shader here\nvoid main() {\n gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);\n}"
+      "starterFragmentShader": "precision highp float;\nvarying vec3 vNormal;\n\n// Write your fragment shader here\nvoid main() {\n gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);\n}",
+      "referenceVertexShader": "precision highp float;\n\nattribute vec3 position;\nattribute vec3 normal;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\nuniform mat3 normalMatrix;\nvarying vec3 vNormal;\n\nvoid main() {\n  vNormal = normalize(normalMatrix * normal);\n  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}",
+      "referenceFragmentShader": "precision highp float;\nvarying vec3 vNormal;\n\nvoid main() {\n  vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));\n  vec3 baseColor = vec3(0.8, 0.4, 0.2);\n  float diffuse = max(dot(vNormal, lightDir), 0.0);\n  vec3 color = baseColor * diffuse;\n  gl_FragColor = vec4(color, 1.0);\n}"
     },
-  {
-    "type": "2D",
-    "title": "Color Mixing",
-    "task": "Erstelle einen Shader, der zwei Farben basierend auf der Vertex-Position mischt. Verwende die y-Koordinate, um zwischen einer unteren Farbe (blau) und einer oberen Farbe (gelb) zu interpolieren.",
-    "theory": "GLSL bietet die eingebaute Funktion mix() für lineare Interpolation zwischen zwei Werten. Die Funktion nimmt drei Parameter: mix(x, y, a) ergibt x*(1-a) + y*a.\n\nVarying-Variablen werden automatisch über die Oberfläche interpoliert. Wenn du an jedem Vertex unterschiedliche Werte setzt, erhält der Fragment-Shader interpolierte Werte über das Primitive.",
-    "hints": [
-      "Verwende eine `varying`-Variable, um die Vertex-Position vom Vertex-Shader an den Fragment-Shader weiterzugeben",
-      "Skaliere oder verschiebe die y-Koordinate, um sie in den Bereich 0–1 für den mix-Faktor zu bringen",
-      "Benutze die eingebaute mix()-Funktion, um die beiden Farben zu mischen"
-    ],
-    "expectedVertexShader": "precision highp float;\n\nattribute vec3 position;\nvarying float vY;\n\nvoid main() {\n  vY = (position.y + 1.0) * 0.5;\n  gl_Position = vec4(position.xy, 0.0, 1.0);\n}",
-    "expectedFragmentShader": "precision highp float;\nvarying float vY;\n\nvoid main() {\n  vec3 colorBottom = vec3(0.2, 0.4, 0.8);\n  vec3 colorTop = vec3(0.9, 0.9, 0.3);\n  vec3 color = mix(colorBottom, colorTop, vY);\n  gl_FragColor = vec4(color, 1.0);\n}",
-    "starterVertexShader": "precision highp float;\n\nattribute vec3 position;\nvarying float vY;\n\n// Pass position y for color mixing\nvoid main() {\n  vY = (position.y + 1.0) * 0.5;\n  gl_Position = vec4(position.xy, 0.0, 1.0);\n}",
-    "starterFragmentShader": "precision highp float;\nvarying float vY;\n\n// Mix colors based on vertex y-coordinate\nvoid main() {\n  vec3 colorBottom = vec3(0.2, 0.4, 0.8);\n  vec3 colorTop = vec3(0.9, 0.9, 0.3);\n  vec3 color = mix(colorBottom, colorTop, vY);\n  gl_FragColor = vec4(color, 1.0);\n}"
-  }
+    {
+      "type": "3D",
+      "modelPath": "models/HeadDavid.glb",
+      "title": "Phong",
+      "hints": [
+        "Transformiere die Normalen korrekt mit der `normalMatrix` für eine richtige Beleuchtung",
+        "Berechne die diffuse Komponente mit `dot(normal, lightDir)` und clamp sie mit `max()`",
+        "Berechne die specular Komponente mit `pow(max(dot(reflectDir, viewDir), 0.0), shininess)`",
+        "Addiere ambient, diffuse und specular Komponente, um die endgültige Beleuchtung zu erhalten"
+      ],
+      "task": "<p>Erstelle ein Programm, das <strong>Phong-Beleuchtung</strong> basierend auf einer Richtungslichtquelle implementiert.  </p>\n<ul>\n<li>erster Stichpunkt</li>\n<li>zweiter Stichpunkt</li>\n</ul>\n",
+      "theory": "<p>Phong-Beleuchtung ist ein Modell für diffuse und spiegelnde Beleuchtung. Die Helligkeit einer Oberfläche hängt von drei Komponenten ab:</p>\n<ol>\n<li><strong>Ambient</strong>: Grundhelligkeit der Szene</li>\n<li><strong>Diffuse</strong>: Helligkeit basierend auf dem Winkel zwischen Normalen und Lichtquelle</li>\n<li><strong>Specular</strong>: Glanzlichter basierend auf dem Winkel zwischen reflektiertem Licht und Blickrichtung</li>\n</ol>\n<p>In <strong>GLSL</strong> werden die Normalen der Vertices über <code>varying</code>-Variablen an den Fragment-Shader weitergegeben. Diffuse und specular werden berechnet und dann mit der Basisfarbe kombiniert.</p>\n",
+      "starterVertexShader": "precision highp float;\n\nattribute vec3 position;\nattribute vec3 normal;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\nuniform mat3 normalMatrix;\nvarying vec3 vNormal;\nvarying vec3 vPosition;\n\nvoid main() {\n  // compute normal in view space\n  vNormal = normalize(normalMatrix * normal);\n  vPosition = vec3(modelViewMatrix * vec4(position, 1.0));\n  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}",
+      "starterFragmentShader": "precision highp float;\nvarying vec3 vNormal;\nvarying vec3 vPosition;\n\n// Write your fragment shader here\nvoid main() {\n  gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);\n}",
+      "referenceVertexShader": "precision highp float;\n\nattribute vec3 position;\nattribute vec3 normal;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\nuniform mat3 normalMatrix;\nvarying vec3 vNormal;\nvarying vec3 vPosition;\n\nvoid main() {\n  vNormal = normalize(normalMatrix * normal);\n  vPosition = vec3(modelViewMatrix * vec4(position, 1.0));\n  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}",
+      "referenceFragmentShader": "precision highp float;\nvarying vec3 vNormal;\nvarying vec3 vPosition;\n\nvoid main() {\n  vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));\n  vec3 viewDir = normalize(-vPosition);\n  vec3 baseColor = vec3(0.8, 0.4, 0.2);\n\n  // Diffuse\n  float diffuse = max(dot(vNormal, lightDir), 0.0);\n\n  // Specular\n  vec3 reflectDir = reflect(-lightDir, vNormal);\n  float specular = pow(max(dot(reflectDir, viewDir), 0.0), 32.0);\n\n  // Ambient\n  vec3 ambient = vec3(0.1);\n\n  vec3 color = ambient + baseColor * diffuse + specular * vec3(1.0);\n  gl_FragColor = vec4(color, 1.0);\n}"
+    },
+    {
+      "type": "2D",
+      "modelPath": "models/Cube.glb",
+      "title": "SDF Circle",
+      "hints": [
+        "Berechne den Abstand von jedem Pixel zum Zentrum der Fläche",
+        "Verwende `length(position - center)` für den Abstand",
+        "Verwende `smoothstep()` für weiche Kanten",
+        "Setze die Farbe basierend auf dem Vorzeichen des Abstands"
+      ],
+      "task": "<p>Erstelle ein Fragment-Shader-Programm, das einen <strong>Signed Distance Field (SDF) Kreis</strong> zeichnet.  </p>\n<ul>\n<li>Berechne für jedes Pixel den Abstand zum Kreis-Zentrum</li>\n<li>Färbe die Pixel innerhalb des Kreises anders als die außerhalb</li>\n</ul>\n",
+      "theory": "<p>Signed Distance Fields (SDFs) speichern für jedes Pixel den <strong>Abstand zur nächstgelegenen Oberfläche</strong>.  </p>\n<ul>\n<li>Negative Werte: innerhalb des Objekts  </li>\n<li>Positive Werte: außerhalb des Objekts  </li>\n<li>Null: auf der Kontur</li>\n</ul>\n<p>Für einen Kreis: <code>distance = length(pixelPos - center) - radius</code>.<br>Die Farbe kann dann z.B. über <code>smoothstep()</code> interpoliert werden, um weiche Kanten zu erzeugen.</p>\n",
+      "starterVertexShader": "precision highp float;\n\nattribute vec3 position;\nattribute vec3 normal;\nattribute vec2 uv;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\nuniform mat3 normalMatrix;\nvarying vec2 vUV;\nvarying vec3 vNormal;\n\nvoid main() {\n    vUV = uv;\n    vNormal = normalize(normalMatrix * normal);\n    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}",
+      "starterFragmentShader": "precision highp float;\n\nvarying vec2 vUV;\n\nvoid main() {\n    // Simple placeholder: just a dark gray background\n    gl_FragColor = vec4(0.1, 0.1, 0.1, 1.0);\n}",
+      "referenceVertexShader": "precision highp float;\n\nattribute vec3 position;\nattribute vec3 normal;\nattribute vec2 uv;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\nuniform mat3 normalMatrix;\nvarying vec2 vUV;\nvarying vec3 vNormal;\n\nvoid main() {\n    vUV = uv;\n    vNormal = normalize(normalMatrix * normal);\n    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}",
+      "referenceFragmentShader": "precision highp float;\n\nvarying vec2 vUV;\n\nvec2 center = vec2(0.5, 0.5);\nfloat radius = 0.25;\n\nvoid main() {\n    float dist = length(vUV - center);\n\n    // Solid red circle\n    vec3 color = dist < radius ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 0.0);\n    gl_FragColor = vec4(color, 1.0);\n}"
+    }
   ]
 }
