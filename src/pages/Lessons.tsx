@@ -26,7 +26,7 @@ export const Lessons = () => {
   {/* Search bar */}
   <div className="p-6 flex justify-center border-b border-border bg-card/50 backdrop-blur-sm">
     <div className="relative w-full max-w-xl">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-background w-5 h-5" />
       <Input
         type="text"
         placeholder="Aufgaben Filter..."
@@ -52,13 +52,13 @@ export const Lessons = () => {
                 {lesson.title}
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-muted-foreground line-clamp-3">
+            <CardContent className="text-sm text-muted-background line-clamp-3">
               {lesson.task.replace(/<[^>]+>/g, "").slice(0, 120)}...
             </CardContent>
           </Card>
         ))
       ) : (
-        <p className="text-center text-muted-foreground col-span-full">
+        <p className="text-center text-muted-background col-span-full">
           No lessons found.
         </p>
       )}

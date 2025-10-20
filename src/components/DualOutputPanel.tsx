@@ -1,23 +1,17 @@
-// DualOutputPanel.tsx
+// components/DualOutputPanel.tsx
 import { useRef } from "react";
 import { ShaderPreview } from "./ShaderPreview";
 import * as THREE from "three";
+import { useLessonContext } from "@/contexts/LessonContext";
 
-interface DualOutputPanelProps {
-  referenceVertexShader: string;
-  referenceFragmentShader: string;
-  userVertexShader: string;
-  userFragmentShader: string;
-  modelPath: string;
-}
+export const DualOutputPanel = () => {
+  const {
+    lesson,
+    vertexShader,
+    fragmentShader,
+    setShaderErrors
+  } = useLessonContext();
 
-export const DualOutputPanel = ({
-  referenceVertexShader,
-  referenceFragmentShader,
-  userVertexShader,
-  userFragmentShader,
-  modelPath,
-}: DualOutputPanelProps) => {
   const sharedCameraRef = useRef<THREE.PerspectiveCamera | null>(null);
 
   return (
@@ -25,30 +19,33 @@ export const DualOutputPanel = ({
       <div className="grid grid-cols-2 gap-x-4 h-full">
         {/* Reference */}
         <div className="flex flex-col h-full">
-          <h3 className="text-xl font-medium text-muted-foreground pb-2">
+          <h3 className="text-xl font-medium text-muted-background pb-2">
             Reference
           </h3>
           <div className="relative flex-1">
             <ShaderPreview
-              vertexShader={referenceVertexShader}
-              fragmentShader={referenceFragmentShader}
+              vertexShader={lesson.referenceVertexShader}
+              fragmentShader={lesson.referenceFragmentShader}
               sharedCameraRef={sharedCameraRef}
-              modelPath={modelPath}
+              modelPath={lesson.modelPath}
+              type={lesson.type}
             />
           </div>
         </div>
 
         {/* User Output */}
         <div className="flex flex-col h-full">
-          <h3 className="text-xl font-medium text-muted-foreground pb-2">
+          <h3 className="text-xl font-medium text-muted-background pb-2">
             Output
           </h3>
           <div className="relative flex-1">
             <ShaderPreview
-              vertexShader={userVertexShader}
-              fragmentShader={userFragmentShader}
+              vertexShader={vertexShader}
+              fragmentShader={fragmentShader}
               sharedCameraRef={sharedCameraRef}
-              modelPath={modelPath}
+              modelPath={lesson.modelPath}
+              onError={setShaderErrors}
+              type={lesson.type}
             />
           </div>
         </div>

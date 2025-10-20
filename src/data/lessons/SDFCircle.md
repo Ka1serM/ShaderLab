@@ -1,4 +1,5 @@
 ---
+category: Grundlagen Computergrafik
 type: 2D
 title: SDF Circle
 modelPath: models/Cube.glb
@@ -28,19 +29,21 @@ Die Farbe kann dann z.B. über `smoothstep()` interpoliert werden, um weiche Kan
 ```glsl
 precision highp float;
 
-attribute vec3 position;
-attribute vec3 normal;
-attribute vec2 uv;
+in vec3 position;
+in vec3 normal;
+in vec2 uv;
+
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 uniform mat3 normalMatrix;
-varying vec2 vUV;
-varying vec3 vNormal;
+
+out vec2 vUV;
+out vec3 vNormal;
 
 void main() {
     vUV = uv;
     vNormal = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    gl_Position = vec4(position, 1.0);
 }
 ```
 
@@ -48,11 +51,12 @@ void main() {
 ```glsl
 precision highp float;
 
-varying vec2 vUV;
+in vec2 vUV;
+out vec4 fragColor;
 
 void main() {
-    // Simple placeholder: just a dark gray background
-    gl_FragColor = vec4(0.1, 0.1, 0.1, 1.0);
+    // Simple placeholder: dark gray background
+    fragColor = vec4(0.1, 0.1, 0.1, 1.0);
 }
 ```
 
@@ -60,36 +64,40 @@ void main() {
 ```glsl
 precision highp float;
 
-attribute vec3 position;
-attribute vec3 normal;
-attribute vec2 uv;
+in vec3 position;
+in vec3 normal;
+in vec2 uv;
+
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 uniform mat3 normalMatrix;
-varying vec2 vUV;
-varying vec3 vNormal;
+
+out vec2 vUV;
+out vec3 vNormal;
 
 void main() {
     vUV = uv;
     vNormal = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    gl_Position = vec4(position, 1.0);
 }
 ```
 
 # Reference Fragment Shader
 ```glsl
+
 precision highp float;
 
-varying vec2 vUV;
-
-vec2 center = vec2(0.5, 0.5);
-float radius = 0.25;
+in vec2 vUV;
+out vec4 fragColor;
 
 void main() {
+    vec2 center = vec2(0.5, 0.5);
+    float radius = 0.25;
+
     float dist = length(vUV - center);
 
     // Solid red circle
     vec3 color = dist < radius ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 0.0);
-    gl_FragColor = vec4(color, 1.0);
+    fragColor = vec4(color, 1.0);
 }
 ```

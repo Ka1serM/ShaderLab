@@ -20,7 +20,7 @@ export const NotFound = () => {
       </h1>
 
       {/* Message */}
-      <p className="text-lg sm:text-xl text-center text-muted-foreground mb-6 max-w-md">
+      <p className="text-lg sm:text-xl text-center text-muted-background mb-6 max-w-md">
         Oops! Die Seite <span className="font-medium">{location.pathname}</span> existiert leider nicht. 
         Wie bist du denn hier gelandet? ;)
       </p>

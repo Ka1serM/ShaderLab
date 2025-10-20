@@ -34,12 +34,13 @@ const lessons = files.map(file => {
   if (currentKey) sections[currentKey] = buffer.join("\n").trim();
 
   return {
+    category: data.category,
     type: data.type,
     modelPath: data.modelPath,
     title: data.title,
     hints: data.hints || [],
-    task: marked(sections["Task"] || ""),
-    theory: marked(sections["Theory"] || ""),
+    task: sections["Task"] || "",
+    theory: sections["Theory"] || "",
     starterVertexShader: stripCodeFences(sections["Starter Vertex Shader"] || ""),
     starterFragmentShader: stripCodeFences(sections["Starter Fragment Shader"] || ""),
     referenceVertexShader: stripCodeFences(sections["Reference Vertex Shader"] || ""),
