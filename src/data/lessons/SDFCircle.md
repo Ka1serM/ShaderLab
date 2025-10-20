@@ -84,19 +84,23 @@ void main() {
 
 # Reference Fragment Shader
 ```glsl
-
 precision highp float;
 
 in vec2 vUV;
 out vec4 fragColor;
 
+uniform vec2 iResolution;
+
 void main() {
-    vec2 center = vec2(0.5, 0.5);
-    float radius = 0.25;
+    // Normalize UV to -1..1 and correct for aspect ratio
+    vec2 uv = vUV * 2.0 - 1.0;
+    uv.x *= iResolution.x / iResolution.y;
 
-    float dist = length(vUV - center);
+    vec2 center = vec2(0.0, 0.0);
+    float radius = 0.5;
 
-    // Solid red circle
+    float dist = length(uv - center);
+
     vec3 color = dist < radius ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 0.0);
     fragColor = vec4(color, 1.0);
 }

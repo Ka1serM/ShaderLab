@@ -1,54 +1,106 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@import "katex/dist/katex.min.css";
 
-/* Allow flex children to actually shrink (precaution) */
-.min-w-0 { min-width: 0; } /* Tailwind v3 has this utility, but keep as fallback */
-
-/* KaTeX block equations: don't expand the page, let them scroll inside themselves */
-.katex-display {
-  display: block;             /* ensure it's a block box */
-  max-width: 100%;            /* never wider than container */
-  overflow-x: auto;          /* horizontal scroll inside the equation if it is too wide */
-  -webkit-overflow-scrolling: touch;
-  margin: 1rem 0;
-}
-
-/* Don't force wrapping inside the rendered katex component, keep it single-line (so it can scroll) */
-.katex-display > .katex {
-  white-space: nowrap;
-}
-
-/* Inline math should wrap like normal text; but if it overflows, it will break due to 'break-words' */
-.katex {
-  color: hsl(var(--foreground));
-  font-size: 1em;
-}
-
-/* Prose tweaks (if you're using the prose class from @tailwindcss/typography) */
+/* Force prose container to respect parent bounds */
 .prose {
-  /* remove default max width that can conflict with our layout */
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+/* Critical: Handle KaTeX math overflow */
+.prose .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  margin: 1em 0;
+}
+
+.prose .katex {
+  font-size: 1em;
+  white-space: normal;
+}
+
+/* Force KaTeX HTML rendering to wrap */
+.prose .katex .katex-html {
+  white-space: normal;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* Prevent inline math from overflowing */
+.prose .katex span {
   max-width: 100%;
 }
 
-/* If you want safer handling for extremely long tokens (URLs etc): */
-.break-words {
-  word-break: break-word;
-  overflow-wrap: anywhere;
+/* Handle long equations by allowing scroll */
+.prose .katex-display > .katex {
+  display: inline-block;
+  max-width: 100%;
+  text-align: left;
 }
 
-/* Optional: hide tiny visual overflow artifacts coming from math render */
-.prose :where(.katex, .katex-display) {
+/* Handle code blocks */
+.prose pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.prose code {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
+/* Handle tables */
+.prose table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Handle images */
+.prose img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Handle iframes and embedded content */
+.prose iframe,
+.prose video,
+.prose embed,
+.prose object {
+  max-width: 100%;
+}
+
+/* Ensure all children respect bounds */
+.prose * {
+  max-width: 100%;
   box-sizing: border-box;
-  min-width: 0;
 }
 
+/* Fix for very long words or URLs */
+.prose p,
+.prose li,
+.prose td,
+.prose th {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+.prose {
+  container-type: inline-size;
+}
 
+.katex-display {
+  -webkit-overflow-scrolling: touch;
+}
 
 @layer base {
   :root {
@@ -86,6 +138,46 @@ All colors MUST be HSL.
     --panel-bg: 0 0% 98%;
     --panel-border: 210 15% 85%;
     --output-bg: 210 15% 97%;
+  }
+
+  .dark {
+    --background: 215 28% 8%;
+    --foreground: 210 20% 95%;
+
+    --panel-bg: 217 25% 12%;
+    --panel-border: 217 25% 12%;
+
+    --card: 217 25% 12%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 217 25% 12%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 189 95% 52%;
+    --primary-foreground: 217 28% 8%;
+
+    --secondary: 217 25% 16%;
+    --secondary-foreground: 210 20% 95%;
+
+    --muted: 217 20% 18%;
+    --muted-foreground: 210 15% 60%;
+
+    --accent: 189 95% 52%;
+    --accent-foreground: 217 28% 8%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 20% 95%;
+
+    --border: 217 20% 20%;
+    --input: 217 20% 18%;
+    --ring: 189 95% 52%;
+
+    /* For Firefox */
+    scrollbar-color: hsl(217, 25%, 35%) hsl(215, 28%, 8%);
+    scrollbar-width: thin;
+    /* For WebKit browsers */
+    --scrollbar-track: hsl(215, 28%, 8%);
+    --scrollbar-thumb: hsl(217, 25%, 35%);
   }
 }
 

@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-export const Lessons = () => {
+export const Tasks = () => {
   const navigate = useNavigate();
   const lessons = lessonsData.lessons || [];
 
@@ -29,7 +29,7 @@ export const Lessons = () => {
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-background w-5 h-5" />
       <Input
         type="text"
-        placeholder="Aufgaben Filter..."
+        placeholder="Task Filter..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="pl-10 py-6 rounded-2xl text-base shadow-sm focus-visible:ring-1"
@@ -53,7 +53,7 @@ export const Lessons = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-background line-clamp-3">
-              {lesson.task.replace(/<[^>]+>/g, "").slice(0, 120)}...
+              {lesson.task.replace(/<[^>]+>/g, "").slice(0, 90)}...
             </CardContent>
           </Card>
         ))

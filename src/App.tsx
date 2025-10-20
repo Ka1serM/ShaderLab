@@ -1,15 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Lessons } from "@/pages/Lessons";
-import { Lesson } from "@/pages/Lesson";
+import { Tasks } from "@/pages/Tasks";
+import { Task } from "@/pages/Task";
 import { MainLayout } from "@/layouts/MainLayout";
 import { NotFound } from "@/pages/NotFound";
-
-export const ROUTES = {
-  ROOT: '/',
-  LESSONS: '/tasks',
-  LESSON: '/task/:idOrName',
-} as const;
 
 const queryClient = new QueryClient();
 
@@ -18,13 +12,13 @@ export const App = () => (
     <BrowserRouter basename={import.meta.env.DEV ? "/" : "/ShaderLab"}>
       <Routes>
         <Route element={<MainLayout />}>
-          <Route path={ROUTES.ROOT} element={<Navigate to={ROUTES.LESSONS} replace />} />
+          <Route path='/' element={<Navigate to='/tasks' replace />} />
 
-          {/* All lessons list */}
-          <Route path={ROUTES.LESSONS} element={<Lessons />} />
+          {/* All tasks list */}
+          <Route path='/tasks' element={<Tasks />} />
 
-          {/* Individual lesson view */}
-          <Route path={ROUTES.LESSON} element={<Lesson />} />
+          {/* Individual task view */}
+          <Route path='/task/:idOrName' element={<Task />} />
 
           {/* Fallback */}
           <Route path="*" element={<NotFound />} />

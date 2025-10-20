@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useMemo, useEffect, ReactNode } from "react";
 import { useParams } from "react-router-dom";
 import lessonsData from "@/data/lessons.json";
+import * as THREE from "three";
+import { useRef } from "react";
 
 export interface Lesson {
   title: string;
@@ -12,6 +14,7 @@ export interface Lesson {
   referenceVertexShader: string;
   referenceFragmentShader: string;
   modelPath: string;
+  instanceCount: number;
   type: "2D" | "3D";
 }
 
@@ -57,7 +60,6 @@ export const processShaderErrors = (rawErrors: RawShaderError[]): ShaderError[] 
   return parsed;
 };
 
-
 interface LessonContextType {
   lesson: Lesson;
   allLessons: Lesson[];
@@ -67,10 +69,9 @@ interface LessonContextType {
   setFragmentShader: (s: string) => void;
   shaderErrors: ShaderError[];
   setShaderErrors: (raw: RawShaderError[]) => void;
-  horizontalSizes: number[];
-  verticalSizes: number[];
-  setHorizontalSizes: (sizes: number[]) => void;
-  setVerticalSizes: (sizes: number[]) => void;
+
+  sharedCameraRef: React.MutableRefObject<THREE.PerspectiveCamera | null>;
+  sharedTargetRef: React.MutableRefObject<THREE.Vector3>;
 }
 
 const LessonContext = createContext<LessonContextType | undefined>(undefined);
@@ -83,6 +84,9 @@ export const useLessonContext = () => {
 
 export const LessonProvider = ({ children }: { children: ReactNode }) => {
   const { idOrName } = useParams();
+
+  const sharedCameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const sharedTargetRef = useRef(new THREE.Vector3(0, 0, 0));
 
   const findLesson = (): Lesson => {
     if (!idOrName) return lessonsData.lessons[0] as Lesson;
@@ -113,18 +117,6 @@ export const LessonProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => localStorage.setItem(`${lessonIdKey}-vertex`, vertexShader), [vertexShader, lessonIdKey]);
   useEffect(() => localStorage.setItem(`${lessonIdKey}-fragment`, fragmentShader), [fragmentShader, lessonIdKey]);
 
-  const [horizontalSizes, setHorizontalSizes] = useState<number[]>(() => {
-    const saved = localStorage.getItem("shader-hsplit");
-    return saved ? JSON.parse(saved) : [30, 70];
-  });
-  const [verticalSizes, setVerticalSizes] = useState<number[]>(() => {
-    const saved = localStorage.getItem("shader-vsplit");
-    return saved ? JSON.parse(saved) : [60, 40];
-  });
-
-  useEffect(() => localStorage.setItem("shader-hsplit", JSON.stringify(horizontalSizes)), [horizontalSizes]);
-  useEffect(() => localStorage.setItem("shader-vsplit", JSON.stringify(verticalSizes)), [verticalSizes]);
-
   const [shaderErrors, setShaderErrorsProcesed] = useState<ShaderError[]>([]);
 
   const setShaderErrors = (raw: RawShaderError[]) => {
@@ -143,10 +135,8 @@ export const LessonProvider = ({ children }: { children: ReactNode }) => {
         setFragmentShader,
         shaderErrors,
         setShaderErrors,
-        horizontalSizes,
-        verticalSizes,
-        setHorizontalSizes,
-        setVerticalSizes,
+        sharedCameraRef,
+        sharedTargetRef,
       }}
     >
       {children}

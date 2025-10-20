@@ -39,14 +39,19 @@ export const AppSidebar = () => {
     <Sidebar collapsible="icon" className="transition-none panel">
       {/* Header */}
       <SidebarHeader className="px-3 py-2">
-        <div className="flex items-center justify-between gap-2">
-          {open && <span className="font-semibold text-lg">ShaderLab</span>}
+        <div className="flex items-center justify-between">
+          {open && (
+            <div className="flex items-center gap-2">
+              <img src="./favicon.ico" alt="Logo" className="w-5 h-5 dark:invert" />
+              <span className="font-semibold text-lg">ShaderLab</span>
+            </div>
+          )}
           <button
             onClick={toggleSidebar}
-            className="p-1.5 rounded hover:bg-sidebar-accent transition-colors ml-auto"
+            className="rounded hover:bg-sidebar-accent transition-colors"
             title={open ? "Collapse sidebar" : "Expand sidebar"}
           >
-            {open ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
+            {open ? <PanelLeftClose className="p-1" /> : <PanelLeft className="p-1" />}
           </button>
         </div>
       </SidebarHeader>
@@ -55,8 +60,6 @@ export const AppSidebar = () => {
       <SidebarContent className="flex-1">
         {/* Home */}
         <SidebarGroup>
-          <SidebarGroupLabel>Home</SidebarGroupLabel>
-          <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
@@ -68,50 +71,55 @@ export const AppSidebar = () => {
                     }}
                   >
                     <Home className="w-4 h-4" />
-                    <span>Home</span>
+                    <span>Übersicht</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
-          </SidebarGroupContent>
         </SidebarGroup>
 
         {/* Lessons by Category */}
-        {Object.entries(lessonsByCategory).map(([category, lessons]) => (
-          <Collapsible key={category} defaultOpen className="group/collapsible">
-            <SidebarGroup>
-              <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex items-center justify-between w-full">
-                  <span>{category}</span>
-                  <ChevronDown className="ml-auto w-4 h-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                </CollapsibleTrigger>
-              </SidebarGroupLabel>
+        {Object.entries(lessonsByCategory).map(([category, lessons]) => {
+          return (
+            <Collapsible key={category} defaultOpen className="group/collapsible">
+              <SidebarGroup>
+                <SidebarGroupLabel asChild>
+                  <CollapsibleTrigger className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      {/* Always show the category text/icon */}
+                      <BookOpen className="w-4 h-4" />
+                      <span>{category}</span>
+                    </div>
+                    <ChevronDown className="ml-auto w-4 h-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                  </CollapsibleTrigger>
+                </SidebarGroupLabel>
 
-              <CollapsibleContent>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {lessons.map((lesson) => (
-                      <SidebarMenuItem key={lesson.title}>
-                        <SidebarMenuButton asChild>
-                          <a
-                            href={`/task/${lesson.title.toLowerCase()}`}
-                            onClick={(e) => {
-                              e.preventDefault()
-                              navigate(`/task/${lesson.title.toLowerCase()}`)
-                            }}
-                          >
-                            <BookOpen className="w-4 h-4" />
-                            <span>{lesson.title}</span>
-                          </a>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </CollapsibleContent>
-            </SidebarGroup>
-          </Collapsible>
-        ))}
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {lessons.map((lesson) => (
+                        <SidebarMenuItem key={lesson.title}>
+                          <SidebarMenuButton asChild>
+                            <a
+                              href={`/task/${lesson.title.toLowerCase()}`}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                navigate(`/task/${lesson.title.toLowerCase()}`)
+                              }}
+                            >
+                              <BookOpen />
+                              <span>{lesson.title}</span>
+                            </a>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </SidebarGroup>
+            </Collapsible>
+          )
+        })}
       </SidebarContent>
 
       {/* Footer */}
@@ -120,7 +128,7 @@ export const AppSidebar = () => {
           <SidebarMenuItem>
             <SidebarMenuButton>
               <User2 className="w-4 h-4" />
-              <span>Marcel</span>
+              {open && <span>Marcel</span>}
               <ChevronUp className="ml-auto w-4 h-4" />
             </SidebarMenuButton>
           </SidebarMenuItem>
