@@ -1,0 +1,184 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { Splitpanes, Pane } from 'svelte-splitpanes';
+  import TaskPanel from '$lib/components/TaskPanel.svelte';
+  import MonacoEditor from '$lib/components/MonacoEditor.svelte';
+  import DualShaderPreview from '$lib/components/DualShaderPreview.svelte';
+  import { taskStore } from '$lib/stores/taskStore';
+  import type { PageData } from './$types';
+
+  export let data: PageData;
+
+  let isMobile = false;
+
+  // Detect mobile and update on resize
+  const checkMobile = () => {
+    isMobile = window.innerWidth < 768;
+  };
+
+  onMount(() => {
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  });
+
+  $: if (data?.task) {
+    taskStore.init(data.task);
+  }
+</script>
+
+<div class="h-full w-full overflow-hidden">
+  {#if !isMobile}
+    <!-- Desktop: Split layout -->
+    <Splitpanes class="splitpanes-root" theme="my-theme">
+      <Pane size={35} minSize={20}>
+        <div class="pane-content">
+          <TaskPanel />
+        </div>
+      </Pane>
+
+      <Pane size={65} minSize={20}>
+        <div class="pane-content">
+          <Splitpanes horizontal class="splitpanes-nested" theme="my-theme">
+            <Pane size={60} minSize={20}>
+              <div class="pane-content">
+                <MonacoEditor />
+              </div>
+            </Pane>
+            <Pane size={40} minSize={20}>
+              <div class="pane-content">
+                <DualShaderPreview />
+              </div>
+            </Pane>
+          </Splitpanes>
+        </div>
+      </Pane>
+    </Splitpanes>
+  {:else}
+    <!-- Mobile: stacked layout -->
+    <div class="flex flex-col h-full overflow-auto gap-4 p-2">
+      <div class="pane-content min-h-[300px]">
+        <TaskPanel />
+      </div>
+      <div class="pane-content min-h-[300px]">
+        <MonacoEditor />
+      </div>
+      <div class="pane-content min-h-[300px]">
+        <DualShaderPreview />
+      </div>
+    </div>
+  {/if}
+</div>
+
+<style>
+/* Root container */
+:global(.splitpanes-root),
+:global(.splitpanes-nested) {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Pane wrapper */
+:global(.pane-content) {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* Pane background */
+:global(.splitpanes.my-theme .splitpanes__pane) {
+  background-color: transparent;
+  overflow: hidden !important;
+  box-sizing: border-box;
+}
+
+/* Vertical splitter (left-right) */
+:global(.splitpanes.my-theme.splitpanes--vertical > .splitpanes__splitter) {
+  width: 8px;
+  background-color: transparent;
+  cursor: col-resize;
+  position: relative;
+  z-index: 10;
+  transition: background-color 0.2s;
+}
+
+:global(.splitpanes.my-theme.splitpanes--vertical > .splitpanes__splitter:hover) {
+  background-color: rgba(74, 74, 74, 0.15);
+}
+
+/* Indicator for vertical splitter */
+:global(.splitpanes.my-theme.splitpanes--vertical > .splitpanes__splitter::before) {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 30px;
+  background-color: transparent;
+  border-radius: 2px;
+  pointer-events: none;
+  transition: background-color 0.2s;
+}
+
+:global(.splitpanes.my-theme.splitpanes--vertical > .splitpanes__splitter:hover::before) {
+  background-color: rgba(74, 74, 74, 0.4);
+}
+
+/* Horizontal splitter */
+:global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter) {
+  height: 8px;
+  background-color: transparent;
+  cursor: row-resize;
+  position: relative;
+  z-index: 10;
+  transition: background-color 0.2s;
+}
+
+:global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter:hover) {
+  background-color: rgba(74, 74, 74, 0.15);
+}
+
+/* Indicator for horizontal splitter */
+:global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter::before) {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 30px;
+  height: 2px;
+  background-color: transparent;
+  border-radius: 2px;
+  pointer-events: none;
+  transition: background-color 0.2s;
+}
+
+:global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter:hover::before) {
+  background-color: rgba(74, 74, 74, 0.4);
+}
+
+/* Increase hit area without visual change */
+:global(.splitpanes.my-theme .splitpanes__splitter::after) {
+  content: '';
+  position: absolute;
+  z-index: 1;
+}
+
+:global(.splitpanes.my-theme.splitpanes--vertical > .splitpanes__splitter::after) {
+  left: -10px;
+  right: -10px;
+  top: 0;
+  bottom: 0;
+}
+
+:global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter::after) {
+  left: 0;
+  right: 0;
+  top: -10px;
+  bottom: -10px;
+}
+</style>

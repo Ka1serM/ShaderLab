@@ -1,20 +1,10 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
-import path from "path";
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
 
-export default defineConfig(({ mode }) => ({
-  // use root during dev so `npm run dev` works; use repo base for production builds
-  base: mode === "development" ? "/" : "/ShaderLab/",
+export default defineConfig({
   plugins: [
-    react()
+    tailwindcss(),
+    sveltekit(),
   ],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
-  server: {
-    host: "::",
-    port: 8080,
-  },
-}));
+});
