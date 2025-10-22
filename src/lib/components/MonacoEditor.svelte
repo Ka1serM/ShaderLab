@@ -271,7 +271,7 @@ onDestroy(() => {
   onValueChange={handleTabChange}
   class="flex flex-col flex-1 min-h-0 overflow-hidden py-2"
 >
-<div class="flex items-center border-b px-6">
+<div class="flex items-center border-b">
  <!-- Tab triggers -->
 <Tabs.List class="h-10 justify-start bg-muted/25 p-0 gap-0">
     {#if task?.type === '3D'}

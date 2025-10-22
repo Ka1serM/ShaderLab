@@ -1,6 +1,8 @@
 // src/lib/stores/taskStore.ts
-import { writable, derived, get } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 import { browser } from '$app/environment';
+import tasks from '$lib/data/tasks.json';
+import { slugify } from '$lib/utils/slugify';
 
 export interface Task {
   title: string;
@@ -16,139 +18,148 @@ export interface Task {
   instanceCount?: number;
 }
 
-export interface LessonState {
-  task: Task | null;
-  vertexShader: string;
-  fragmentShader: string;
-  activeTab: 'vertex' | 'fragment';
-}
-
 function createTaskStore() {
-  const task = writable<Task | null>(null);
-  const vertexShader = writable<string>('');
-  const fragmentShader = writable<string>('');
-  const activeTab = writable<'vertex' | 'fragment'>('fragment');
+  const { subscribe, set, update } = writable<{
+    task: Task | null;
+    vertexShader: string;
+    fragmentShader: string;
+    activeTab: 'vertex' | 'fragment';
+  }>({
+    task: null,
+    vertexShader: '',
+    fragmentShader: '',
+    activeTab: 'fragment'
+  });
 
-  // Track if we're currently loading to prevent saving during init
-  let isLoading = false;
-  let storageUnsubscribe: (() => void) | null = null;
+  let autoSaveTimeout: number | null = null;
+  let currentTaskTitle: string | null = null;
 
-  // Derived store combining all fields
-  const store = derived(
-    [task, vertexShader, fragmentShader, activeTab],
-    ([$task, $vertex, $fragment, $tab]) => ({
-      task: $task,
-      vertexShader: $vertex,
-      fragmentShader: $fragment,
-      activeTab: $tab
-    })
-  );
-
-  function storageKey(task: Task, field: 'vertex' | 'fragment' | 'activeTab') {
-    return `shader-progress-${task.title.replace(/\s+/g, '_')}-${field}`;
+  function storageKey(taskTitle: string, field: string) {
+    return `shader-${taskTitle.replace(/\s+/g, '_')}-${field}`;
   }
 
-  function setupAutoSave(t: Task) {
-    // Clean up previous auto-save subscription if it exists
-    if (storageUnsubscribe) {
-      storageUnsubscribe();
-    }
-
-    // Auto-save to localStorage whenever values change (but not during loading)
-    storageUnsubscribe = derived(
-      [vertexShader, fragmentShader, activeTab],
-      ([$vertex, $fragment, $tab]) => ({ $vertex, $fragment, $tab })
-    ).subscribe(({ $vertex, $fragment, $tab }) => {
-      if (!browser || isLoading) return;
-      
+  function saveToStorage(taskTitle: string, vertex: string, fragment: string, tab: 'vertex' | 'fragment') {
+    if (!browser) return;
+    
+    // Debounce saves
+    if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+    
+    autoSaveTimeout = window.setTimeout(() => {
       try {
-        localStorage.setItem(storageKey(t, 'vertex'), $vertex);
-        localStorage.setItem(storageKey(t, 'fragment'), $fragment);
-        localStorage.setItem(storageKey(t, 'activeTab'), $tab);
+        localStorage.setItem(storageKey(taskTitle, 'vertex'), vertex);
+        localStorage.setItem(storageKey(taskTitle, 'fragment'), fragment);
+        localStorage.setItem(storageKey(taskTitle, 'tab'), tab);
       } catch (e) {
-        console.error('Failed to save to localStorage:', e);
+        console.error('Failed to save:', e);
       }
-    });
+    }, 300);
   }
 
   return {
-    task,
-    vertexShader,
-    fragmentShader,
-    activeTab,
-    subscribe: store.subscribe,
+    subscribe,
 
-    init(t: Task) {
-      if (!browser) return;
+    loadTask(slug: string) {
+      if (!browser) {
+        console.log('Not in browser, skipping loadTask');
+        return;
+      }
 
-      isLoading = true;
+      // Normalize slug for comparison
+      const normalizedSlug = slugify(slug);
+      
+      // Find task by matching normalized title
+      const task = (tasks as Task[]).find(t => 
+        slugify(t.title) === normalizedSlug
+      );
 
-      // Load from localStorage or use starter code
-      const savedVertex = localStorage.getItem(storageKey(t, 'vertex'));
-      const savedFragment = localStorage.getItem(storageKey(t, 'fragment'));
-      const savedTab = localStorage.getItem(storageKey(t, 'activeTab')) as 'vertex' | 'fragment' | null;
+      if (!task) {
+        console.error('Task not found for slug:', slug);
+        set({
+          task: null,
+          vertexShader: '',
+          fragmentShader: '',
+          activeTab: 'fragment'
+        });
+        return;
+      }
 
-      const vertex = savedVertex !== null ? savedVertex : t.starterVertexShader;
-      const fragment = savedFragment !== null ? savedFragment : t.starterFragmentShader;
-      const tab = savedTab ?? (t.type === '3D' ? 'vertex' : 'fragment');
+      // Skip if same task is already loaded
+      if (currentTaskTitle === task.title) {
+        console.log('Task already loaded:', task.title);
+        return;
+      }
 
-      // Set all values
-      task.set(t);
-      vertexShader.set(vertex);
-      fragmentShader.set(fragment);
-      activeTab.set(tab);
+      console.log('Loading task:', task.title);
+      currentTaskTitle = task.title;
 
-      // Setup auto-save for this task
-      setupAutoSave(t);
+      // Load saved state or use defaults
+      let vertex = task.starterVertexShader;
+      let fragment = task.starterFragmentShader;
+      let tab: 'vertex' | 'fragment' = task.type === '3D' ? 'vertex' : 'fragment';
 
-      // Allow saving after initial load
-      setTimeout(() => {
-        isLoading = false;
-      }, 0);
+      try {
+        const savedVertex = localStorage.getItem(storageKey(task.title, 'vertex'));
+        const savedFragment = localStorage.getItem(storageKey(task.title, 'fragment'));
+        const savedTab = localStorage.getItem(storageKey(task.title, 'tab')) as 'vertex' | 'fragment' | null;
+
+        if (savedVertex !== null) vertex = savedVertex;
+        if (savedFragment !== null) fragment = savedFragment;
+        if (savedTab !== null) tab = savedTab;
+      } catch (e) {
+        console.error('Failed to load saved state:', e);
+      }
+
+      set({
+        task,
+        vertexShader: vertex,
+        fragmentShader: fragment,
+        activeTab: tab
+      });
     },
 
     setVertexShader(code: string) {
-      const current = get(vertexShader);
-      if (current !== code) {
-        vertexShader.set(code);
-      }
+      const state = get({ subscribe });
+      if (!state.task || state.vertexShader === code) return;
+
+      update(s => ({ ...s, vertexShader: code }));
+      saveToStorage(state.task.title, code, state.fragmentShader, state.activeTab);
     },
 
     setFragmentShader(code: string) {
-      const current = get(fragmentShader);
-      if (current !== code) {
-        fragmentShader.set(code);
-      }
+      const state = get({ subscribe });
+      if (!state.task || state.fragmentShader === code) return;
+
+      update(s => ({ ...s, fragmentShader: code }));
+      saveToStorage(state.task.title, state.vertexShader, code, state.activeTab);
     },
 
     setActiveTab(tab: 'vertex' | 'fragment') {
-      const current = get(activeTab);
-      if (current !== tab) {
-        activeTab.set(tab);
-      }
+      const state = get({ subscribe });
+      if (!state.task || state.activeTab === tab) return;
+
+      update(s => ({ ...s, activeTab: tab }));
+      saveToStorage(state.task.title, state.vertexShader, state.fragmentShader, tab);
     },
 
     resetShader(type: 'vertex' | 'fragment') {
-      const t = get(task);
-      if (!t) return;
+      const state = get({ subscribe });
+      if (!state.task) return;
 
       if (type === 'vertex') {
-        vertexShader.set(t.starterVertexShader);
+        this.setVertexShader(state.task.starterVertexShader);
       } else {
-        fragmentShader.set(t.starterFragmentShader);
+        this.setFragmentShader(state.task.starterFragmentShader);
       }
     },
 
-    destroy() {
-      if (storageUnsubscribe) {
-        storageUnsubscribe();
-        storageUnsubscribe = null;
-      }
-      
-      task.set(null);
-      vertexShader.set('');
-      fragmentShader.set('');
-      activeTab.set('fragment');
+    reset() {
+      currentTaskTitle = null;
+      set({
+        task: null,
+        vertexShader: '',
+        fragmentShader: '',
+        activeTab: 'fragment'
+      });
     }
   };
 }

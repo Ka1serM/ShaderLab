@@ -4,6 +4,7 @@
   import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
   import type { Task } from '$lib/stores/taskStore';
+  import { base } from '$app/paths';
 
   export let task: Task;
   export let vertexShader: string;
@@ -56,11 +57,13 @@
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.screenSpacePanning = false;
-    controls.minDistance = 1;
-    controls.maxDistance = 100;
+    controls.minDistance = 0.5;
+    controls.maxDistance = 50;
     controls.maxPolarAngle = Math.PI;
-    if (sharedTargetRef) controls.target.copy(sharedTargetRef);
-    else sharedTargetRef = controls.target.clone();
+    if (sharedTargetRef)
+      controls.target.copy(sharedTargetRef);
+    else
+      sharedTargetRef = controls.target.clone();
     controls.update();
 
     // Handle resizing
@@ -147,24 +150,25 @@
       scene.add(mesh);
     }
 
+    // mesh loading
     if (task.type === '3D' && task.modelPath) {
-      loader.load(
-        `/${task.modelPath}`,
-        (gltf) => {
-          let foundGeometry: THREE.BufferGeometry | null = null;
-          gltf.scene.traverse((child) => {
-            if ((child as THREE.Mesh).isMesh && !foundGeometry) {
-              foundGeometry = (child as THREE.Mesh).geometry;
-            }
-          });
-          createMesh(foundGeometry ?? new THREE.BoxGeometry(1, 1, 1));
-        },
-        undefined,
-        () => createMesh(new THREE.BoxGeometry(1, 1, 1))
-      );
-    } else {
-      createMesh(new THREE.PlaneGeometry(2, 2));
-    }
+        loader.load(
+          `${base}/${task.modelPath}`,
+          (gltf) => {
+            let foundGeometry: THREE.BufferGeometry | null = null;
+            gltf.scene.traverse((child) => {
+              if ((child as THREE.Mesh).isMesh && !foundGeometry) {
+                foundGeometry = (child as THREE.Mesh).geometry;
+              }
+            });
+            createMesh(foundGeometry ?? new THREE.BoxGeometry(1, 1, 1));
+          },
+          undefined,
+          () => createMesh(new THREE.BoxGeometry(1, 1, 1))
+        );
+      } else {
+        createMesh(new THREE.PlaneGeometry(2, 2));
+      }
   }
 
   // --- Hot update shaders ---

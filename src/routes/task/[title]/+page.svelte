@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
+  import { page } from '$app/stores';
   import { Splitpanes, Pane } from 'svelte-splitpanes';
   import TaskPanel from '$lib/components/TaskPanel.svelte';
   import MonacoEditor from '$lib/components/MonacoEditor.svelte';
@@ -8,46 +10,59 @@
   import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 
   const mobileQuery = new IsMobile();
-
   export let data: PageData;
 
-  // Initialize the task store when data is available
-  $: if (data?.task) {
-    taskStore.init(data.task);
+  let mounted = false;
+
+  // Load task when slug changes
+  $: if (mounted && data.slug) {
+    taskStore.loadTask(data.slug);
   }
+
+  onMount(() => {
+    mounted = true;
+    if (data.slug) {
+      taskStore.loadTask(data.slug);
+    }
+  });
 </script>
 
-<div class="h-full w-full overflow-hidden">
-  {#if !mobileQuery.current}
-    <!-- Desktop layout -->
-    <Splitpanes class="splitpanes-root" theme="my-theme">
-      <Pane size={35} minSize={20}>
+{#if $taskStore.task}
+  <div class="h-full w-full overflow-hidden">
+    {#if !mobileQuery.current}
+      <!-- Desktop layout -->
+      <Splitpanes class="splitpanes-root" theme="my-theme">
+        <Pane size={35} minSize={20}>
+          <TaskPanel />
+        </Pane>
+        <Pane size={65} minSize={20}>
+          <Splitpanes horizontal class="splitpanes-nested" theme="my-theme">
+            <Pane size={60} minSize={20}>
+              <MonacoEditor />
+            </Pane>
+            <Pane size={40} minSize={20}>
+              <DualShaderPreview />
+            </Pane>
+          </Splitpanes>
+        </Pane>
+      </Splitpanes>
+    {:else}
+      <!-- Mobile layout -->
+      <div class="flex flex-col h-full overflow-auto gap-4 p-2">
         <TaskPanel />
-      </Pane>
-      <Pane size={65} minSize={20}>
-        <Splitpanes horizontal class="splitpanes-nested" theme="my-theme">
-          <Pane size={60} minSize={20}>
-            <MonacoEditor />
-          </Pane>
-          <Pane size={40} minSize={20}>
-            <DualShaderPreview />
-          </Pane>
-        </Splitpanes>
-      </Pane>
-    </Splitpanes>
-  {:else}
-    <!-- Mobile layout -->
-    <div class="flex flex-col h-full overflow-auto gap-4 p-2">
-      <TaskPanel />
-      <MonacoEditor />
-      <DualShaderPreview />
-    </div>
-  {/if}
-</div>
-
+        <MonacoEditor />
+        <DualShaderPreview />
+      </div>
+    {/if}
+  </div>
+{:else}
+  <div class="flex items-center justify-center h-full">
+    <p class="text-muted-foreground">Loading task...</p>
+  </div>
+{/if}
 
 <style>
-/* Root container */
+/* ... your existing styles ... */
 :global(.splitpanes-root),
 :global(.splitpanes-nested) {
   height: 100%;
@@ -55,7 +70,6 @@
   overflow: hidden;
 }
 
-/* Pane wrapper */
 :global(.pane-content) {
   width: 100%;
   height: 100%;
@@ -64,14 +78,12 @@
   box-sizing: border-box;
 }
 
-/* Pane background */
 :global(.splitpanes.my-theme .splitpanes__pane) {
   background-color: transparent;
   overflow: hidden !important;
   box-sizing: border-box;
 }
 
-/* Vertical splitter (left-right) */
 :global(.splitpanes.my-theme.splitpanes--vertical > .splitpanes__splitter) {
   width: 8px;
   background-color: transparent;
@@ -85,7 +97,6 @@
   background-color: rgba(74, 74, 74, 0.15);
 }
 
-/* Indicator for vertical splitter */
 :global(.splitpanes.my-theme.splitpanes--vertical > .splitpanes__splitter::before) {
   content: '';
   position: absolute;
@@ -104,7 +115,6 @@
   background-color: rgba(74, 74, 74, 0.4);
 }
 
-/* Horizontal splitter */
 :global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter) {
   height: 8px;
   background-color: transparent;
@@ -118,7 +128,6 @@
   background-color: rgba(74, 74, 74, 0.15);
 }
 
-/* Indicator for horizontal splitter */
 :global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter::before) {
   content: '';
   position: absolute;
@@ -133,11 +142,10 @@
   transition: background-color 0.2s;
 }
 
-:global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter:hover::before) {
+:global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter::before) {
   background-color: rgba(74, 74, 74, 0.4);
 }
 
-/* Increase hit area without visual change */
 :global(.splitpanes.my-theme .splitpanes__splitter::after) {
   content: '';
   position: absolute;

@@ -12,6 +12,9 @@ const config = {
     adapter: adapter({
       pages: 'build',
       assets: 'build',
+      fallback: '404.html',
+      precompress: false,
+      strict: true
     }),
     paths: {
       base: repoName // only base, not assets
