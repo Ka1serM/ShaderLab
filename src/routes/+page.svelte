@@ -17,4 +17,5 @@
 			</picture>
 		</span>
 	</h1>
+	<h2 class="text-xl font-semibold">to ShaderLab</h2>
 </section>

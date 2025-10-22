@@ -57,9 +57,9 @@
       <!-- Task Tab -->
       <Tabs.Content
         value="task"
-        class="flex-1 h-0 overflow-y-hidden overflow-x-hidden p-6 mt-0 space-y-4 data-[state=inactive]:hidden"
+        class="flex-1 h-0 overflow-y-auto overflow-x-hidden p-6 mt-0 space-y-4 data-[state=inactive]:hidden"
       >
-        <div class="prose dark:prose-invert min-w-0 w-full max-w-none">
+        <div class="prose prose-neutral dark:prose-invert max-w-none text-foreground">
           {@html $taskStore.task.task}
         </div>
 
@@ -94,14 +94,15 @@
       </Tabs.Content>
 
       <!-- Theory Tab -->
-      <Tabs.Content
-        value="theory"
-        class="flex-1 h-0 overflow-y-hidden overflow-x-hidden p-6 mt-0 data-[state=inactive]:hidden"
-      >
-        <div class="prose prose-xl dark:prose-invert min-w-0 w-full max-w-none">
-          {@html $taskStore.task.theory}
-        </div>
-      </Tabs.Content>
+<Tabs.Content
+  value="theory"
+  class="flex-1 h-0 overflow-y-auto overflow-x-hidden p-6 mt-0 space-y-4 data-[state=inactive]:hidden"
+>
+  <div class="prose prose-sm dark:prose-invert max-w-full">
+    {@html $taskStore.task.theory}
+  </div>
+</Tabs.Content>
+
     </Tabs.Root>
   {/if}
 </div>

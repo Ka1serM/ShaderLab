@@ -42,71 +42,22 @@ uniform float time;
 out vec3 vNormal;
 out vec3 vColor;
 
-// Helper functions
-mat4 translation(vec3 t) {
-    return mat4(
-        1.0, 0.0, 0.0, 0.0,
-        0.0, 1.0, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        t.x, t.y, t.z, 1.0
-    );
-}
-
-mat4 scale(vec3 s) {
-    return mat4(
-        s.x, 0.0, 0.0, 0.0,
-        0.0, s.y, 0.0, 0.0,
-        0.0, 0.0, s.z, 0.0,
-        0.0, 0.0, 0.0, 1.0
-    );
-}
-
-mat4 rotationZ(float angle) {
-    float c = cos(angle);
-    float s = sin(angle);
-    return mat4(
-        c, -s, 0.0, 0.0,
-        s,  c, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        0.0, 0.0, 0.0, 1.0
-    );
-}
-
 void main() {
     mat4 modelMatrix = mat4(1.0);
 
     if (gl_InstanceID == 0) {
         // --- Zahnrad A ---
-        vColor = vec3(1.0, 0.4, 0.2); // orange
-        mat4 rotA = rotationZ(time * 0.2 * 6.2831); // 1/10 Umdrehung pro Sekunde
-        mat4 transA = translation(vec3(20.0, 10.0, 0.0));
-        modelMatrix = transA * rotA;
 
     } else if (gl_InstanceID == 1) {
         // --- Zahnrad B ---
-        vColor = vec3(0.2, 0.6, 1.0); // blau
-        // Zahnrad B greift in A → gegenläufige Rotation
-        mat4 rotB = rotationZ(-time * 0.4 * 6.2831);
-        mat4 transB = translation(vec3(47.0, 2.0, 0.0));
-        modelMatrix = transB * rotB;
 
     } else if (gl_InstanceID == 2) {
         // --- Zahnrad C ---
-        vColor = vec3(0.7, 0.8, 0.2); // gelbgrün
-        // Zahnrad C greift in B → wieder gegenläufig
-        mat4 rotC = rotationZ(time * 0.8 * 6.2831);
-        mat4 transB = translation(vec3(47.0, 2.0, 0.0));
-        mat4 rotB = rotationZ(-time * 0.4 * 6.2831);
-        mat4 transformB = transB * rotB;
 
-        mat4 localC = translation(vec3(20.0, 12.0, 0.0)) * rotC * scale(vec3(10.0, 10.0, 1.0));
-        modelMatrix = transformB * localC;
     }
 
-    // Normals korrekt transformieren
-    mat3 normalMatrix = mat3(transpose(inverse(modelMatrix)));
-    vNormal = normalize(normalMatrix * normal);
-
+    vColor = vec3(1.0);
+    vNormal = normal;
     gl_Position = projectionMatrix * modelViewMatrix * modelMatrix * vec4(position, 1.0);
 }
 ```
@@ -121,7 +72,7 @@ in vec3 vColor;
 out vec4 fragColor;
 
 void main() {
-    vec3 lightDir = normalize(vec3(0.5, 0.5, 1.0));
+    vec3 lightDir = normalize(vec3(1.0, 0.5, 1.0));
     float diffuse = max(dot(normalize(vNormal), lightDir), 0.0);
     float ambient = 0.2;
     vec3 finalColor = vColor * (diffuse + ambient);
@@ -228,7 +179,7 @@ in vec3 vColor;
 out vec4 fragColor;
 
 void main() {
-    vec3 lightDir = normalize(vec3(0.5, 0.5, 1.0));
+    vec3 lightDir = normalize(vec3(1.0, 0.5, 1.0));
     float diffuse = max(dot(normalize(vNormal), lightDir), 0.0);
     float ambient = 0.2;
     vec3 finalColor = vColor * (diffuse + ambient);

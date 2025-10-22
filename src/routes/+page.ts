@@ -1,3 +1,2 @@
-import { dev } from '$app/environment';
-export const csr = dev;
-export const prerender = true;
+export const csr = true;       // Enable client-side JS
+export const prerender = false; // optional, only static HTML

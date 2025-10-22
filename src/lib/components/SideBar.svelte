@@ -4,7 +4,14 @@
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
   import { ModeWatcher, setMode } from "mode-watcher";
   import { slugify } from '$lib/utils/slugify';
-  
+  import * as Avatar from "$lib/components/ui/avatar/index.js";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
+  import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
+    import BadgeCheckIcon from "@lucide/svelte/icons/badge-check";
+  import LogOutIcon from "@lucide/svelte/icons/log-out";
+  import SparklesIcon from "@lucide/svelte/icons/sparkles";
+  import { Moon, Sun } from "lucide-svelte";
+
   import { 
     House, 
     BookOpen, 
@@ -18,14 +25,13 @@
   import tasks from "$lib/data/tasks.json";
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
-  import { browser } from "$app/environment";
   import { asset, resolve } from "$app/paths";
 
   // Get sidebar context
   const sidebar = useSidebar();
   
   // Safe access to sidebar state
-  let isOpen = $derived(browser && sidebar ? sidebar.open : true);
+  let isOpen = $derived(sidebar ? sidebar.open : true);
 
   // Group tasks by category
   const tasksByCategory = $derived(
@@ -58,9 +64,8 @@
 
   // Toggle sidebar
   function handleToggle() {
-    if (browser && sidebar) {
+    if (sidebar)
       sidebar.toggle();
-    }
   }
 
   // Theme state
@@ -84,7 +89,7 @@
             alt="ShaderLab Logo" 
             class="w-5 h-5 dark:invert" 
           />
-          <button onclick={toggleMode} class="font-semibold text-lg">ShaderLab</button>
+          <span class="font-semibold text-lg">ShaderLab</span>
         </div>
       {/if}
       
@@ -189,21 +194,76 @@
 
   <!-- Footer -->
   <Sidebar.Footer>
-    <Sidebar.Menu>
-      <Sidebar.MenuItem>
-        <Sidebar.MenuButton>
-          {#snippet child({ props })}
-            <div {...props}>
-              <UserRound class="w-4 h-4" />
-              {#if isOpen}
-                <span>Marcel</span>
-              {/if}
-              <ChevronUp class="ml-auto w-4 h-4" />
+<Sidebar.Menu>
+  <Sidebar.MenuItem>
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger>
+        {#snippet child({ props })}
+          <Sidebar.MenuButton
+            size="lg"
+            class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+            {...props}
+          >
+            <Avatar.Root class="size-8 rounded-lg">
+              <Avatar.Fallback class="rounded-lg">MK</Avatar.Fallback>
+            </Avatar.Root>
+            <div class="grid flex-1 text-left text-sm leading-tight">
+              <span class="truncate font-medium">User</span>
+              <span class="truncate text-xs">example@email.com</span>
             </div>
-          {/snippet}
-        </Sidebar.MenuButton>
-      </Sidebar.MenuItem>
-    </Sidebar.Menu>
+            <ChevronsUpDownIcon class="ml-auto size-4" />
+          </Sidebar.MenuButton>
+        {/snippet}
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content
+        class="w-(--bits-dropdown-menu-anchor-width) min-w-56 rounded-lg"
+        side={sidebar.isMobile ? "bottom" : "right"}
+        align="end"
+        sideOffset={4}
+      >
+        <DropdownMenu.Label class="p-0 font-normal">
+          <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+            <Avatar.Root class="size-8 rounded-lg">
+              <Avatar.Fallback class="rounded-lg">MK</Avatar.Fallback>
+            </Avatar.Root>
+            <div class="grid flex-1 text-left text-sm leading-tight">
+              <span class="truncate font-medium">User</span>
+              <span class="truncate text-xs">example@mail.com</span>
+            </div>
+          </div>
+        </DropdownMenu.Label>
+        <DropdownMenu.Separator />
+        <DropdownMenu.Group>
+          <DropdownMenu.Item>
+            <SparklesIcon />
+            Upgrade to Pro
+          </DropdownMenu.Item>
+        </DropdownMenu.Group>
+        <DropdownMenu.Separator />
+        <DropdownMenu.Group>
+          <DropdownMenu.Item>
+            <BadgeCheckIcon />
+            Account
+          </DropdownMenu.Item>
+          <DropdownMenu.Item onclick={toggleMode} >
+            {#if currentMode === 'dark'}
+              <Sun />
+              <span>Light Mode</span>
+            {:else}
+              <Moon />
+              <span>Dark Mode</span>
+            {/if}
+          </DropdownMenu.Item>
+        </DropdownMenu.Group>
+        <DropdownMenu.Separator />
+        <DropdownMenu.Item>
+          <LogOutIcon />
+          Log out
+        </DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
+  </Sidebar.MenuItem>
+</Sidebar.Menu>
   </Sidebar.Footer>
 
   <!-- Sidebar Rail (hover to expand when collapsed) -->

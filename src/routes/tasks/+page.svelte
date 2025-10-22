@@ -48,7 +48,7 @@ function getPreview(html: string, maxLength: number = 90): string {
       {#if filteredTasks.length > 0}
         {#each filteredTasks as task, index (task.title)}
           <Card.Root
-            class="hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer"
+            class="hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer pointer-events-auto"
             onclick={() => navigateToTask(task.title)}
             role="button"
             tabindex={0}

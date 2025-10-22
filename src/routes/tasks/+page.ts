@@ -1,9 +1,5 @@
-import { dev } from '$app/environment';
+// Enable client-side JS so reactivity works
+export const csr = true;
 
-// we don't need any JS on this page, though we'll load
-// it in dev so that we get hot module replacement
-export const csr = dev;
-
-// since there's no dynamic data here, we can prerender
-// it so that it gets served as a static asset in production
-export const prerender = true;
+// Optional: prerendering can still work if you want static HTML
+export const prerender = false; // or true if you don't mind the static version
