@@ -15,13 +15,14 @@ const config = {
       fallback: 'index.html' // for client-side routing
     }),
     paths: {
-      base: repoName // only base, not assets
+     // base: repoName // only base, not assets
     }
   },
 
-  alias: {
-    '@/*': './lib/*'
-  }
+	alias: {
+	"@lib/*": "./lib/*",
+	"@/*": "./src/*"
+	}
 };
 
 export default config;
