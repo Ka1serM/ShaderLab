@@ -12,17 +12,15 @@ const config = {
     adapter: adapter({
       pages: 'build',
       assets: 'build',
-      fallback: 'index.html' // for client-side routing
     }),
     paths: {
-     // base: repoName // only base, not assets
+      base: repoName // only base, not assets
     }
   },
 
-	alias: {
-	"@lib/*": "./lib/*",
-	"@/*": "./src/*"
-	}
+  alias: {
+    '@/*': './lib/*'
+  }
 };
 
 export default config;

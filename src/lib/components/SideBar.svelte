@@ -3,6 +3,7 @@
   import { useSidebar } from "$lib/components/ui/sidebar/index.js";
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
   import { ModeWatcher, setMode } from "mode-watcher";
+  import { slugify } from '$lib/utils/slugify';
   
   import { 
     House, 
@@ -46,7 +47,7 @@
   function navigateToTask(title: string) {
     return (e: MouseEvent) => {
       e.preventDefault();
-      goto(resolve('/task/[title]', { title }));
+      goto(resolve(`/task/${slugify(title)}`));
     };
   }
 
@@ -62,13 +63,13 @@
     }
   }
 
-// Theme state
-let currentMode: "light" | "dark" = "light";
-function toggleMode() { 
-  const newMode = currentMode === "dark" ? "light" : "dark"; 
-  currentMode = newMode;
-   setMode(newMode); 
-}
+  // Theme state
+  let currentMode: "light" | "dark" = "light";
+  function toggleMode() { 
+    const newMode = currentMode === "dark" ? "light" : "dark"; 
+    currentMode = newMode;
+    setMode(newMode); 
+  }
 </script>
 
 <ModeWatcher />
@@ -105,40 +106,40 @@ function toggleMode() {
   <!-- Content -->
   <Sidebar.Content class="flex-1">
 
-      <!-- Home -->
-  <Sidebar.Group>
-    <Sidebar.Menu>
-      <!-- Home MenuItem -->
-      <Sidebar.MenuItem>
-        <Sidebar.MenuButton 
-          onclick={navigateToHome}
-          isActive={isActive(resolve('/'))}
-        >
-          {#snippet child({ props })}
-            <a href={resolve('/')} {...props}>
-              <House class="w-4 h-4" />
-              <span>Home</span>
-            </a>
-          {/snippet}
-        </Sidebar.MenuButton>
-      </Sidebar.MenuItem>
+    <!-- Home -->
+    <Sidebar.Group>
+      <Sidebar.Menu>
+        <!-- Home MenuItem -->
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton 
+            onclick={navigateToHome}
+            isActive={isActive(resolve('/'))}
+          >
+            {#snippet child({ props })}
+              <a href={resolve('/')} {...props}>
+                <House class="w-4 h-4" />
+                <span>Home</span>
+              </a>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
 
-      <!-- Tasks MenuItem -->
-      <Sidebar.MenuItem>
-        <Sidebar.MenuButton
-          onclick={(e) => { e.preventDefault(); goto(resolve('/tasks')); }}
-          isActive={isActive(resolve('/tasks'))}
-        >
-          {#snippet child({ props })}
-            <a href={resolve('/tasks')} {...props}>
-              <BookOpen class="w-4 h-4" />
-              <span>Tasks</span>
-            </a>
-          {/snippet}
-        </Sidebar.MenuButton>
-      </Sidebar.MenuItem>
-    </Sidebar.Menu>
-  </Sidebar.Group>
+        <!-- Tasks MenuItem -->
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            onclick={(e) => { e.preventDefault(); goto(resolve('/tasks')); }}
+            isActive={isActive(resolve('/tasks'))}
+          >
+            {#snippet child({ props })}
+              <a href={resolve('/tasks')} {...props}>
+                <BookOpen class="w-4 h-4" />
+                <span>Tasks</span>
+              </a>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
+      </Sidebar.Menu>
+    </Sidebar.Group>
 
     <!-- Tasks by Category -->
     {#each tasksByCategory as [category, categoryTasks]}
@@ -162,10 +163,11 @@ function toggleMode() {
             <Sidebar.GroupContent>
               <Sidebar.Menu>
                 {#each categoryTasks as task}
-                  {@const taskPath = resolve('/task/[title]', { title: task.title.toLowerCase() })}
+                  {@const taskSlug = slugify(task.title)}
+                  {@const taskPath = resolve(`/task/${taskSlug}`)}
                   <Sidebar.MenuItem>
                     <Sidebar.MenuButton
-                      onclick={navigateToTask(task.title.toLowerCase())}
+                      onclick={navigateToTask(task.title)}
                       isActive={isActive(taskPath)}
                     >
                       {#snippet child({ props })}

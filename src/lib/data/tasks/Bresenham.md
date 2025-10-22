@@ -150,31 +150,64 @@ precision highp float;
 in vec2 vUV;
 out vec4 fragColor;
 
+uniform vec2 iResolution;
+
 const int GRID_SIZE = 32;
 
-// Draw a "pixel" in UV space from grid coordinates
-void drawPixel(int x, int y, inout vec3 color) {
-    vec2 target = vec2(float(x) / float(GRID_SIZE), float(y) / float(GRID_SIZE));
-    float threshold = 0.5 / float(GRID_SIZE); // half pixel
-    if(length(vUV - target) < threshold) {
-        color = vec3(1.0, 0.0, 0.0); // red pixel
+// Convert from UV (0–1) to aspect-corrected space (-1–1)
+vec2 aspectCorrectUV(vec2 uv) {
+    vec2 p = uv * 2.0 - 1.0;
+    p.x *= iResolution.x / iResolution.y;
+    return p;
+}
+
+// Convert pixel grid coordinate to aspect-corrected UV space (-1..1)
+vec2 gridToUV(int x, int y) {
+    vec2 p = (vec2(float(x), float(y)) / float(GRID_SIZE)) * 2.0 - 1.0;
+    p.x *= iResolution.x / iResolution.y;
+    return p;
+}
+
+// Determine if the fragment lies inside a grid pixel (square)
+bool isInsidePixel(vec2 uv, int x, int y) {
+    // Compute bounds in aspect-corrected space
+    vec2 minP = gridToUV(x, y);
+    vec2 maxP = gridToUV(x + 1, y + 1);
+
+    // Compute fragment position
+    vec2 f = aspectCorrectUV(uv);
+
+    return all(greaterThanEqual(f, minP)) && all(lessThan(f, maxP));
+}
+
+// Draw a single pixel cell with color
+void drawPixel(int x, int y, inout vec3 color, vec3 pixelColor) {
+    if (isInsidePixel(vUV, x, y)) {
+        color = pixelColor;
     }
 }
 
+// Integer Bresenham line
 void bresenhamLine(int x0, int y0, int x1, int y1, inout vec3 color) {
-    // Implement Bresenham integer line algorithm here
-    // Use drawPixel(x, y, color) to plot each point
+
 }
 
 void main() {
-    vec3 color = vec3(0.0); // black background
+    vec3 color = vec3(0.12); // dark gray background
+
+    // Optional grid lines (1px thin)
+    vec2 uv = vUV * float(GRID_SIZE);
+    vec2 gridLine = smoothstep(0.98, 1.0, abs(fract(uv) - 0.5) * 2.0);
+    float gridMask = min(gridLine.x, gridLine.y);
+    color = mix(vec3(0.15), color, gridMask);
 
     // Define line endpoints in grid coordinates
     int x0 = int(0.05 * float(GRID_SIZE));
-    int y0 = int(0.45 * float(GRID_SIZE));
+    int y0 = int(0.25 * float(GRID_SIZE));
     int x1 = int(0.95 * float(GRID_SIZE));
-    int y1 = int(0.95 * float(GRID_SIZE));
+    int y1 = int(0.85 * float(GRID_SIZE));
 
+    // Draw Bresenham line
     bresenhamLine(x0, y0, x1, y1, color);
 
     fragColor = vec4(color, 1.0);
@@ -208,64 +241,78 @@ precision highp float;
 in vec2 vUV;
 out vec4 fragColor;
 
-const int GRID_SIZE = 32;
+uniform vec2 iResolution;
 
-// Draw a "pixel" in UV space from grid coordinates
-void drawPixel(int x, int y, inout vec3 color) {
-    vec2 target = vec2(float(x) / float(GRID_SIZE), float(y) / float(GRID_SIZE));
-    float threshold = 0.5 / float(GRID_SIZE); // half pixel
-    if(length(vUV - target) < threshold) {
-        color = vec3(1.0, 0.0, 0.0); // red pixel
+const int GRID_SIZE = 64;
+
+// Convert from UV (0–1) to aspect-corrected space (-1–1)
+vec2 aspectCorrectUV(vec2 uv) {
+    vec2 p = uv * 2.0 - 1.0;
+    p.x *= iResolution.x / iResolution.y;
+    return p;
+}
+
+// Convert pixel grid coordinate to aspect-corrected UV space (-1..1)
+vec2 gridToUV(int x, int y) {
+    vec2 p = (vec2(float(x), float(y)) / float(GRID_SIZE)) * 2.0 - 1.0;
+    p.x *= iResolution.x / iResolution.y;
+    return p;
+}
+
+// Determine if the fragment lies inside a grid pixel (square)
+bool isInsidePixel(vec2 uv, int x, int y) {
+    // Compute bounds in aspect-corrected space
+    vec2 minP = gridToUV(x, y);
+    vec2 maxP = gridToUV(x + 1, y + 1);
+
+    // Compute fragment position
+    vec2 f = aspectCorrectUV(uv);
+
+    return all(greaterThanEqual(f, minP)) && all(lessThan(f, maxP));
+}
+
+// Draw a single pixel cell with color
+void drawPixel(int x, int y, inout vec3 color, vec3 pixelColor) {
+    if (isInsidePixel(vUV, x, y)) {
+        color = pixelColor;
     }
 }
 
-// Bresenham line implementation
+// Integer Bresenham line
 void bresenhamLine(int x0, int y0, int x1, int y1, inout vec3 color) {
     int dx = abs(x1 - x0);
-    int dy = abs(y1 - y0);
     int sx = x0 < x1 ? 1 : -1;
+    int dy = -abs(y1 - y0);
     int sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy;
+    int e2;
 
-    bool steep = dy > dx;
-    if (steep) {
-        // Swap x and y
-        int tmp;
-        tmp = x0; x0 = y0; y0 = tmp;
-        tmp = x1; x1 = y1; y1 = tmp;
-        tmp = dx; dx = dy; dy = tmp;
-        tmp = sx; sx = sy; sy = tmp;
-    }
-
-    int err = 2 * dy - dx;
+    int x = x0;
     int y = y0;
 
-    for (int i = 0; i <= dx; i++) {
-        if (steep) {
-            drawPixel(y, x0, color);
-        } else {
-            drawPixel(x0, y, color);
-        }
+    for (int i = 0; i < 512; i++) { // safety loop
+        drawPixel(x, y, color, vec3(1.0, 0.0, 0.0)); // red pixel
 
-        if (err > 0) {
-            y += sy;
-            err -= 2 * dx;
-        }
-        err += 2 * dy;
-        x0 += sx;
+        if (x == x1 && y == y1) break;
+
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x += sx; }
+        if (e2 <= dx) { err += dx; y += sy; }
     }
 }
 
 void main() {
-    vec3 color = vec3(0.0); // black background
+    vec3 color = vec3(0.12); // dark gray background
 
     // Define line endpoints in grid coordinates
     int x0 = int(0.05 * float(GRID_SIZE));
-    int y0 = int(0.45 * float(GRID_SIZE));
+    int y0 = int(0.25 * float(GRID_SIZE));
     int x1 = int(0.95 * float(GRID_SIZE));
-    int y1 = int(0.95 * float(GRID_SIZE));
+    int y1 = int(0.85 * float(GRID_SIZE));
 
-    // Draw the line
+    // Draw Bresenham line
     bresenhamLine(x0, y0, x1, y1, color);
 
     fragColor = vec4(color, 1.0);
 }
+```

@@ -35,19 +35,19 @@
       value="task"
       class="flex-1 flex flex-col min-h-0 overflow-hidden"
     >
-    <div class="flex items-center border-b bg-muted/30 px-6">
+    <div class="flex items-center border-b px-6">
       <Tabs.List
-        class="h-10 justify-start bg-transparent border-none p-0 gap-0"
+        class="h-10 justify-start bg-muted/25 p-0 gap-0"
       >
         <Tabs.Trigger 
           value="task" 
-          class="h-10 px-4 data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
+          class="h-10 px-4 border-none data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
         >
           Task
         </Tabs.Trigger>
         <Tabs.Trigger 
           value="theory" 
-          class="h-10 px-4 data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
+          class="h-10 px-4 border-none data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
         >
           Theory
         </Tabs.Trigger>

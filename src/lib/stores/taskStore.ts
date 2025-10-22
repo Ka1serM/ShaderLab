@@ -12,8 +12,8 @@ export interface Task {
   referenceVertexShader: string;
   referenceFragmentShader: string;
   modelPath: string;
-  instanceCount: number;
-  type: '2D' | '3D';
+  type: "2D" | "3D";
+  instanceCount?: number;
 }
 
 export interface LessonState {

@@ -1,34 +1,31 @@
 <script lang="ts">
-  import * as Card from "$lib/components/ui/card/index.js";
-  import { Input } from "$lib/components/ui/input/index.js";
-  import { Search } from "lucide-svelte";
-  import { goto } from "$app/navigation";
-  import { base } from "$app/paths";
-  import tasks from "$lib/data/tasks.json";
+import * as Card from "$lib/components/ui/card/index.js";
+import { Input } from "$lib/components/ui/input/index.js";
+import { Search } from "lucide-svelte";
+import { goto } from "$app/navigation";
+import { resolve } from "$app/paths"; // <-- use resolve
+import tasks from "$lib/data/tasks.json";
+import { slugify } from '$lib/utils/slugify';
 
-  // Search query state
-  let query = $state("");
+let query = $state("");
 
-  // Filter tasks based on search query
-  const filteredTasks = $derived(
-    tasks.filter(
-      (task) =>
-        task.title.toLowerCase().includes(query.toLowerCase()) ||
-        task.task.toLowerCase().includes(query.toLowerCase()) ||
-        task.theory.toLowerCase().includes(query.toLowerCase())
-    )
-  );
+const filteredTasks = $derived(
+  tasks.filter(
+    (task) =>
+      task.title.toLowerCase().includes(query.toLowerCase()) ||
+      task.task.toLowerCase().includes(query.toLowerCase()) ||
+      task.theory.toLowerCase().includes(query.toLowerCase())
+  )
+);
 
-  // Navigate to task page
-  function navigateToTask(title: string) {
-    goto(`${base}/task/${encodeURIComponent(title.toLowerCase())}`);
-  }
+function navigateToTask(title: string) {
+  goto(resolve(`/task/${slugify(title)}`));
+}
 
-  // Strip HTML tags and truncate text
-  function getPreview(html: string, maxLength: number = 90): string {
-    const text = html.replace(/<[^>]+>/g, "");
-    return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
-  }
+function getPreview(html: string, maxLength: number = 90): string {
+  const text = html.replace(/<[^>]+>/g, "");
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
 </script>
 
 <div class="flex flex-col bg-background text-foreground h-full">

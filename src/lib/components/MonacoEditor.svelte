@@ -265,29 +265,31 @@ onDestroy(() => {
 });
 </script>
 
-<div class="panel h-full flex flex-col">
+<div class="h-full flex flex-col">
 <Tabs.Root
   value={currentTab}
   onValueChange={handleTabChange}
-  class="flex flex-col flex-1 min-h-0 overflow-hidden"
+  class="flex flex-col flex-1 min-h-0 overflow-hidden py-2"
 >
+<div class="flex items-center border-b px-6">
  <!-- Tab triggers -->
-<Tabs.List class="h-10 justify-start bg-transparent border-none p-0 gap-0">
+<Tabs.List class="h-10 justify-start bg-muted/25 p-0 gap-0">
     {#if task?.type === '3D'}
     <Tabs.Trigger
         value="vertex"
-        class="h-10 px-4 data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
+        class="h-10 px-4 border-none data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
     >
         vertex.glsl
     </Tabs.Trigger>
     {/if}
     <Tabs.Trigger
     value="fragment"
-    class="h-10 px-4 data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
+    class="h-10 px-4 border-none data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
     >
     fragment.glsl
     </Tabs.Trigger>
 </Tabs.List>
+</div>
 
     <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
       <div bind:this={editorContainer} class="flex-1 w-full relative"></div>

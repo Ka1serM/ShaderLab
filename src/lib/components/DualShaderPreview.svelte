@@ -13,7 +13,7 @@
   }
 </script>
 
-<div class="panel relative w-full h-full p-4">
+<div class="relative w-full h-full p-4">
   <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4 h-full">
     <!-- Reference Shader -->
     <div class="flex flex-col min-h-[200px] md:min-h-0 h-full">

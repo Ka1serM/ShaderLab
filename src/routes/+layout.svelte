@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import AppSidebar from '$lib/components/SideBar.svelte';
-  import '../app.css';
+  import '../App.css';
 
 </script>
 

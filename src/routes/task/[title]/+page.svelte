@@ -1,74 +1,50 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { Splitpanes, Pane } from 'svelte-splitpanes';
   import TaskPanel from '$lib/components/TaskPanel.svelte';
   import MonacoEditor from '$lib/components/MonacoEditor.svelte';
   import DualShaderPreview from '$lib/components/DualShaderPreview.svelte';
   import { taskStore } from '$lib/stores/taskStore';
   import type { PageData } from './$types';
+  import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+
+  const mobileQuery = new IsMobile();
 
   export let data: PageData;
 
-  let isMobile = false;
-
-  // Detect mobile and update on resize
-  const checkMobile = () => {
-    isMobile = window.innerWidth < 768;
-  };
-
-  onMount(() => {
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  });
-
+  // Initialize the task store when data is available
   $: if (data?.task) {
     taskStore.init(data.task);
   }
 </script>
 
 <div class="h-full w-full overflow-hidden">
-  {#if !isMobile}
-    <!-- Desktop: Split layout -->
+  {#if !mobileQuery.current}
+    <!-- Desktop layout -->
     <Splitpanes class="splitpanes-root" theme="my-theme">
       <Pane size={35} minSize={20}>
-        <div class="pane-content">
-          <TaskPanel />
-        </div>
+        <TaskPanel />
       </Pane>
-
       <Pane size={65} minSize={20}>
-        <div class="pane-content">
-          <Splitpanes horizontal class="splitpanes-nested" theme="my-theme">
-            <Pane size={60} minSize={20}>
-              <div class="pane-content">
-                <MonacoEditor />
-              </div>
-            </Pane>
-            <Pane size={40} minSize={20}>
-              <div class="pane-content">
-                <DualShaderPreview />
-              </div>
-            </Pane>
-          </Splitpanes>
-        </div>
+        <Splitpanes horizontal class="splitpanes-nested" theme="my-theme">
+          <Pane size={60} minSize={20}>
+            <MonacoEditor />
+          </Pane>
+          <Pane size={40} minSize={20}>
+            <DualShaderPreview />
+          </Pane>
+        </Splitpanes>
       </Pane>
     </Splitpanes>
   {:else}
-    <!-- Mobile: stacked layout -->
+    <!-- Mobile layout -->
     <div class="flex flex-col h-full overflow-auto gap-4 p-2">
-      <div class="pane-content min-h-[300px]">
-        <TaskPanel />
-      </div>
-      <div class="pane-content min-h-[300px]">
-        <MonacoEditor />
-      </div>
-      <div class="pane-content min-h-[300px]">
-        <DualShaderPreview />
-      </div>
+      <TaskPanel />
+      <MonacoEditor />
+      <DualShaderPreview />
     </div>
   {/if}
 </div>
+
 
 <style>
 /* Root container */
