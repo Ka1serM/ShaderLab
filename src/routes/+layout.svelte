@@ -8,8 +8,8 @@
 <Sidebar.Provider>
   <AppSidebar />
   <MobileHeader />
-  <Sidebar.Inset class="flex flex-col min-h-screen pt-14 sm:pt-0">
-    <main class="flex-1 flex flex-col min-h-0">
+  <Sidebar.Inset class="flex flex-col h-screen sm:h-screen overflow-hidden pt-14 sm:pt-0">
+    <main class="flex-1 flex flex-col min-h-0 overflow-hidden">
       <slot />
     </main>
     <footer class="flex justify-between items-center w-full p-3"></footer>

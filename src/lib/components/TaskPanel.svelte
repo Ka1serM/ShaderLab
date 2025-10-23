@@ -17,7 +17,7 @@
   }
 </script>
 
-<div class="h-full flex flex-col rounded-none overflow-hidden">
+<div class="h-full flex flex-col overflow-hidden">
   <!-- Header -->
   <div class="flex items-center justify-between p-6 flex-shrink-0">
     {#if $taskStore?.task}
@@ -35,24 +35,23 @@
       value="task"
       class="flex-1 flex flex-col min-h-0 overflow-hidden"
     >
-    <div class="flex items-center border-b px-6">
-      <Tabs.List
-        class="h-10 justify-start bg-muted/25 p-0 gap-0"
-      >
-        <Tabs.Trigger 
-          value="task" 
-          class="h-10 px-4 border-none data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
-        >
-          Task
-        </Tabs.Trigger>
-        <Tabs.Trigger 
-          value="theory" 
-          class="h-10 px-4 border-none data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
-        >
-          Theory
-        </Tabs.Trigger>
-      </Tabs.List>
-    </div>
+      <!-- Tab List -->
+      <div class="flex items-center border-b px-6">
+        <Tabs.List class="h-10 justify-start bg-muted/25 p-0 gap-0">
+          <Tabs.Trigger 
+            value="task" 
+            class="h-10 px-4 border-none data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
+          >
+            Task
+          </Tabs.Trigger>
+          <Tabs.Trigger 
+            value="theory" 
+            class="h-10 px-4 border-none data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
+          >
+            Theory
+          </Tabs.Trigger>
+        </Tabs.List>
+      </div>
 
       <!-- Task Tab -->
       <Tabs.Content
@@ -94,15 +93,14 @@
       </Tabs.Content>
 
       <!-- Theory Tab -->
-<Tabs.Content
-  value="theory"
-  class="flex-1 h-0 overflow-y-auto overflow-x-hidden p-6 mt-0 space-y-4 data-[state=inactive]:hidden"
->
-  <div class="prose prose-sm dark:prose-invert max-w-full">
-    {@html $taskStore.task.theory}
-  </div>
-</Tabs.Content>
-
+      <Tabs.Content
+        value="theory"
+        class="flex-1 h-0 overflow-y-auto overflow-x-hidden p-6 mt-0 space-y-4 data-[state=inactive]:hidden"
+      >
+        <div class="prose prose-sm dark:prose-invert max-w-full">
+          {@html $taskStore.task.theory}
+        </div>
+      </Tabs.Content>
     </Tabs.Root>
   {/if}
 </div>

@@ -1,103 +1,80 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 @import 'katex/dist/katex.min.css';
 
-/* Force prose container to respect parent bounds */
+/* Ensure inner scroll works nicely */
 .prose {
   max-width: 100%;
   min-width: 0;
   overflow-wrap: break-word;
   word-wrap: break-word;
+  box-sizing: border-box;
 }
 
-/* Critical: Handle KaTeX math overflow */
+/* KaTeX horizontal scroll */
 .prose .katex-display {
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
   margin: 1em 0;
 }
-
 .prose .katex {
   font-size: 1em;
   white-space: normal;
 }
-
-/* Force KaTeX HTML rendering to wrap */
 .prose .katex .katex-html {
   white-space: normal;
   max-width: 100%;
   overflow-wrap: break-word;
 }
-
-/* Prevent inline math from overflowing */
-.prose .katex span {
-  max-width: 100%;
-}
-
-/* Handle long equations by allowing scroll */
 .prose .katex-display > .katex {
   display: inline-block;
   max-width: 100%;
   text-align: left;
 }
 
-/* Handle code blocks */
+/* Code blocks */
 .prose pre {
   max-width: 100%;
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-all;
 }
-
 .prose code {
   max-width: 100%;
   overflow-wrap: break-word;
   word-break: break-all;
 }
 
-/* Handle tables */
+/* Tables */
 .prose table {
   display: block;
   max-width: 100%;
   overflow-x: auto;
 }
 
-/* Handle images */
-.prose img {
-  max-width: 100%;
-  height: auto;
-}
-
-/* Handle iframes and embedded content */
+/* Images & embedded content */
+.prose img,
 .prose iframe,
 .prose video,
 .prose embed,
 .prose object {
   max-width: 100%;
+  height: auto;
 }
 
-/* Ensure all children respect bounds */
-.prose * {
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-/* Fix for very long words or URLs */
+/* Very long words */
 .prose p,
 .prose li,
 .prose td,
 .prose th {
   overflow-wrap: break-word;
-  word-wrap: break-word;
   word-break: break-word;
   hyphens: auto;
 }
 
-.prose {
-  container-type: inline-size;
-}
-
-.katex-display {
+/* Smooth scrolling for inner scroll */
+.flex-1.overflow-y-auto {
   -webkit-overflow-scrolling: touch;
 }
 

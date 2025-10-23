@@ -49,9 +49,13 @@
     {:else}
       <!-- Mobile layout -->
       <div class="flex flex-col h-full overflow-auto gap-4 p-2">
-        <TaskPanel />
-        <MonacoEditor />
-        <DualShaderPreview />
+        <div class="min-h-[400px]">
+          <TaskPanel />
+        </div>
+        <div class="min-h-[400px]">
+          <MonacoEditor />
+        </div>
+          <DualShaderPreview />
       </div>
     {/if}
   </div>
