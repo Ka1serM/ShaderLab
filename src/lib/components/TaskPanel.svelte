@@ -19,7 +19,7 @@
 
 <div class="h-full flex flex-col overflow-hidden">
   <!-- Header -->
-  <div class="flex items-center justify-between p-6 flex-shrink-0">
+  <div class="flex items-center justify-between p-6 shrink-0">
     {#if $taskStore?.task}
       <h1 class="text-2xl font-bold text-foreground">
         {$taskStore.task.title}

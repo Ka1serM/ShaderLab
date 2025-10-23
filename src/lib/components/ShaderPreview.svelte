@@ -35,7 +35,8 @@
     camera.position.set(0, 0, 1);
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
-    if (!sharedCameraRef) sharedCameraRef = camera;
+    if (!sharedCameraRef)
+      sharedCameraRef = camera;
 
     // Renderer
     renderer = new THREE.WebGLRenderer({
@@ -83,13 +84,22 @@
     animate();
   }
 
-  // --- Animate loop ---
+  // Call every frame
   function animate() {
     animationFrameId = requestAnimationFrame(animate);
     if (!renderer || !scene || !camera) return;
 
+    // Update Shader Uniforms
     controls?.update();
-    if (shaderMaterial) shaderMaterial.uniforms.time.value = clock.getElapsedTime();
+    if (shaderMaterial) {
+      // Update Time
+      shaderMaterial.uniforms.time.value = clock.getElapsedTime();
+
+      // Update Camera Position, Direction and FOV
+      shaderMaterial.uniforms.cameraPosition.value.copy(camera.position);
+      shaderMaterial.uniforms.cameraDirection.value.copy(camera.getWorldDirection(new THREE.Vector3()));
+      shaderMaterial.uniforms.cameraFov.value = camera.fov * (Math.PI / 180); // convert degrees to radians
+    }
 
     renderer.render(scene, camera);
   }
@@ -139,6 +149,9 @@
         iResolution: {
           value: new THREE.Vector2(container.clientWidth * window.devicePixelRatio, container.clientHeight * window.devicePixelRatio)
         },
+          cameraFov: { value: camera.fov * (Math.PI / 180) }, // convert degrees to radians
+          cameraPosition: { value: camera.position.clone() },
+          cameraDirection: { value: camera.getWorldDirection(new THREE.Vector3()) },
       },
       glslVersion: THREE.GLSL3,
     });
