@@ -66,7 +66,6 @@
 {/if}
 
 <style>
-/* ... your existing styles ... */
 :global(.splitpanes-root),
 :global(.splitpanes-nested) {
   height: 100%;
@@ -156,17 +155,4 @@
   z-index: 1;
 }
 
-:global(.splitpanes.my-theme.splitpanes--vertical > .splitpanes__splitter::after) {
-  left: -10px;
-  right: -10px;
-  top: 0;
-  bottom: 0;
-}
-
-:global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter::after) {
-  left: 0;
-  right: 0;
-  top: -10px;
-  bottom: -10px;
-}
 </style>

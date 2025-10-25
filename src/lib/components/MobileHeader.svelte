@@ -1,7 +1,7 @@
 <script lang="ts">
   import { useSidebar } from "$lib/components/ui/sidebar/index.js";
   import { PanelLeft } from "lucide-svelte";
-  import { asset, base } from "$app/paths"; // <- import base
+  import { asset, base } from "$app/paths";
   import { IsMobile } from '$lib/hooks/is-mobile.svelte';
   import { goto } from "$app/navigation";
 
@@ -30,7 +30,7 @@
     
     <!-- Sidebar toggle button -->
     <button 
-      on:click={toggleSidebar}
+      onclick={toggleSidebar}
       class="absolute left-4 p-2 rounded-md hover:bg-muted/50 transition"
       aria-label="Toggle sidebar"
     >
@@ -38,10 +38,7 @@
     </button>
 
     <!-- Logo + title clickable -->
-    <a 
-      class="flex items-center gap-2 cursor-pointer"
-      on:click={navigateHome}
-    >
+    <a class="flex items-center gap-2 cursor-pointer" onclick={navigateHome}>
       <img src={asset('/favicon.svg')} alt="ShaderLab Logo" class="w-6 h-6 dark:invert" />
       <span class="font-semibold text-xl text-foreground">ShaderLab</span>
     </a>
