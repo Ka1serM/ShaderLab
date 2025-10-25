@@ -2,21 +2,20 @@
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import { useSidebar } from "$lib/components/ui/sidebar/index.js";
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
-  import { ModeWatcher, setMode } from "mode-watcher";
   import { slugify } from '$lib/utils/slugify';
   import * as Avatar from "$lib/components/ui/avatar/index.js";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
   import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
-    import BadgeCheckIcon from "@lucide/svelte/icons/badge-check";
+  import BadgeCheckIcon from "@lucide/svelte/icons/badge-check";
   import LogOutIcon from "@lucide/svelte/icons/log-out";
   import SparklesIcon from "@lucide/svelte/icons/sparkles";
   import { Moon, Sun } from "lucide-svelte";
+  import { toggleMode } from "mode-watcher";
+
 
   import { 
     House, 
     BookOpen, 
-    UserRound, 
-    ChevronUp, 
     ChevronDown,
     PanelLeftClose,
     PanelLeft
@@ -67,17 +66,8 @@
     if (sidebar)
       sidebar.toggle();
   }
-
-  // Theme state
-  let currentMode: "light" | "dark" = "light";
-  function toggleMode() { 
-    const newMode = currentMode === "dark" ? "light" : "dark"; 
-    currentMode = newMode;
-    setMode(newMode); 
-  }
 </script>
 
-<ModeWatcher />
 <Sidebar.Root collapsible="icon" class="transition-none">
   <!-- Header -->
   <Sidebar.Header class="px-3 py-2">
@@ -245,15 +235,15 @@
             <BadgeCheckIcon />
             Account
           </DropdownMenu.Item>
-          <DropdownMenu.Item onclick={toggleMode} >
-            {#if currentMode === 'dark'}
-              <Sun />
-              <span>Light Mode</span>
-            {:else}
-              <Moon />
-              <span>Dark Mode</span>
-            {/if}
-          </DropdownMenu.Item>
+<DropdownMenu.Item onclick={toggleMode}>
+  <div class="flex items-center gap-2">
+    <!-- Instantly show/hide using hidden/block -->
+    <Sun class="block dark:hidden h-4 w-4" />
+    <Moon class="hidden dark:block h-4 w-4" />
+    <span class="block dark:hidden">Dark Mode</span>
+    <span class="hidden dark:block">Light Mode</span>
+  </div>
+</DropdownMenu.Item>
         </DropdownMenu.Group>
         <DropdownMenu.Separator />
         <DropdownMenu.Item>
