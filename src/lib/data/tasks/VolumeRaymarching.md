@@ -1,131 +1,131 @@
 ---
 category: Computer Animation
 type: 2D
+inputs:
+  - name: volumeTexture
+    type: texture3D
+    init: textures/CTVolumeAtlas.raw
 title: Volumetric Raymarching
 hints:
-  - Berechne für jedes Pixel die Rayrichtung aus Kameraposition, Blickrichtung und FOV.
-  - Inkrementiere den Ray schrittweise entlang der Richtung und summiere die Farbdichte auf.
-  - Beende die Schleife, wenn der Ray das Volumen verlässt oder die maximale Tiefe erreicht ist.
+  - Berechne für jedes Pixel die Rayrichtung aus Kameraposition und Blickrichtung (orthographisch).
+  - Inkrementiere den Ray schrittweise von hinten und akkumuliere Farbe und Opacity (Back-to-Front Compositing).
 ---
-# Task
-Die Studierenden lernen, wie man ein **DICOM-Slice** volumetrisch raymarcht und visualisiert.  
-Der aktuelle Shader dient als Platzhalter.  
-Später wird das SDF durch echte DICOM-Slices ersetzt.
 
-- **Dauer:** 30 Minuten
-  - SDF-Raymarching Grundlagen: 15 min
-    - Kamerastrahl berechnen
-    - Distance Function definieren  
-    - Raymarch-Schleife
-  - Raymarching auf DICOM-Slice: 15 min  
-    - Slice-Textur abtasten
-    - Intensität → Farbe
-    - Raymarch entlang der Tiefe
+# Task
+Die Studierenden lernen, wie man **CT-Volumendaten** mittels Direct Volume Rendering visualisiert.
+Der implementierte Shader basiert auf der Arbeit von Marc Levoy (1988) und demonstriert:
+
+- Volume Rendering Pipeline:
+  - Ray Generation (Orthographische Projektion)
+  - Sampling entlang des Rays
+- Transfer Function & Classification:
+  - HU-Werte zu Farbe und Opacity
+  - Gradientenbasierte Opacity-Modulation
+- Shading & Compositing:
+  - Gradient-Berechnung für Normalen
+  - Phong Shading
+  - Back-To-Front Alpha Compositing
 
 # Theory
 
-## 1. Kamerakoordinaten und Rayberechnung
+## Display of Surfaces from Volume Data (Levoy 1988)
 
-Die Kamera wird durch ihre **Position** $\mathbf{C} \in \mathbb{R}^3$, ihre **Blickrichtung** $\mathbf{f}$ (forward) und einen Up-Vektor $\mathbf{u}$ definiert. Aus diesen Vektoren lässt sich eine orthonormale Kamerabasis aufbauen:
+Nach Levoy besteht die Volume Rendering Pipeline aus den folgenden Schritten:
 
-$$
-\mathbf{r} = \frac{\mathbf{f} \times \mathbf{u}}{\|\mathbf{f} \times \mathbf{u}\|} \quad \text{(right)}
-$$
+1. **Data Preparation**  
+   Korrektur und Interpolation der Rohdaten:  
+   $$
+   f_0(x_i) \rightarrow f_1(x_i)
+   $$
 
-$$
-\mathbf{v} = \mathbf{r} \times \mathbf{f} \quad \text{(up)}
-$$
+2. **Shading**  
+   Berechnung der Voxel-Farben:  
+   $$
+   c_\lambda(x_i)
+   $$
 
-Die Kamera-Basis besteht dann aus $(\mathbf{r}, \mathbf{v}, -\mathbf{f})$.
+3. **Classification**  
+   Bestimmung der Voxel-Opazitäten mittels Transfer Function:  
+   $$
+   \alpha(x_i)
+   $$
 
-Für jedes Pixel auf dem Fullscreen-Quad mit Normalized Device Coordinates (NDC) $\mathbf{p}_\text{ndc} = (x_\text{ndc}, y_\text{ndc})$ berechnen wir die Richtung des Rays:
+4. **Resampling**  
+   Interpolation der volumetrischen Daten entlang des Strahls.
 
-$$
-\mathbf{d} = \frac{\mathbf{f} + x_\text{ndc} \cdot \mathbf{r} \cdot \tan(\theta_x) + y_\text{ndc} \cdot \mathbf{v} \cdot \tan(\theta_y)}
-{\|\mathbf{f} + x_\text{ndc} \cdot \mathbf{r} \cdot \tan(\theta_x) + y_\text{ndc} \cdot \mathbf{v} \cdot \tan(\theta_y)\|}
-$$
-
-wobei
-
-$$
-\theta_y = \frac{\text{FOV}}{2}, \quad \theta_x = \theta_y \cdot \frac{w}{h}
-$$
-
-mit $w/h$ dem Seitenverhältnis des Viewports. Der Ray startet dann an
-
-$$
-\mathbf{o} = \mathbf{C}
-$$
-
-und verläuft in Richtung $\mathbf{d}$.
+5. **Compositing**  
+   Farbakkumulation entlang des Strahls (Back-to-Front) mittels Over-Operator:  
+   $$
+   C_{\text{out},\lambda} = C_{\text{in},\lambda}(1 - \alpha) + c_\lambda \alpha
+   $$  
+   Für Back-to-Front Compositing:  
+   $$
+   C_\lambda(u_i) = \sum_{k=0}^{K} c_\lambda(x_k) \alpha(x_k) \prod_{m=k+1}^{K} (1 - \alpha(x_m))
+   $$
 
 ---
 
-## 2. Signed Distance Fields (SDF)
+## Transfer Function & Classification
 
-Eine **Signed Distance Field (SDF)** $f: \mathbb{R}^3 \to \mathbb{R}$ gibt den Abstand eines Punktes $\mathbf{p}$ zur Oberfläche eines Objekts an:
-
-$$
-f(\mathbf{p}) =
-\begin{cases}
-< 0 & \text{innerhalb des Objekts} \\
-= 0 & \text{auf der Oberfläche} \\
-> 0 & \text{außerhalb des Objekts}
-\end{cases}
-$$
-
-Beispiel Kugel mit Radius $r$ und Zentrum $\mathbf{c}$:
+Die Transfer Function ordnet CT-Werte (Hounsfield Units, HU) Farbe und Opazität zu:
 
 $$
-f_\text{sphere}(\mathbf{p}) = \|\mathbf{p} - \mathbf{c}\| - r
+\begin{aligned}
+\text{Luft: } & \approx -1000 \text{ HU} \\
+\text{Wasser: } & 0 \text{ HU} \\
+\text{Weichgewebe: } & +30 \text{ bis } +70 \text{ HU} \\
+\text{Knochen: } & +700 \text{ bis } +3000 \text{ HU}
+\end{aligned}
 $$
 
-Beispiel Würfel mit Halbkanten $b = (b_x, b_y, b_z)$:
-
+Die finale Opazität wird häufig mit dem Gradienten verstärkt, um Oberflächen hervorzuheben:  
 $$
-f_\text{cube}(\mathbf{p}) = 
-\left\| \max\big(|\mathbf{p} - \mathbf{c}| - b, \mathbf{0} \big) \right\| + 
-\min\big(\max(|\mathbf{p}-\mathbf{c}| - b), 0\big)
-$$
-
-Für die Kombination mehrerer Objekte kann man eine **smooth min**-Funktion verwenden:
-
-$$
-\text{smin}(a, b, k) = -\frac{1}{k} \log\big(e^{-k a} + e^{-k b}\big)
+\alpha_{\text{final}}(x_i) = \text{clamp}\big(\|\nabla f(x_i)\| \cdot k_{\text{boost}} \cdot \alpha_{\text{base}}(x_i)\big)
 $$
 
 ---
 
-## 3. Raymarching
+## Gradient Computation & Shading
 
-Raymarching ist ein **diskreter Integrationsprozess** entlang des Strahls:
-
-1. Initialisiere $t = 0$, die Distanz vom Ray-Startpunkt entlang der Richtung.
-2. In jedem Schritt berechne die aktuelle Position:
-
+### Gradient Approximation (Central Difference)
 $$
-\mathbf{p} = \mathbf{o} + t \mathbf{d}
-$$
-
-3. Berechne die Distanz zum Volumen:
-
-$$
-d = f(\mathbf{p})
+\nabla f(x_i) \approx \frac{1}{2h} 
+\begin{pmatrix}
+f(x_{i+1},y_j,z_k) - f(x_{i-1},y_j,z_k) \\
+f(x_i,y_{j+1},z_k) - f(x_i,y_{j-1},z_k) \\
+f(x_i,y_j,z_{k+1}) - f(x_i,y_j,z_{k-1})
+\end{pmatrix}
 $$
 
-4. Akkumuliere Farbe oder Dichte, z.B.:
-
+Normale:
 $$
-\text{color} \; += \; \text{opacity} \cdot \text{volumeColor}(\mathbf{p})
-$$
-
-5. Inkrementiere den Ray um mindestens $d$ oder einen minimalen Schritt $\delta$:
-
-$$
-t = t + \max(d, \delta)
+\mathbf{N}(x_i) = \frac{\nabla f(x_i)}{\|\nabla f(x_i)\|}
 $$
 
-6. Abbruchbedingung: $d < \epsilon$ oder $t > t_\text{max}$.
+### Phong Shading
+$$
+c_\lambda(x_i) = c_{p,\lambda} k_{a,\lambda} + 
+\frac{c_{p,\lambda}}{k_1 + k_2 d(x_i)} \Big[ k_{d,\lambda} (\mathbf{N} \cdot \mathbf{L}) + k_{s,\lambda} (\mathbf{N} \cdot \mathbf{H})^n \Big]
+$$
+
+Komponenten:
+- $c_{p,\lambda}$: Lichtfarbe  
+- $k_{a,\lambda}$: Ambient Koeffizient  
+- $k_{d,\lambda}$: Diffuse Koeffizient  
+- $k_{s,\lambda}$: Specular Koeffizient  
+- $n$: Specular Exponent  
+- $\mathbf{L}$: Lichtrichtung  
+- $\mathbf{H} = \frac{\mathbf{V} + \mathbf{L}}{\|\mathbf{V} + \mathbf{L}\|}$: Half-Vector  
+- $\mathbf{V}$: View-Richtung  
+- $d(x_i)$: optionale Tiefenabhängigkeit
+
+---
+
+# Literatur
+
+- Levoy, M. (1988). *Display of Surfaces from Volume Data.* IEEE Computer Graphics and Applications, 8(3), 29-37.  
+- Phong, B. T. (1975). *Illumination for Computer Generated Pictures.* Communications of the ACM, 18(6), 311-317.  
+- Drebin, R. A., Carpenter, L., & Hanrahan, P. (1988). *Volume Rendering.* SIGGRAPH '88 Proceedings, 65-74.
 
 # Reference Vertex Shader
 ```glsl
@@ -145,87 +145,160 @@ void main() {
 # Reference Fragment Shader
 ```glsl
 precision highp float;
+precision highp sampler3D;
 
 in vec2 vUv;
 out vec4 fragColor;
 
 uniform vec3 cameraPosition;
 uniform vec3 cameraDirection;
-uniform float cameraFov;
-uniform vec2 iResolution;
+uniform sampler3D volumeTexture;
+uniform ivec2 iResolution; // <-- aspect correction
 
-// Utility: smooth min for blending
-float smin(float a, float b, float k) {
-    float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-    return mix(b, a, h) - k * h * (1.0 - h);
+const float stepSize = 0.005;
+const int   maxSteps = 1024;
+const vec3  lightDir = normalize(vec3(1.0, 1.0, 0.0));
+const float orthoScale = 0.5;
+
+// Gradient computation
+vec3 computeGradient(vec3 uvw) {
+    float h = 0.005;
+    float fx1 = texture(volumeTexture, clamp(uvw + vec3(h,0,0), 0.0, 1.0)).r;
+    float fx2 = texture(volumeTexture, clamp(uvw - vec3(h,0,0), 0.0, 1.0)).r;
+    float fy1 = texture(volumeTexture, clamp(uvw + vec3(0,h,0), 0.0, 1.0)).r;
+    float fy2 = texture(volumeTexture, clamp(uvw - vec3(0,h,0), 0.0, 1.0)).r;
+    float fz1 = texture(volumeTexture, clamp(uvw + vec3(0,0,h), 0.0, 1.0)).r;
+    float fz2 = texture(volumeTexture, clamp(uvw - vec3(0,0,h), 0.0, 1.0)).r;
+    return -vec3(fx1 - fx2, fy1 - fy2, fz1 - fz2);
 }
 
-// SDF primitives
-float sphereSDF(vec3 p, float r) {
-    return length(p) - r;
-}
+// Transfer function
+vec4 transferFunction(float f, float gradMag) {
+    // Representative CT numbers (HU)
+    const float f_air    = -750.0;
+    const float f_tissue =   50.0;
+    const float f_bone   =  700.0;
 
-float cubeSDF(vec3 p, vec3 b) {
-    vec3 q = abs(p) - b;
-    return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
-}
+    // Assigned alpha values (Opacity)
+    const float a_air    = 0.0;  // Transparent
+    const float a_tissue = 0.2;  // Medium opacity
+    const float a_bone   = 1.0;  // Strong opacity
 
-// Connected cube + sphere
-float connectedSphereCubeSDF(vec3 p) {
-    float cube = cubeSDF(p - vec3(-0.4, 0.0, 0.0), vec3(0.35));
-    float sphere = sphereSDF(p - vec3(0.3, 0.0, 0.0), 0.35);
-    return smin(cube, sphere, 0.25);
-}
+    // Assigned colors
+    const vec3 c_air    = vec3(0.0);                 // Air
+    const vec3 c_tissue = vec3(0.9, 0.7, 0.6);   // Skin-tone
+    const vec3 c_bone   = vec3(1.0, 1.0, 0.95);  // White/Ivory
+    
+    // initial
+    float alpha = 0.0;
+    vec3  color = c_air;
 
-void main() {
-    // Camera basis
-    vec3 forward = normalize(cameraDirection);
-    vec3 worldUp = vec3(0.0, 1.0, 0.0);
-    vec3 right = normalize(cross(forward, worldUp));
-    vec3 up = cross(right, forward);
-
-    // Aspect & FOV
-    float aspect = iResolution.x / iResolution.y;
-    float scale = tan(cameraFov * 0.5);
-
-    // Compute ray direction
-    vec3 rayDir = normalize(forward + vUv.x * right * scale * aspect + vUv.y * up * scale);
-    vec3 rayOrigin = cameraPosition;
-
-    // Raymarch
-    float t = 0.0;
-    float totalDensity = 0.0;
-    const float maxDist = 50.0;
-
-    for (int i = 0; i < 256; i++) {
-        vec3 p = rayOrigin + rayDir * t;
-        float d = connectedSphereCubeSDF(p);
-
-        if (d < 0.0)
-            totalDensity += 0.025;
-
-        t += max(d, 0.01);
-
-        if (t > maxDist)
-        break;
+    if (f >= f_air && f <= f_tissue) {
+        // Between air and soft tissue
+        float t = (f - f_air) / (f_tissue - f_air);
+        alpha = mix(a_air, a_tissue, t);
+        color = mix(c_air, c_tissue, t);
+    } else if (f >= f_tissue && f <= f_bone) {
+        // Between tissue and bone
+        float t = (f - f_tissue) / (f_bone - f_tissue);
+        alpha = mix(a_tissue, a_bone, t);
+        color = mix(c_tissue, c_bone, t);
+    } else if (f > f_bone) {
+        // Denser than bone
+        alpha = a_bone;
+        color = c_bone;
     }
 
-    fragColor = vec4(vec3(clamp(totalDensity, 0.0, 1.0)), 1.0);
+    // Multiply opacity by gradient magnitude
+    // alpha = clamp(alpha * gradMag * 2.0, 0.0, 1.0);
+
+    return vec4(color, alpha);
 }
-```
 
-# Starter Vertex Shader
-```glsl
-precision highp float;
 
-in vec3 position;
-in vec2 uv;
+// Phong shading
+vec3 phongShade(vec3 N, vec3 baseColor, vec3 viewDir, vec3 lightDir) {
+    const vec3 ka = vec3(0.5);
+    const vec3 kd = vec3(0.6);
+    const vec3 ks = vec3(0.3);
+    const float n = 20.0;
 
-out vec2 vUv;
+    vec3 H = normalize(viewDir + lightDir);
+    float diff = max(dot(N, lightDir), 0.0);
+    float spec = pow(max(dot(N, H), 0.0), n);
+
+    return baseColor * (ka + kd * diff) + ks * spec;
+}
+
+// Ray generation (aspect-corrected)
+void generateRay(out vec3 rayOrigin, out vec3 rayDir) {
+    // compute aspect ratio from iResolution
+    float aspect = float(iResolution.x) / float(iResolution.y);
+
+    // If vUv is already in -1..1, you may not want to remap; here we follow the existing use
+    // and simply scale the X component to correct for aspect.
+    vec2 uv = vUv;
+    uv.x *= aspect;
+
+    vec3 forward = normalize(cameraDirection);
+    vec3 right   = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+    vec3 up      = cross(right, forward);
+
+    rayDir = forward;
+    // scale the right offset by the corrected uv.x
+    rayOrigin = cameraPosition + uv.x * right * orthoScale + uv.y * up * orthoScale;
+}
+
+// Sample volume
+vec4 sampleVolume(vec3 uvw, vec3 rayDir) {
+    float f = texture(volumeTexture, uvw).r - 1100.0; // texture is raised by 1100
+    vec3 grad = computeGradient(uvw);
+    float gradMag = length(grad);
+
+    // Call transfer function to get material properties
+    vec4 material = transferFunction(f, gradMag);
+    
+    vec3 shaded = phongShade(normalize(grad), material.rgb, normalize(-rayDir), lightDir);
+
+    return vec4(shaded, material.a);
+}
 
 void main() {
-    vUv = uv * 2.0 - 1.0;
-    gl_Position = vec4(position, 1.0);
+    vec3 rayOrigin, rayDir;
+    generateRay(rayOrigin, rayDir);
+
+    float tNear = 0.01; // Start slightly away from the camera
+    float tFar  = 2.0;  // March a distance guaranteed to pass through the volume
+
+    vec3 colorAccum = vec3(0.0);
+    float alphaAccum = 0.0;
+
+    // Calculate number of steps based on the assumed marching length
+    float rayLength = tFar - tNear;
+    int steps = min(int(rayLength / stepSize), maxSteps);
+
+    // Ray marching loop
+    // Back-to-front compositing
+    for (int i = steps - 1; i >= 0; --i) {
+        float t = tNear + float(i) * stepSize;
+        vec3 p = rayOrigin + rayDir * t;
+        vec3 uvw = p + 0.5;
+
+        // Bounding box check (to ensure we only sample the texture)
+        // This acts as an implicit boundary for the volume.
+        if (any(lessThan(uvw, vec3(0.0))) || any(greaterThan(uvw, vec3(1.0))))
+            continue;
+
+        vec4 s = sampleVolume(uvw, rayDir);
+        float a = s.a;
+        vec3 c = s.rgb;
+
+        // 'Over' operator
+        colorAccum = c * a + colorAccum * (1.0 - a);
+        alphaAccum = a + alphaAccum * (1.0 - a);
+    }
+
+    fragColor = vec4(colorAccum, 1.0);
 }
 ```
 

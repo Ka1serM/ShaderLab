@@ -9,7 +9,6 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "gh-pages -d build",
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
@@ -37,7 +36,6 @@
     "clsx": "^2.1.1",
     "embla-carousel-svelte": "^8.6.0",
     "formsnap": "^2.0.1",
-    "gh-pages": "^6.3.0",
     "gray-matter": "^4.0.3",
     "katex": "^0.16.25",
     "layerchart": "^2.0.0-next.27",

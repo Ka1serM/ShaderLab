@@ -2,6 +2,7 @@ import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
 import tasks from '$lib/data/tasks.json';
 import { slugify } from '$lib/utils/slugify';
+import type { ShaderInput } from '$lib/renderer/ShaderTaskMaterial';
 
 export interface Task {
   title: string;
@@ -15,6 +16,7 @@ export interface Task {
   modelPath: string;
   type: "2D" | "3D";
   instanceCount?: number;
+  inputs?: ShaderInput[];
 }
 
 export interface GLSLError {

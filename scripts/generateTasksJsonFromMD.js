@@ -37,14 +37,6 @@ function toCamelCase(str) {
     .replace(/^(.)/, (_, g1) => g1.toLowerCase());
 }
 
-function normalizeHints(hints) {
-  if (!hints) return [];
-  if (Array.isArray(hints)) {
-    return hints.map(h => (typeof h === "object" && h !== null ? `${Object.keys(h)[0]}: ${Object.values(h)[0]}` : String(h)));
-  }
-  return [String(hints)];
-}
-
 const files = fs.readdirSync(tasksFolder).filter(f => f.endsWith(".md"));
 
 const tasks = files.map(file => {
@@ -81,7 +73,6 @@ const tasks = files.map(file => {
 
   return {
     ...Object.fromEntries(Object.entries(data).map(([k, v]) => [toCamelCase(k), v])),
-    hints: normalizeHints(data.hints),
     ...contentSections,
     ...shaderSections
   };

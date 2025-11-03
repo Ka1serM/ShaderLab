@@ -5,6 +5,8 @@
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
   import { taskStore, type Task, type GLSLError } from '$lib/stores/taskStore';
   import { base } from '$app/paths';
+  import { ShaderTaskMaterial, type ShaderInput } from '$lib/renderer/ShaderTaskMaterial';
+    import { message } from 'sveltekit-superforms';
 
   export let task: Task;
   export let vertexShader: string;
@@ -16,7 +18,7 @@
   let scene: THREE.Scene;
   let renderer: THREE.WebGLRenderer;
   let camera: THREE.PerspectiveCamera;
-  let shaderMaterial: THREE.RawShaderMaterial;
+  let shaderMaterial: ShaderTaskMaterial;
   let mesh: THREE.InstancedMesh | null = null;
   let clock: THREE.Clock;
   let controls: OrbitControls | null = null;
@@ -57,6 +59,7 @@
 
     // GLSL error log parser
     const GLSL_LINE_OFFSET = 3;
+
     const parseGLSLLog = (log: string, type: 'vertex' | 'fragment'): GLSLError[] => {
       return log
         .split('\n')
@@ -68,11 +71,14 @@
 
           const originalLine = parseInt(match[1], 10);
           const adjustedLine = Math.max(1, originalLine - GLSL_LINE_OFFSET);
+          const message = match[2]; // <-- correctly assign message from regex
+
+          console.warn(`$[${type}] (line ${adjustedLine}): ${message}`);
 
           return {
             type: line.startsWith('WARNING') ? 'warning' : 'error',
             line: adjustedLine,
-            message: match[2],
+            message,
             timestamp: Date.now() // ensure uniqueness
           };
         })
@@ -122,11 +128,11 @@
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
 
-    if (shaderMaterial?.uniforms.iResolution) {
-      shaderMaterial.uniforms.iResolution.value.set(
+    if (shaderMaterial) {
+      shaderMaterial.setInput('iResolution', [
         renderer.domElement.width,
         renderer.domElement.height
-      );
+      ]);
     }
 
     renderer.render(scene, camera);
@@ -141,12 +147,10 @@
     controls?.update();
 
     if (shaderMaterial) {
-      shaderMaterial.uniforms.time.value = clock.getElapsedTime();
-      shaderMaterial.uniforms.cameraPosition.value.copy(camera.position);
-      shaderMaterial.uniforms.cameraDirection.value.copy(
-        camera.getWorldDirection(new THREE.Vector3())
-      );
-      shaderMaterial.uniforms.cameraFov.value = camera.fov * (Math.PI / 180);
+      shaderMaterial.setInput('time', clock.getElapsedTime());
+      shaderMaterial.setInput('cameraPosition', camera.position.toArray());
+      shaderMaterial.setInput('cameraDirection', camera.getWorldDirection(new THREE.Vector3()).toArray());
+      shaderMaterial.setInput('cameraFov', camera.fov * (Math.PI / 180));
     }
 
     renderer.render(scene, camera);
@@ -173,22 +177,24 @@
   function createShaderMaterial() {
     if (!container || !camera || isDestroyed) return;
 
-    shaderMaterial = new THREE.RawShaderMaterial({
+    const defaultInputs: ShaderInput[] = [
+      { type: 'float' as const, name: 'time', init: 0 },
+      { type: 'vec2' as const, name: 'iResolution', init: [
+        container.clientWidth * window.devicePixelRatio,
+        container.clientHeight * window.devicePixelRatio
+      ]},
+      { type: 'float' as const, name: 'cameraFov', init: camera.fov * (Math.PI / 180) },
+      { type: 'vec3' as const, name: 'cameraPosition', init: [camera.position.x, camera.position.y, camera.position.z] },
+      { type: 'vec3' as const, name: 'cameraDirection', init: camera.getWorldDirection(new THREE.Vector3()).toArray() }
+    ];
+
+    // Combine default inputs with task-specific inputs
+    const inputs = [...defaultInputs, ...(task.inputs || [])];
+
+    shaderMaterial = new ShaderTaskMaterial({
       vertexShader,
       fragmentShader,
-      uniforms: {
-        time: { value: 0 },
-        iResolution: {
-          value: new THREE.Vector2(
-            container.clientWidth * window.devicePixelRatio,
-            container.clientHeight * window.devicePixelRatio
-          )
-        },
-        cameraFov: { value: camera.fov * (Math.PI / 180) },
-        cameraPosition: { value: camera.position.clone() },
-        cameraDirection: { value: camera.getWorldDirection(new THREE.Vector3()) }
-      },
-      glslVersion: THREE.GLSL3
+      inputs
     });
   }
 
@@ -238,9 +244,7 @@
     // Clear old errors before recompilation
     taskStore.clearShaderErrors();
 
-    shaderMaterial.vertexShader = vertexShader;
-    shaderMaterial.fragmentShader = fragmentShader;
-    shaderMaterial.needsUpdate = true;
+    shaderMaterial.updateShaders(vertexShader, fragmentShader);
   }
 
   /* ---------------------------- Cleanup ---------------------------- */
