@@ -153,152 +153,157 @@ out vec4 fragColor;
 uniform vec3 cameraPosition;
 uniform vec3 cameraDirection;
 uniform sampler3D volumeTexture;
-uniform ivec2 iResolution; // <-- aspect correction
+uniform ivec2 iResolution;
 
-const float stepSize = 0.005;
+const float stepSize = 0.0015;
 const int   maxSteps = 1024;
 const vec3  lightDir = normalize(vec3(1.0, 1.0, 0.0));
 const float orthoScale = 0.5;
 
-// Gradient computation
-vec3 computeGradient(vec3 uvw) {
-    float h = 0.005;
-    float fx1 = texture(volumeTexture, clamp(uvw + vec3(h,0,0), 0.0, 1.0)).r;
-    float fx2 = texture(volumeTexture, clamp(uvw - vec3(h,0,0), 0.0, 1.0)).r;
-    float fy1 = texture(volumeTexture, clamp(uvw + vec3(0,h,0), 0.0, 1.0)).r;
-    float fy2 = texture(volumeTexture, clamp(uvw - vec3(0,h,0), 0.0, 1.0)).r;
-    float fz1 = texture(volumeTexture, clamp(uvw + vec3(0,0,h), 0.0, 1.0)).r;
-    float fz2 = texture(volumeTexture, clamp(uvw - vec3(0,0,h), 0.0, 1.0)).r;
-    return -vec3(fx1 - fx2, fy1 - fy2, fz1 - fz2);
+vec3 ComputeGradient(vec3 UVW) {
+    vec3 H = 1.0 / vec3(textureSize(volumeTexture, 0)); // Texelgröße
+
+    float Fx1 = texture(volumeTexture, clamp(UVW + vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
+    float Fx2 = texture(volumeTexture, clamp(UVW - vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
+
+    float Fy1 = texture(volumeTexture, clamp(UVW + vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
+    float Fy2 = texture(volumeTexture, clamp(UVW - vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
+
+    float Fz1 = texture(volumeTexture, clamp(UVW + vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
+    float Fz2 = texture(volumeTexture, clamp(UVW - vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
+
+    vec3 grad = vec3(
+        (Fx1 - Fx2) / (2.0 * H.x),
+        (Fy1 - Fy2) / (2.0 * H.y),
+        (Fz1 - Fz2) / (2.0 * H.z)
+    );
+    return grad; // nthält auch die stärke über die Länge
 }
 
-// Transfer function
-vec4 transferFunction(float f, float gradMag) {
-    // Representative CT numbers (HU)
-    const float f_air    = -750.0;
-    const float f_tissue =   50.0;
-    const float f_bone   =  700.0;
+vec4 TransferFunction(float F, float gradientMagnitude)
+{
+    const float huAir    = -750.0;
+    const float huTissue =   50.0;
+    const float huBone   =  700.0;
 
-    // Assigned alpha values (Opacity)
-    const float a_air    = 0.0;  // Transparent
-    const float a_tissue = 0.2;  // Medium opacity
-    const float a_bone   = 1.0;  // Strong opacity
+    const float alphaAir    = 0.0;
+    const float alphaTissue = 0.02;
+    const float alphaBone   = 1.0;
 
-    // Assigned colors
-    const vec3 c_air    = vec3(0.0);                 // Air
-    const vec3 c_tissue = vec3(0.9, 0.7, 0.6);   // Skin-tone
-    const vec3 c_bone   = vec3(1.0, 1.0, 0.95);  // White/Ivory
-    
-    // initial
-    float alpha = 0.0;
-    vec3  color = c_air;
+    const vec3 colorAir    = vec3(0.0);
+    const vec3 colorTissue = vec3(0.929, 0.675, 0.522);
+    const vec3 colorBone   = vec3(0.949, 0.898, 0.643);
 
-    if (f >= f_air && f <= f_tissue) {
-        // Between air and soft tissue
-        float t = (f - f_air) / (f_tissue - f_air);
-        alpha = mix(a_air, a_tissue, t);
-        color = mix(c_air, c_tissue, t);
-    } else if (f >= f_tissue && f <= f_bone) {
-        // Between tissue and bone
-        float t = (f - f_tissue) / (f_bone - f_tissue);
-        alpha = mix(a_tissue, a_bone, t);
-        color = mix(c_tissue, c_bone, t);
-    } else if (f > f_bone) {
-        // Denser than bone
-        alpha = a_bone;
-        color = c_bone;
+    float alpha;
+    vec3  color;
+    if (F <= huAir) {
+        alpha = alphaAir;
+        color = colorAir;
+    } 
+    else if (F < huTissue) {
+        float t = (F - huAir) / (huTissue - huAir);
+        alpha = mix(alphaAir, alphaTissue, t);
+        color = mix(colorAir, colorTissue, t);
+    } 
+    else if (F < huBone) {
+        float t = (F - huTissue) / (huBone - huTissue);
+        alpha = mix(alphaTissue, alphaBone, t);
+        color = mix(colorTissue, colorBone, t);
+    } 
+    else {
+        alpha = alphaBone;
+        color = colorBone;
     }
 
-    // Multiply opacity by gradient magnitude
-    // alpha = clamp(alpha * gradMag * 2.0, 0.0, 1.0);
+    // Gewichtung mit Gradient um die Kanten zwischen Oberflächen deutlich zu machen
+    alpha *= 1.0 - exp(-5.0 * clamp(gradientMagnitude / 8.0, 0.0, 1.0)); // 0 -> flat region, 1 -> sharp edge
 
     return vec4(color, alpha);
 }
 
+vec3 PhongShade(vec3 N, vec3 BaseColor, vec3 ViewDir, vec3 lightDir) {
+    const vec3 Ka = vec3(0.01); // Ambient
+    const vec3 Kd = vec3(1.0); // Diffus
+    const vec3 Ks = vec3(0.3); // Spekular
+    const float NExp = 120.0; // Rauheit
 
-// Phong shading
-vec3 phongShade(vec3 N, vec3 baseColor, vec3 viewDir, vec3 lightDir) {
-    const vec3 ka = vec3(0.5);
-    const vec3 kd = vec3(0.6);
-    const vec3 ks = vec3(0.3);
-    const float n = 20.0;
+    vec3 H = normalize(ViewDir + lightDir); // Halfvector
+    float Diff = max(dot(N, lightDir), 0.0); // Diffus
+    float Spec = pow(max(dot(N, H), 0.0), NExp); // Spekular
 
-    vec3 H = normalize(viewDir + lightDir);
-    float diff = max(dot(N, lightDir), 0.0);
-    float spec = pow(max(dot(N, H), 0.0), n);
-
-    return baseColor * (ka + kd * diff) + ks * spec;
+    return BaseColor * (Ka + Kd * Diff) + Ks * Spec;
 }
 
-// Ray generation (aspect-corrected)
-void generateRay(out vec3 rayOrigin, out vec3 rayDir) {
-    // compute aspect ratio from iResolution
-    float aspect = float(iResolution.x) / float(iResolution.y);
+void GenerateRay(out vec3 rayOrigin, out vec3 rayDir) {
+    float Aspect = float(iResolution.x) / float(iResolution.y); // Seitenverhältnis aus Uniform
+    vec2 UV = vUv;
+    UV.x *= Aspect; // Korrigiert X-Skalierung
 
-    // If vUv is already in -1..1, you may not want to remap; here we follow the existing use
-    // and simply scale the X component to correct for aspect.
-    vec2 uv = vUv;
-    uv.x *= aspect;
-
+    // Orthogonale Basis bilden
     vec3 forward = normalize(cameraDirection);
-    vec3 right   = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
-    vec3 up      = cross(right, forward);
+    vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+    vec3 up = cross(right, forward);
 
     rayDir = forward;
-    // scale the right offset by the corrected uv.x
-    rayOrigin = cameraPosition + uv.x * right * orthoScale + uv.y * up * orthoScale;
+    rayOrigin = cameraPosition + UV.x * right * orthoScale + UV.y * up * orthoScale; // Ortho Offset
 }
 
-// Sample volume
-vec4 sampleVolume(vec3 uvw, vec3 rayDir) {
-    float f = texture(volumeTexture, uvw).r - 1100.0; // texture is raised by 1100
-    vec3 grad = computeGradient(uvw);
-    float gradMag = length(grad);
+vec4 SampleVolume(vec3 UVW, vec3 rayDir) {
+    float F = texture(volumeTexture, UVW).r - 1100.0; // HU-Korrektur weil Textur Werte um 1100 angehoben
+    vec3 Grad = ComputeGradient(UVW); // Gradient berechnen für Phong Normale
+    float gradientMagnitude = length(Grad);
 
-    // Call transfer function to get material properties
-    vec4 material = transferFunction(f, gradMag);
-    
-    vec3 shaded = phongShade(normalize(grad), material.rgb, normalize(-rayDir), lightDir);
+    vec4 Mat = TransferFunction(F, gradientMagnitude); // Materialdaten
+    vec3 Shaded = PhongShade(normalize(-Grad), Mat.rgb, normalize(-rayDir), lightDir); // Beleuchtung
 
-    return vec4(shaded, material.a);
+    return vec4(Shaded, Mat.a); // Farbe + alpha
 }
 
 void main() {
     vec3 rayOrigin, rayDir;
-    generateRay(rayOrigin, rayDir);
+    GenerateRay(rayOrigin, rayDir); // Strahl erzeugen
 
-    float tNear = 0.01; // Start slightly away from the camera
-    float tFar  = 2.0;  // March a distance guaranteed to pass through the volume
+    float TNear = 0.001; // Start
+    float TFar = 2.0;   // Ende
 
-    vec3 colorAccum = vec3(0.0);
-    float alphaAccum = 0.0;
+    vec3 ColorAccum = vec3(0.0); // Farbspeicher
+    float alphaAccum = 0.0; // alphaakkumulation
 
-    // Calculate number of steps based on the assumed marching length
-    float rayLength = tFar - tNear;
-    int steps = min(int(rayLength / stepSize), maxSteps);
+    float RayLength = TFar - TNear;
+    int Steps = min(int(RayLength / stepSize), maxSteps); // Schrittanzahl
 
-    // Ray marching loop
-    // Back-to-front compositing
-    for (int i = steps - 1; i >= 0; --i) {
-        float t = tNear + float(i) * stepSize;
-        vec3 p = rayOrigin + rayDir * t;
-        vec3 uvw = p + 0.5;
+    for (int I = Steps - 1; I >= 0; --I) { // Rückwärtslauf wegen Back to Front
+        float T = TNear + float(I) * stepSize; // Distanz auf dem Strahl
+        vec3 P = rayOrigin + rayDir * T; // Punkt im Raum
+        vec3 UVW = P + 0.5; // Sample In Texturraum
 
-        // Bounding box check (to ensure we only sample the texture)
-        // This acts as an implicit boundary for the volume.
-        if (any(lessThan(uvw, vec3(0.0))) || any(greaterThan(uvw, vec3(1.0))))
+        if (any(lessThan(UVW, vec3(0.0))) || any(greaterThan(UVW, vec3(1.0)))) // Bounds check
             continue;
 
-        vec4 s = sampleVolume(uvw, rayDir);
-        float a = s.a;
-        vec3 c = s.rgb;
+        vec4 S = SampleVolume(UVW, rayDir); // Volume Abtasten
+        float A = S.a;
+        vec3 C = S.rgb;
 
-        // 'Over' operator
-        colorAccum = c * a + colorAccum * (1.0 - a);
-        alphaAccum = a + alphaAccum * (1.0 - a);
+        ColorAccum = C * A + ColorAccum * (1.0 - A); // Over Operator
+        alphaAccum = A + alphaAccum * (1.0 - A); // alpha add
     }
 
-    fragColor = vec4(colorAccum, 1.0);
+    fragColor = vec4(ColorAccum, 1.0);
+}
+```
+
+# Starter Vertex Shader
+```glsl
+precision highp float;
+
+in vec3 position;
+in vec2 uv;
+
+out vec2 vUv;
+
+void main() {
+    vUv = uv * 2.0 - 1.0;
+    gl_Position = vec4(position, 1.0);
 }
 ```
 

@@ -39,13 +39,12 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
     super({
       vertexShader: params.vertexShader,
       fragmentShader: params.fragmentShader,
-      uniforms: {}, // This correctly initializes the *inherited* `this.uniforms`
+      uniforms: {}, // This initializes the inherited `this.uniforms`
       glslVersion: THREE.GLSL3
     });
 
     this.vertexShader = params.vertexShader;
     this.fragmentShader = params.fragmentShader;
-    // `this.uniforms` is now correctly initialized to {} by the `super()` call.
     this.needsUpdate = true;
 
     if (params.inputs) {
