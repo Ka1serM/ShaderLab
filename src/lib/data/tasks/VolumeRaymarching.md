@@ -155,8 +155,8 @@ uniform vec3 cameraDirection;
 uniform sampler3D volumeTexture;
 uniform ivec2 iResolution;
 
-const float stepSize = 0.0015;
-const int   maxSteps = 1024;
+const float stepSize = 0.00256;
+const int   maxSteps = 512;
 const vec3  lightDir = normalize(vec3(1.0, 1.0, 0.0));
 const float orthoScale = 0.5;
 
@@ -177,17 +177,17 @@ vec3 ComputeGradient(vec3 UVW) {
         (Fy1 - Fy2) / (2.0 * H.y),
         (Fz1 - Fz2) / (2.0 * H.z)
     );
-    return grad; // nthält auch die stärke über die Länge
+    return grad;
 }
 
 vec4 TransferFunction(float F, float gradientMagnitude)
 {
-    const float huAir    = -750.0;
+    const float huAir    = -800.0;
     const float huTissue =   50.0;
     const float huBone   =  700.0;
 
     const float alphaAir    = 0.0;
-    const float alphaTissue = 0.02;
+    const float alphaTissue = 0.03;
     const float alphaBone   = 1.0;
 
     const vec3 colorAir    = vec3(0.0);
@@ -261,31 +261,24 @@ vec4 SampleVolume(vec3 UVW, vec3 rayDir) {
 
 void main() {
     vec3 rayOrigin, rayDir;
-    GenerateRay(rayOrigin, rayDir); // Strahl erzeugen
+    GenerateRay(rayOrigin, rayDir);
 
-    float TNear = 0.001; // Start
-    float TFar = 2.0;   // Ende
+    vec3 ColorAccum = vec3(0.0);
+    float alphaAccum = 0.0;
 
-    vec3 ColorAccum = vec3(0.0); // Farbspeicher
-    float alphaAccum = 0.0; // alphaakkumulation
+    int Steps = min(int(1.0 / stepSize), maxSteps);
 
-    float RayLength = TFar - TNear;
-    int Steps = min(int(RayLength / stepSize), maxSteps); // Schrittanzahl
+    for (int I = Steps - 1; I >= 0; --I) {     // Back-to-front
+        float T = float(I) * stepSize;         // 0 → 1
+        vec3 P = rayOrigin + rayDir * T;
+        vec3 UVW = P + 0.5;
 
-    for (int I = Steps - 1; I >= 0; --I) { // Rückwärtslauf wegen Back to Front
-        float T = TNear + float(I) * stepSize; // Distanz auf dem Strahl
-        vec3 P = rayOrigin + rayDir * T; // Punkt im Raum
-        vec3 UVW = P + 0.5; // Sample In Texturraum
-
-        if (any(lessThan(UVW, vec3(0.0))) || any(greaterThan(UVW, vec3(1.0)))) // Bounds check
+        if (UVW.x < 0.0 || UVW.y < 0.0 || UVW.z < 0.0 || UVW.x > 1.0 || UVW.y > 1.0 || UVW.z > 1.0)
             continue;
 
-        vec4 S = SampleVolume(UVW, rayDir); // Volume Abtasten
-        float A = S.a;
-        vec3 C = S.rgb;
-
-        ColorAccum = C * A + ColorAccum * (1.0 - A); // Over Operator
-        alphaAccum = A + alphaAccum * (1.0 - A); // alpha add
+        vec4 S = SampleVolume(UVW, rayDir);
+        ColorAccum = S.rgb * S.a + ColorAccum * (1.0 - S.a);
+        alphaAccum = S.a + alphaAccum * (1.0 - S.a);
     }
 
     fragColor = vec4(ColorAccum, 1.0);
