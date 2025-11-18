@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { Drawer as DrawerPrimitive } from "vaul-svelte";
 	import { cn } from "$lib/utils.js";
 
@@ -6,7 +6,7 @@
 		ref = $bindable(null),
 		class: className,
 		...restProps
-	}: DrawerPrimitive.DescriptionProps = $props();
+	} = $props();
 </script>
 
 <DrawerPrimitive.Description

@@ -1,11 +1,8 @@
-<script lang="ts">
+<script>
 	import { Calendar as CalendarPrimitive } from "bits-ui";
 	import * as Calendar from "./index.js";
-	import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
-	import type { ButtonVariant } from "../button/button.svelte";
-	import { isEqualMonth, type DateValue } from "@internationalized/date";
-	import type { Snippet } from "svelte";
-
+	import { cn } from "$lib/utils.js";
+	import { isEqualMonth } from "@internationalized/date";
 	let {
 		ref = $bindable(null),
 		value = $bindable(),
@@ -22,14 +19,6 @@
 		day,
 		disableDaysOutsideMonth = false,
 		...restProps
-	}: WithoutChildrenOrChild<CalendarPrimitive.RootProps> & {
-		buttonVariant?: ButtonVariant;
-		captionLayout?: "dropdown" | "dropdown-months" | "dropdown-years" | "label";
-		months?: CalendarPrimitive.MonthSelectProps["months"];
-		years?: CalendarPrimitive.YearSelectProps["years"];
-		monthFormat?: CalendarPrimitive.MonthSelectProps["monthFormat"];
-		yearFormat?: CalendarPrimitive.YearSelectProps["yearFormat"];
-		day?: Snippet<[{ day: DateValue; outsideMonth: boolean }]>;
 	} = $props();
 
 	const monthFormat = $derived.by(() => {
@@ -44,7 +33,7 @@ Discriminated Unions + Destructing (required for bindable) do not
 get along, so we shut typescript up by casting `value` to `never`.
 -->
 <CalendarPrimitive.Root
-	bind:value={value as never}
+	bind:value={value}
 	bind:ref
 	bind:placeholder
 	{weekdayFormat}

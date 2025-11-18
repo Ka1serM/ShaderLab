@@ -1,4 +1,4 @@
-<script lang="ts" module>
+<script module>
 	import { cn } from "$lib/utils.js";
 	import { tv } from "tailwind-variants";
 
@@ -7,7 +7,7 @@
 	});
 </script>
 
-<script lang="ts">
+<script>
 	import { NavigationMenu as NavigationMenuPrimitive } from "bits-ui";
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 
@@ -16,7 +16,7 @@
 		class: className,
 		children,
 		...restProps
-	}: NavigationMenuPrimitive.TriggerProps = $props();
+	} = $props();
 </script>
 
 <NavigationMenuPrimitive.Trigger

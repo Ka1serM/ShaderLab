@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { cn } from "$lib/utils.js";
 	import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 
@@ -8,8 +8,6 @@
 		portalProps,
 		class: className,
 		...restProps
-	}: DropdownMenuPrimitive.ContentProps & {
-		portalProps?: DropdownMenuPrimitive.PortalProps;
 	} = $props();
 </script>
 

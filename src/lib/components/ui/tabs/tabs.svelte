@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { Tabs as TabsPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -7,7 +7,7 @@
 		value = $bindable(""),
 		class: className,
 		...restProps
-	}: TabsPrimitive.RootProps = $props();
+	} = $props();
 </script>
 
 <TabsPrimitive.Root

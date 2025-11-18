@@ -1,10 +1,18 @@
-<script lang="ts">
+<script>
 	import { cn } from "$lib/utils.js";
-	import type { HTMLAttributes } from "svelte/elements";
-
-	let { class: className, children, ...restProps }: HTMLAttributes<HTMLDivElement> = $props();
+	let {
+		ref = $bindable(null),
+		class: className,
+		children,
+		...restProps
+	} = $props();
 </script>
 
-<div data-slot="item-actions" class={cn("flex items-center gap-2", className)} {...restProps}>
+<div
+	bind:this={ref}
+	data-slot="item-actions"
+	class={cn("flex items-center gap-2", className)}
+	{...restProps}
+>
 	{@render children?.()}
 </div>

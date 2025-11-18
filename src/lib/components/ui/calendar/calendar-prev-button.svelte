@@ -1,7 +1,7 @@
-<script lang="ts">
+<script>
 	import { Calendar as CalendarPrimitive } from "bits-ui";
 	import ChevronLeftIcon from "@lucide/svelte/icons/chevron-left";
-	import { buttonVariants, type ButtonVariant } from "$lib/components/ui/button/index.js";
+	import { buttonVariants } from "$lib/components/ui/button/index.js";
 	import { cn } from "$lib/utils.js";
 
 	let {
@@ -10,8 +10,6 @@
 		children,
 		variant = "ghost",
 		...restProps
-	}: CalendarPrimitive.PrevButtonProps & {
-		variant?: ButtonVariant;
 	} = $props();
 </script>
 

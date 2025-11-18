@@ -1,16 +1,15 @@
-<script lang="ts" module>
+<script module>
 	import { getContext, setContext } from "svelte";
-	import type { ToggleVariants } from "$lib/components/ui/toggle/index.js";
-	export function setToggleGroupCtx(props: ToggleVariants) {
+	export function setToggleGroupCtx(props) {
 		setContext("toggleGroup", props);
 	}
 
 	export function getToggleGroupCtx() {
-		return getContext<ToggleVariants>("toggleGroup");
+		return getContext("toggleGroup");
 	}
 </script>
 
-<script lang="ts">
+<script>
 	import { ToggleGroup as ToggleGroupPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -21,7 +20,7 @@
 		size = "default",
 		variant = "default",
 		...restProps
-	}: ToggleGroupPrimitive.RootProps & ToggleVariants = $props();
+	} = $props();
 
 	setToggleGroupCtx({
 		variant,
@@ -34,7 +33,7 @@ Discriminated Unions + Destructing (required for bindable) do not
 get along, so we shut typescript up by casting `value` to `never`.
 -->
 <ToggleGroupPrimitive.Root
-	bind:value={value as never}
+	bind:value={value}
 	bind:ref
 	data-slot="toggle-group"
 	data-variant={variant}

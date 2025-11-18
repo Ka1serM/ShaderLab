@@ -1,7 +1,7 @@
-<script lang="ts">
+<script>
 	import { RangeCalendar as RangeCalendarPrimitive } from "bits-ui";
 	import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
-	import { buttonVariants, type ButtonVariant } from "$lib/components/ui/button/index.js";
+	import { buttonVariants } from "$lib/components/ui/button/index.js";
 	import { cn } from "$lib/utils.js";
 
 	let {
@@ -10,8 +10,6 @@
 		children,
 		variant = "ghost",
 		...restProps
-	}: RangeCalendarPrimitive.NextButtonProps & {
-		variant?: ButtonVariant;
 	} = $props();
 </script>
 

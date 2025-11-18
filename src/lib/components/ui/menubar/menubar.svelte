@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { Menubar as MenubarPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -6,7 +6,7 @@
 		ref = $bindable(null),
 		class: className,
 		...restProps
-	}: MenubarPrimitive.RootProps = $props();
+	} = $props();
 </script>
 
 <MenubarPrimitive.Root

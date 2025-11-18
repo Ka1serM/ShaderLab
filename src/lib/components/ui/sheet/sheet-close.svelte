@@ -1,7 +1,7 @@
-<script lang="ts">
+<script>
 	import { Dialog as SheetPrimitive } from "bits-ui";
 
-	let { ref = $bindable(null), ...restProps }: SheetPrimitive.CloseProps = $props();
+	let { ref = $bindable(null), ...restProps } = $props();
 </script>
 
 <SheetPrimitive.Close bind:ref data-slot="sheet-close" {...restProps} />

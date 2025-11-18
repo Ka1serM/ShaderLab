@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import { useSidebar } from "$lib/components/ui/sidebar/index.js";
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
@@ -11,7 +11,6 @@
   import SparklesIcon from "@lucide/svelte/icons/sparkles";
   import { Moon, Sun } from "lucide-svelte";
   import { toggleMode } from "mode-watcher";
-
 
   import { 
     House, 
@@ -39,25 +38,25 @@
         const category = task.category ?? "Uncategorized";
         (acc[category] ||= []).push(task);
         return acc;
-      }, {} as Record<string, typeof tasks>)
+      }, {})
     )
   );
 
   // Navigation helpers
-  function navigateToHome(e: MouseEvent) {
+  function navigateToHome(e) {
     e.preventDefault();
     goto(resolve('/'));
   }
 
-  function navigateToTask(title: string) {
-    return (e: MouseEvent) => {
+  function navigateToTask(title) {
+    return function(e) {
       e.preventDefault();
       goto(resolve(`/task/${slugify(title)}`));
     };
   }
 
   // Check if current route is active
-  function isActive(path: string) {
+  function isActive(path) {
     return $page.url.pathname === path;
   }
 
@@ -184,76 +183,75 @@
 
   <!-- Footer -->
   <Sidebar.Footer>
-<Sidebar.Menu>
-  <Sidebar.MenuItem>
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger>
-        {#snippet child({ props })}
-          <Sidebar.MenuButton
-            size="lg"
-            class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-            {...props}
+    <Sidebar.Menu>
+      <Sidebar.MenuItem>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
+            {#snippet child({ props })}
+              <Sidebar.MenuButton
+                size="lg"
+                class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                {...props}
+              >
+                <Avatar.Root class="size-8 rounded-lg">
+                  <Avatar.Fallback class="rounded-lg">MK</Avatar.Fallback>
+                </Avatar.Root>
+                <div class="grid flex-1 text-left text-sm leading-tight">
+                  <span class="truncate font-medium">User</span>
+                  <span class="truncate text-xs">example@email.com</span>
+                </div>
+                <ChevronsUpDownIcon class="ml-auto size-4" />
+              </Sidebar.MenuButton>
+            {/snippet}
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content
+            class="w-(--bits-dropdown-menu-anchor-width) min-w-56 rounded-lg"
+            side={sidebar.isMobile ? "bottom" : "right"}
+            align="end"
+            sideOffset={4}
           >
-            <Avatar.Root class="size-8 rounded-lg">
-              <Avatar.Fallback class="rounded-lg">MK</Avatar.Fallback>
-            </Avatar.Root>
-            <div class="grid flex-1 text-left text-sm leading-tight">
-              <span class="truncate font-medium">User</span>
-              <span class="truncate text-xs">example@email.com</span>
-            </div>
-            <ChevronsUpDownIcon class="ml-auto size-4" />
-          </Sidebar.MenuButton>
-        {/snippet}
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Content
-        class="w-(--bits-dropdown-menu-anchor-width) min-w-56 rounded-lg"
-        side={sidebar.isMobile ? "bottom" : "right"}
-        align="end"
-        sideOffset={4}
-      >
-        <DropdownMenu.Label class="p-0 font-normal">
-          <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-            <Avatar.Root class="size-8 rounded-lg">
-              <Avatar.Fallback class="rounded-lg">MK</Avatar.Fallback>
-            </Avatar.Root>
-            <div class="grid flex-1 text-left text-sm leading-tight">
-              <span class="truncate font-medium">User</span>
-              <span class="truncate text-xs">example@mail.com</span>
-            </div>
-          </div>
-        </DropdownMenu.Label>
-        <DropdownMenu.Separator />
-        <DropdownMenu.Group>
-          <DropdownMenu.Item>
-            <SparklesIcon />
-            Upgrade to Pro
-          </DropdownMenu.Item>
-        </DropdownMenu.Group>
-        <DropdownMenu.Separator />
-        <DropdownMenu.Group>
-          <DropdownMenu.Item>
-            <BadgeCheckIcon />
-            Account
-          </DropdownMenu.Item>
-<DropdownMenu.Item onclick={toggleMode}>
-  <div class="flex items-center gap-2">
-    <!-- Instantly show/hide using hidden/block -->
-    <Sun class="block dark:hidden h-4 w-4" />
-    <Moon class="hidden dark:block h-4 w-4" />
-    <span class="block dark:hidden">Dark Mode</span>
-    <span class="hidden dark:block">Light Mode</span>
-  </div>
-</DropdownMenu.Item>
-        </DropdownMenu.Group>
-        <DropdownMenu.Separator />
-        <DropdownMenu.Item>
-          <LogOutIcon />
-          Log out
-        </DropdownMenu.Item>
-      </DropdownMenu.Content>
-    </DropdownMenu.Root>
-  </Sidebar.MenuItem>
-</Sidebar.Menu>
+            <DropdownMenu.Label class="p-0 font-normal">
+              <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                <Avatar.Root class="size-8 rounded-lg">
+                  <Avatar.Fallback class="rounded-lg">MK</Avatar.Fallback>
+                </Avatar.Root>
+                <div class="grid flex-1 text-left text-sm leading-tight">
+                  <span class="truncate font-medium">User</span>
+                  <span class="truncate text-xs">example@mail.com</span>
+                </div>
+              </div>
+            </DropdownMenu.Label>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Group>
+              <DropdownMenu.Item>
+                <SparklesIcon />
+                Upgrade to Pro
+              </DropdownMenu.Item>
+            </DropdownMenu.Group>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Group>
+              <DropdownMenu.Item>
+                <BadgeCheckIcon />
+                Account
+              </DropdownMenu.Item>
+              <DropdownMenu.Item onclick={toggleMode}>
+                <div class="flex items-center gap-2">
+                  <Sun class="block dark:hidden h-4 w-4" />
+                  <Moon class="hidden dark:block h-4 w-4" />
+                  <span class="block dark:hidden">Dark Mode</span>
+                  <span class="hidden dark:block">Light Mode</span>
+                </div>
+              </DropdownMenu.Item>
+            </DropdownMenu.Group>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Item>
+              <LogOutIcon />
+              Log out
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
+      </Sidebar.MenuItem>
+    </Sidebar.Menu>
   </Sidebar.Footer>
 
   <!-- Sidebar Rail (hover to expand when collapsed) -->

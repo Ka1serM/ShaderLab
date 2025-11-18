@@ -1,5 +1,5 @@
-<script lang="ts" module>
-	import { tv, type VariantProps } from "tailwind-variants";
+<script module>
+	import { tv } from "tailwind-variants";
 
 	export const emptyMediaVariants = tv({
 		base: "mb-2 flex shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg]:shrink-0",
@@ -13,23 +13,21 @@
 			variant: "default",
 		},
 	});
-
-	export type EmptyMediaVariant = VariantProps<typeof emptyMediaVariants>["variant"];
 </script>
 
-<script lang="ts">
+<script>
 	import { cn } from "$lib/utils.js";
-	import type { HTMLAttributes } from "svelte/elements";
-
 	let {
+		ref = $bindable(null),
 		class: className,
 		children,
 		variant = "default",
 		...restProps
-	}: HTMLAttributes<HTMLDivElement> & { variant?: EmptyMediaVariant } = $props();
+	} = $props();
 </script>
 
 <div
+	bind:this={ref}
 	data-slot="empty-icon"
 	data-variant={variant}
 	class={cn(emptyMediaVariants({ variant }), className)}

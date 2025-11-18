@@ -1,6 +1,6 @@
-<script lang="ts">
+<script>
 	import { Slider as SliderPrimitive } from "bits-ui";
-	import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
+	import { cn } from "$lib/utils.js";
 
 	let {
 		ref = $bindable(null),
@@ -8,7 +8,7 @@
 		orientation = "horizontal",
 		class: className,
 		...restProps
-	}: WithoutChildrenOrChild<SliderPrimitive.RootProps> = $props();
+	} = $props();
 </script>
 
 <!--
@@ -17,7 +17,7 @@ get along, so we shut typescript up by casting `value` to `never`.
 -->
 <SliderPrimitive.Root
 	bind:ref
-	bind:value={value as never}
+	bind:value={value}
 	data-slot="slider"
 	{orientation}
 	class={cn(

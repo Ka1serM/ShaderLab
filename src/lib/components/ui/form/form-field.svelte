@@ -1,9 +1,6 @@
-<script lang="ts" generics="T extends Record<string, unknown>, U extends FormPath<T>">
+<script>
 	import * as FormPrimitive from "formsnap";
-	import type { FormPath } from "sveltekit-superforms";
-	import { cn, type WithElementRef, type WithoutChildren } from "$lib/utils.js";
-	import type { HTMLAttributes } from "svelte/elements";
-
+	import { cn } from "$lib/utils.js";
 	let {
 		ref = $bindable(null),
 		class: className,
@@ -11,8 +8,7 @@
 		name,
 		children: childrenProp,
 		...restProps
-	}: FormPrimitive.FieldProps<T, U> &
-		WithoutChildren<WithElementRef<HTMLAttributes<HTMLDivElement>>> = $props();
+	} = $props();
 </script>
 
 <FormPrimitive.Field {form} {name}>
@@ -23,7 +19,7 @@
 			class={cn("space-y-2", className)}
 			{...restProps}
 		>
-			{@render childrenProp?.({ constraints, errors, tainted, value: value as T[U] })}
+			{@render childrenProp?.({ constraints, errors, tainted, value: value })}
 		</div>
 	{/snippet}
 </FormPrimitive.Field>

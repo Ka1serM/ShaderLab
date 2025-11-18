@@ -1,11 +1,6 @@
-<script lang="ts">
-	import {
-		type CarouselAPI,
-		type CarouselProps,
-		type EmblaContext,
-		setEmblaContext,
-	} from "./context.js";
-	import { cn, type WithElementRef } from "$lib/utils.js";
+<script>
+	import { setEmblaContext } from "./context.js";
+	import { cn } from "$lib/utils.js";
 
 	let {
 		ref = $bindable(null),
@@ -16,9 +11,9 @@
 		class: className,
 		children,
 		...restProps
-	}: WithElementRef<CarouselProps> = $props();
+	} = $props();
 
-	let carouselState = $state<EmblaContext>({
+	let carouselState = $state({
 		api: undefined,
 		scrollPrev,
 		scrollNext,
@@ -44,7 +39,7 @@
 		carouselState.api?.scrollNext();
 	}
 
-	function scrollTo(index: number, jump?: boolean) {
+	function scrollTo(index, jump) {
 		carouselState.api?.scrollTo(index, jump);
 	}
 
@@ -55,7 +50,7 @@
 		carouselState.canScrollPrev = carouselState.api.canScrollPrev();
 	}
 
-	function handleKeyDown(e: KeyboardEvent) {
+	function handleKeyDown(e) {
 		if (e.key === "ArrowLeft") {
 			e.preventDefault();
 			scrollPrev();
@@ -65,7 +60,7 @@
 		}
 	}
 
-	function onInit(event: CustomEvent<CarouselAPI>) {
+	function onInit(event) {
 		carouselState.api = event.detail;
 		setApi(carouselState.api);
 

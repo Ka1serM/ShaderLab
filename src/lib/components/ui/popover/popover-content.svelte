@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { cn } from "$lib/utils.js";
 	import { Popover as PopoverPrimitive } from "bits-ui";
 
@@ -9,8 +9,6 @@
 		align = "center",
 		portalProps,
 		...restProps
-	}: PopoverPrimitive.ContentProps & {
-		portalProps?: PopoverPrimitive.PortalProps;
 	} = $props();
 </script>
 

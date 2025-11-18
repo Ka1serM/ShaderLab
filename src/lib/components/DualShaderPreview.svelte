@@ -1,68 +1,60 @@
-<script lang="ts">
+<script>
   import ShaderPreview from './ShaderPreview.svelte';
   import * as THREE from 'three';
-  import { taskStore } from '$lib/stores/taskStore';
+  export let taskVM;
 
-  let sharedCameraRef: THREE.PerspectiveCamera | null = null;
-  let sharedTargetRef = new THREE.Vector3(0, 0, 0);
-  let shaderErrors: string[] = [];
-
-  // Store reference shaders separately, these dont change during editing
-  let referenceVertex = '';
-  let referenceFragment = '';
-  
-  // Update reference shaders only when task changes, not when user edits
-  $: if ($taskStore.task) {
-    referenceVertex = $taskStore.task.referenceVertexShader;
-    referenceFragment = $taskStore.task.referenceFragmentShader;
-  }
-
-  function setShaderErrors(errors: string[]) {
-    shaderErrors = errors;
-  }
+  let sharedCameraRef = null;
+  let sharedTargetRef = null;
 </script>
 
 <div class="relative w-full h-full px-4 pt-4">
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4 h-full">
-    <!-- Reference Shader - Only recompiles when task changes -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
+
+    <!-- Reference Shader -->
     <div class="flex flex-col min-h-[200px] md:min-h-0 h-full">
       <h3 class="text-xl font-medium text-muted-background pb-2">Reference</h3>
       <div class="relative flex-1">
-        {#if $taskStore.task}
+        {#if taskVM.task}
           <ShaderPreview
-            task={$taskStore.task}
-            vertexShader={referenceVertex}
-            fragmentShader={referenceFragment}
+            task={taskVM.task}
+            inputs={taskVM.session.inputs}
+            vertexShader={taskVM.task.starterVertexShader}
+            fragmentShader={taskVM.task.starterFragmentShader}
             bind:sharedCameraRef
             bind:sharedTargetRef
           />
         {:else}
           <div class="flex items-center justify-center h-full text-muted-foreground">
-            loading reference...
+            Loading reference...
           </div>
         {/if}
       </div>
     </div>
 
-    <!-- User Output Shader - Recompiles on every edit -->
+    <!-- User Output Shader -->
     <div class="flex flex-col min-h-[200px] md:min-h-0 h-full">
       <h3 class="text-xl font-medium text-muted-background pb-2">Output</h3>
       <div class="relative flex-1">
-        {#if $taskStore.task}
+        {#if taskVM.session}
           <ShaderPreview
-            task={$taskStore.task}
-            vertexShader={$taskStore.vertexShader}
-            fragmentShader={$taskStore.fragmentShader}
+            task={taskVM.task}
+            inputs={taskVM.session.inputs}
+            vertexShader={taskVM.session.vertexShader}
+            fragmentShader={taskVM.session.fragmentShader}
             bind:sharedCameraRef
             bind:sharedTargetRef
-            on:error={(e) => setShaderErrors(e.detail)}
+            on:error={(e) => {
+              taskVM.session.shaderErrors.vertex.set(e.detail.vertex || []);
+              taskVM.session.shaderErrors.fragment.set(e.detail.fragment || []);
+            }}
           />
         {:else}
           <div class="flex items-center justify-center h-full text-muted-foreground">
-            loading output...
+            Loading output...
           </div>
         {/if}
       </div>
     </div>
+
   </div>
 </div>

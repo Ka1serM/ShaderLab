@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { PinInput as InputOTPPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -7,7 +7,7 @@
 		cell,
 		class: className,
 		...restProps
-	}: InputOTPPrimitive.CellProps = $props();
+	} = $props();
 </script>
 
 <InputOTPPrimitive.Cell

@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import * as ResizablePrimitive from "paneforge";
 	import { cn } from "$lib/utils.js";
 
@@ -7,8 +7,6 @@
 		this: paneGroup = $bindable(),
 		class: className,
 		...restProps
-	}: ResizablePrimitive.PaneGroupProps & {
-		this?: ResizablePrimitive.PaneGroup;
 	} = $props();
 </script>
 

@@ -1,68 +1,52 @@
-<script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { page } from '$app/stores';
-  import { Splitpanes, Pane } from 'svelte-splitpanes';
-  import TaskPanel from '$lib/components/TaskPanel.svelte';
-  import MonacoEditor from '$lib/components/MonacoEditor.svelte';
-  import DualShaderPreview from '$lib/components/DualShaderPreview.svelte';
-  import { taskStore } from '$lib/stores/taskStore';
-  import type { PageData } from './$types';
-  import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+<script>
+import { page } from '$app/stores';
+import { taskStore, loadTask } from '$lib/stores/taskStore.js';
+import tasks from '$lib/data/tasks.json';
+import { slugify } from '$lib/utils/slugify.js';
 
-  const mobileQuery = new IsMobile();
-  export let data: PageData;
+import TaskPanel from '$lib/components/TaskPanel.svelte';
+import MonacoEditor from '$lib/components/MonacoEditor.svelte';
+import DualShaderPreview from '$lib/components/DualShaderPreview.svelte';
+import { Splitpanes, Pane } from 'svelte-splitpanes';
+import { IsMobile } from '$lib/hooks/is-mobile.js';
 
-  let mounted = false;
+const mobileQuery = new IsMobile();
 
-  // Load task when slug changes
-  $: if (mounted && data.slug) {
-    taskStore.loadTask(data.slug);
-  }
-
-  onMount(() => {
-    mounted = true;
-    if (data.slug) {
-      taskStore.loadTask(data.slug);
-    }
-  });
+// bind to the slug change
+$: if ($page.data.slug) {
+  const taskData = tasks.find(t => slugify(t.title) === $page.data.slug);
+  loadTask(taskData);
+}
 </script>
 
-{#if $taskStore.task}
-  <div class="h-full w-full overflow-hidden">
-    {#if !mobileQuery.current}
-      <!-- Desktop layout -->
-      <Splitpanes class="splitpanes-root" theme="my-theme">
-        <Pane size={35} minSize={20}>
-          <TaskPanel />
-        </Pane>
-        <Pane size={65} minSize={20}>
-          <Splitpanes horizontal class="splitpanes-nested" theme="my-theme">
-            <Pane size={60} minSize={20}>
-              <MonacoEditor />
-            </Pane>
-            <Pane size={40} minSize={20}>
-              <DualShaderPreview />
-            </Pane>
-          </Splitpanes>
-        </Pane>
-      </Splitpanes>
-    {:else}
-      <!-- Mobile layout -->
-      <div class="flex flex-col h-full overflow-auto gap-4 p-2">
-        <div class="min-h-[400px]">
-          <TaskPanel />
-        </div>
-        <div class="min-h-[400px]">
-          <MonacoEditor />
-        </div>
-          <DualShaderPreview />
-      </div>
-    {/if}
-  </div>
+{#if $taskStore && $taskStore.session}
+<div class="h-full w-full overflow-hidden">
+  {#if !mobileQuery.current}
+    <Splitpanes class="splitpanes-root" theme="my-theme">
+      <Pane size={35} minSize={20}>
+        <TaskPanel taskVM={taskStore} />
+      </Pane>
+      <Pane size={65} minSize={20}>
+        <Splitpanes horizontal class="splitpanes-nested" theme="my-theme">
+          <Pane size={60} minSize={20}>
+            <MonacoEditor taskVM={taskStore} />
+          </Pane>
+          <Pane size={40} minSize={20}>
+            <!-- <DualShaderPreview taskVM={taskStore} /> -->
+          </Pane>
+        </Splitpanes>
+      </Pane>
+    </Splitpanes>
+  {:else}
+    <div class="flex flex-col h-full overflow-auto gap-4 p-2">
+      <TaskPanel taskVM={taskStore} />
+      <MonacoEditor taskVM={taskStore} />
+      <DualShaderPreview taskVM={taskStore} />
+    </div>
+  {/if}
+</div>
 {:else}
-  <div class="flex items-center justify-center h-full">
-    <p class="text-muted-foreground">Loading task...</p>
-  </div>
+<p class="text-center text-gray-400 mt-4">Task not found</p>
 {/if}
 
 <style>
@@ -139,20 +123,7 @@
   transform: translate(-50%, -50%);
   width: 30px;
   height: 2px;
-  background-color: transparent;
-  border-radius: 2px;
-  pointer-events: none;
-  transition: background-color 0.2s;
-}
-
-:global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter::before) {
   background-color: rgba(74, 74, 74, 0.4);
+  border-radius: 2px;
 }
-
-:global(.splitpanes.my-theme .splitpanes__splitter::after) {
-  content: '';
-  position: absolute;
-  z-index: 1;
-}
-
 </style>

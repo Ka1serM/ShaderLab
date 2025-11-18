@@ -1,9 +1,7 @@
-<script lang="ts">
-	import type { ComponentProps } from "svelte";
-	import type RangeCalendar from "./range-calendar.svelte";
+<script>
 	import RangeCalendarMonthSelect from "./range-calendar-month-select.svelte";
 	import RangeCalendarYearSelect from "./range-calendar-year-select.svelte";
-	import { DateFormatter, getLocalTimeZone, type DateValue } from "@internationalized/date";
+	import { DateFormatter, getLocalTimeZone } from "@internationalized/date";
 
 	let {
 		captionLayout,
@@ -15,25 +13,15 @@
 		locale,
 		placeholder = $bindable(),
 		monthIndex = 0,
-	}: {
-		captionLayout: ComponentProps<typeof RangeCalendar>["captionLayout"];
-		months: ComponentProps<typeof RangeCalendarMonthSelect>["months"];
-		monthFormat: ComponentProps<typeof RangeCalendarMonthSelect>["monthFormat"];
-		years: ComponentProps<typeof RangeCalendarYearSelect>["years"];
-		yearFormat: ComponentProps<typeof RangeCalendarYearSelect>["yearFormat"];
-		month: DateValue;
-		placeholder: DateValue | undefined;
-		locale: string;
-		monthIndex: number;
 	} = $props();
 
-	function formatYear(date: DateValue) {
+	function formatYear(date) {
 		const dateObj = date.toDate(getLocalTimeZone());
 		if (typeof yearFormat === "function") return yearFormat(dateObj.getFullYear());
 		return new DateFormatter(locale, { year: yearFormat }).format(dateObj);
 	}
 
-	function formatMonth(date: DateValue) {
+	function formatMonth(date) {
 		const dateObj = date.toDate(getLocalTimeZone());
 		if (typeof monthFormat === "function") return monthFormat(dateObj.getMonth() + 1);
 		return new DateFormatter(locale, { month: monthFormat }).format(dateObj);

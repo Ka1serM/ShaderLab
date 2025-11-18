@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { LinkPreview as HoverCardPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -9,8 +9,6 @@
 		sideOffset = 4,
 		portalProps,
 		...restProps
-	}: HoverCardPrimitive.ContentProps & {
-		portalProps?: HoverCardPrimitive.PortalProps;
 	} = $props();
 </script>
 

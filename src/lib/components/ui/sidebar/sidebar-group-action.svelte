@@ -1,16 +1,11 @@
-<script lang="ts">
-	import { cn, type WithElementRef } from "$lib/utils.js";
-	import type { Snippet } from "svelte";
-	import type { HTMLButtonAttributes } from "svelte/elements";
-
+<script>
+	import { cn } from "$lib/utils.js";
 	let {
 		ref = $bindable(null),
 		class: className,
 		children,
 		child,
 		...restProps
-	}: WithElementRef<HTMLButtonAttributes> & {
-		child?: Snippet<[{ props: Record<string, unknown> }]>;
 	} = $props();
 
 	const mergedProps = $derived({

@@ -1,6 +1,6 @@
-<script lang="ts">
+<script>
 	import { Calendar as CalendarPrimitive } from "bits-ui";
-	import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
+	import { cn } from "$lib/utils.js";
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 
 	let {
@@ -8,7 +8,7 @@
 		class: className,
 		value,
 		...restProps
-	}: WithoutChildrenOrChild<CalendarPrimitive.YearSelectProps> = $props();
+	} = $props();
 </script>
 
 <span

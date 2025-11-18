@@ -1,14 +1,14 @@
-<script lang="ts">
+<script>
 	import * as FormPrimitive from "formsnap";
 	import { Label } from "$lib/components/ui/label/index.js";
-	import { cn, type WithoutChild } from "$lib/utils.js";
+	import { cn } from "$lib/utils.js";
 
 	let {
 		ref = $bindable(null),
 		children,
 		class: className,
 		...restProps
-	}: WithoutChild<FormPrimitive.LabelProps> = $props();
+	} = $props();
 </script>
 
 <FormPrimitive.Label {...restProps} bind:ref>

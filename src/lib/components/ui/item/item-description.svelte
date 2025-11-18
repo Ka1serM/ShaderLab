@@ -1,15 +1,15 @@
-<script lang="ts">
+<script>
 	import { cn } from "$lib/utils.js";
-	import type { HTMLAttributes } from "svelte/elements";
-
 	let {
+		ref = $bindable(null),
 		class: className,
 		children,
 		...restProps
-	}: HTMLAttributes<HTMLParagraphElement> = $props();
+	} = $props();
 </script>
 
 <p
+	bind:this={ref}
 	data-slot="item-description"
 	class={cn(
 		"text-muted-foreground line-clamp-2 text-balance text-sm font-normal leading-normal",

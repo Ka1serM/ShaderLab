@@ -1,7 +1,7 @@
-<script lang="ts">
+<script>
 	import CheckIcon from "@lucide/svelte/icons/check";
 	import { Select as SelectPrimitive } from "bits-ui";
-	import { cn, type WithoutChild } from "$lib/utils.js";
+	import { cn } from "$lib/utils.js";
 
 	let {
 		ref = $bindable(null),
@@ -10,7 +10,7 @@
 		label,
 		children: childrenProp,
 		...restProps
-	}: WithoutChild<SelectPrimitive.ItemProps> = $props();
+	} = $props();
 </script>
 
 <SelectPrimitive.Item

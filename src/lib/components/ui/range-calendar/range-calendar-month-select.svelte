@@ -1,6 +1,6 @@
-<script lang="ts">
+<script>
 	import { RangeCalendar as RangeCalendarPrimitive } from "bits-ui";
-	import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
+	import { cn } from "$lib/utils.js";
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 
 	let {
@@ -9,7 +9,7 @@
 		value,
 		onchange,
 		...restProps
-	}: WithoutChildrenOrChild<RangeCalendarPrimitive.MonthSelectProps> = $props();
+	} = $props();
 </script>
 
 <span

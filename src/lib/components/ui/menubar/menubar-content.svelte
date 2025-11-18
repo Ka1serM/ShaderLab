@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { Menubar as MenubarPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -11,8 +11,6 @@
 		side = "bottom",
 		portalProps,
 		...restProps
-	}: MenubarPrimitive.ContentProps & {
-		portalProps?: MenubarPrimitive.PortalProps;
 	} = $props();
 </script>
 

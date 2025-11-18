@@ -3,6 +3,7 @@ import path from "path";
 import matter from "gray-matter";
 import { marked } from "marked";
 import katex from "katex";
+import { Task } from "../src/lib/models/Task.js";
 
 const tasksFolder = path.join(process.cwd(), "src/lib/data/tasks");
 const outputFile = path.join(process.cwd(), "src/lib/data/tasks.json");
@@ -71,12 +72,27 @@ const tasks = files.map(file => {
     }
   });
 
-  return {
+  // Combine frontmatter + content + shaders
+  const init = {
     ...Object.fromEntries(Object.entries(data).map(([k, v]) => [toCamelCase(k), v])),
     ...contentSections,
     ...shaderSections
   };
+
+  // Instantiate Task so fields are writables by default
+  return new Task(init);
 });
 
-fs.writeFileSync(outputFile, JSON.stringify(tasks, null, 2));
+// Save tasks as JSON (will serialize plain values, you can also export as JS module if needed)
+fs.writeFileSync(outputFile, JSON.stringify(tasks.map(t => {
+  // extract plain values from the Task's writables
+  const result = {};
+  for (const key of Object.keys(tasks[0])) {
+    if (t[key]?.subscribe) {
+      t[key].subscribe(v => result[key] = v)(); // immediately get value
+    }
+  }
+  return result;
+}), null, 2));
+
 console.log(`Generated ${tasks.length} tasks at ${outputFile}`);

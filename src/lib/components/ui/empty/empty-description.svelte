@@ -1,11 +1,15 @@
-<script lang="ts">
+<script>
 	import { cn } from "$lib/utils.js";
-	import type { HTMLAttributes } from "svelte/elements";
-
-	let { class: className, children, ...restProps }: HTMLAttributes<HTMLDivElement> = $props();
+	let {
+		ref = $bindable(null),
+		class: className,
+		children,
+		...restProps
+	} = $props();
 </script>
 
 <div
+	bind:this={ref}
 	data-slot="empty-description"
 	class={cn(
 		"text-muted-foreground [&>a:hover]:text-primary text-sm/relaxed [&>a]:underline [&>a]:underline-offset-4",

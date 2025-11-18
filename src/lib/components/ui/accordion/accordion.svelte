@@ -1,16 +1,16 @@
-<script lang="ts">
+<script>
 	import { Accordion as AccordionPrimitive } from "bits-ui";
 
 	let {
 		ref = $bindable(null),
 		value = $bindable(),
 		...restProps
-	}: AccordionPrimitive.RootProps = $props();
+	} = $props();
 </script>
 
 <AccordionPrimitive.Root
 	bind:ref
-	bind:value={value as never}
+	bind:value={value}
 	data-slot="accordion"
 	{...restProps}
 />

@@ -1,12 +1,9 @@
-<script lang="ts">
-	import { cn, type WithElementRef, type WithoutChildren } from "$lib/utils.js";
-	import type { HTMLAttributes } from "svelte/elements";
-	import { getPayloadConfigFromPayload, useChart, type TooltipPayload } from "./chart-utils.js";
+<script>
+	import { cn } from "$lib/utils.js";
+	import { getPayloadConfigFromPayload, useChart } from "./chart-utils.js";
 	import { getTooltipContext, Tooltip as TooltipPrimitive } from "layerchart";
-	import type { Snippet } from "svelte";
-
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	function defaultFormatter(value: any, _payload: TooltipPayload[]) {
+	function defaultFormatter(value, _payload) {
 		return `${value}`;
 	}
 
@@ -24,27 +21,6 @@
 		nameKey,
 		color,
 		...restProps
-	}: WithoutChildren<WithElementRef<HTMLAttributes<HTMLDivElement>>> & {
-		hideLabel?: boolean;
-		label?: string;
-		indicator?: "line" | "dot" | "dashed";
-		nameKey?: string;
-		labelKey?: string;
-		hideIndicator?: boolean;
-		labelClassName?: string;
-		labelFormatter?: // eslint-disable-next-line @typescript-eslint/no-explicit-any
-		((value: any, payload: TooltipPayload[]) => string | number | Snippet) | null;
-		formatter?: Snippet<
-			[
-				{
-					value: unknown;
-					name: string;
-					item: TooltipPayload;
-					index: number;
-					payload: TooltipPayload[];
-				},
-			]
-		>;
 	} = $props();
 
 	const chart = useChart();
@@ -60,7 +36,7 @@
 
 		const value =
 			!labelKey && typeof label === "string"
-				? (chart.config[label as keyof typeof chart.config]?.label ?? label)
+				? (chart.config[label]?.label ?? label)
 				: (itemConfig?.label ?? item.label);
 
 		if (value === undefined) return null;

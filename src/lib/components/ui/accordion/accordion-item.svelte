@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { Accordion as AccordionPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -6,7 +6,7 @@
 		ref = $bindable(null),
 		class: className,
 		...restProps
-	}: AccordionPrimitive.ItemProps = $props();
+	} = $props();
 </script>
 
 <AccordionPrimitive.Item

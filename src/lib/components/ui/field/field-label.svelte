@@ -1,14 +1,12 @@
-<script lang="ts">
+<script>
 	import { Label } from "$lib/components/ui/label/index.js";
 	import { cn } from "$lib/utils.js";
-	import type { ComponentProps } from "svelte";
-
 	let {
 		ref = $bindable(null),
 		class: className,
 		children,
 		...restProps
-	}: ComponentProps<typeof Label> = $props();
+	} = $props();
 </script>
 
 <Label

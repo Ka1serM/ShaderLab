@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { Tooltip as TooltipPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -10,8 +10,6 @@
 		children,
 		arrowClasses,
 		...restProps
-	}: TooltipPrimitive.ContentProps & {
-		arrowClasses?: string;
 	} = $props();
 </script>
 

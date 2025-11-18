@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { ContextMenu as ContextMenuPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -8,9 +8,6 @@
 		inset,
 		variant = "default",
 		...restProps
-	}: ContextMenuPrimitive.ItemProps & {
-		inset?: boolean;
-		variant?: "default" | "destructive";
 	} = $props();
 </script>
 

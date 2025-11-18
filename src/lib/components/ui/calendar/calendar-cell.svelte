@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { Calendar as CalendarPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -6,7 +6,7 @@
 		ref = $bindable(null),
 		class: className,
 		...restProps
-	}: CalendarPrimitive.CellProps = $props();
+	} = $props();
 </script>
 
 <CalendarPrimitive.Cell

@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -6,7 +6,7 @@
 		ref = $bindable(null),
 		class: className,
 		...restProps
-	}: DropdownMenuPrimitive.SubContentProps = $props();
+	} = $props();
 </script>
 
 <DropdownMenuPrimitive.SubContent

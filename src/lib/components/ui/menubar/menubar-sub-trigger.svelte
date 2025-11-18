@@ -1,7 +1,7 @@
-<script lang="ts">
+<script>
 	import { Menubar as MenubarPrimitive } from "bits-ui";
 	import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
-	import { cn, type WithoutChild } from "$lib/utils.js";
+	import { cn } from "$lib/utils.js";
 
 	let {
 		ref = $bindable(null),
@@ -9,8 +9,6 @@
 		inset = undefined,
 		children,
 		...restProps
-	}: WithoutChild<MenubarPrimitive.SubTriggerProps> & {
-		inset?: boolean;
 	} = $props();
 </script>
 

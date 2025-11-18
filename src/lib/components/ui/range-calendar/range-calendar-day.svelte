@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { RangeCalendar as RangeCalendarPrimitive } from "bits-ui";
 	import { buttonVariants } from "$lib/components/ui/button/index.js";
 	import { cn } from "$lib/utils.js";
@@ -7,7 +7,7 @@
 		ref = $bindable(null),
 		class: className,
 		...restProps
-	}: RangeCalendarPrimitive.DayProps = $props();
+	} = $props();
 </script>
 
 <RangeCalendarPrimitive.Day

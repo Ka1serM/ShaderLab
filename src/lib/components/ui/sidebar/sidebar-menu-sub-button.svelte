@@ -1,8 +1,5 @@
-<script lang="ts">
-	import { cn, type WithElementRef } from "$lib/utils.js";
-	import type { Snippet } from "svelte";
-	import type { HTMLAnchorAttributes } from "svelte/elements";
-
+<script>
+	import { cn } from "$lib/utils.js";
 	let {
 		ref = $bindable(null),
 		children,
@@ -11,10 +8,6 @@
 		size = "md",
 		isActive = false,
 		...restProps
-	}: WithElementRef<HTMLAnchorAttributes> & {
-		child?: Snippet<[{ props: Record<string, unknown> }]>;
-		size?: "sm" | "md";
-		isActive?: boolean;
 	} = $props();
 
 	const mergedProps = $derived({

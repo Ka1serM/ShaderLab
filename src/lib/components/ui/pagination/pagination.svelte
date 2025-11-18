@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { Pagination as PaginationPrimitive } from "bits-ui";
 
 	import { cn } from "$lib/utils.js";
@@ -11,7 +11,7 @@
 		page = $bindable(1),
 		siblingCount = 1,
 		...restProps
-	}: PaginationPrimitive.RootProps = $props();
+	} = $props();
 </script>
 
 <PaginationPrimitive.Root

@@ -1,7 +1,6 @@
-<script lang="ts" generics="T extends Record<string, unknown>, U extends FormPath<T>">
+<script>
 	import * as FormPrimitive from "formsnap";
-	import type { FormPath } from "sveltekit-superforms";
-	import { cn, type WithoutChild } from "$lib/utils.js";
+	import { cn } from "$lib/utils.js";
 
 	let {
 		ref = $bindable(null),
@@ -9,7 +8,7 @@
 		form,
 		name,
 		...restProps
-	}: WithoutChild<FormPrimitive.FieldsetProps<T, U>> = $props();
+	} = $props();
 </script>
 
 <FormPrimitive.Fieldset bind:ref {form} {name} class={cn("space-y-2", className)} {...restProps} />

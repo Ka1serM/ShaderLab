@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { NavigationMenu as NavigationMenuPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -6,7 +6,7 @@
 		ref = $bindable(null),
 		class: className,
 		...restProps
-	}: NavigationMenuPrimitive.ViewportProps = $props();
+	} = $props();
 </script>
 
 <div class={cn("absolute left-0 top-full isolate z-50 flex justify-center")}>

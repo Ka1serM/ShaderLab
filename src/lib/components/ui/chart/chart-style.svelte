@@ -1,7 +1,7 @@
-<script lang="ts">
-	import { THEMES, type ChartConfig } from "./chart-utils.js";
+<script>
+	import { THEMES } from "./chart-utils.js";
 
-	let { id, config }: { id: string; config: ChartConfig } = $props();
+	let { id, config } = $props();
 
 	const colorConfig = $derived(
 		config ? Object.entries(config).filter(([, config]) => config.theme || config.color) : null
@@ -14,7 +14,7 @@
 		for (let [_theme, prefix] of Object.entries(THEMES)) {
 			let content = `${prefix} [data-chart=${id}] {\n`;
 			const color = colorConfig.map(([key, itemConfig]) => {
-				const theme = _theme as keyof typeof itemConfig.theme;
+				const theme = _theme;
 				const color = itemConfig.theme?.[theme] || itemConfig.color;
 				return color ? `\t--color-${key}: ${color};` : null;
 			});

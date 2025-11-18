@@ -1,5 +1,5 @@
-<script lang="ts" module>
-	import { tv, type VariantProps } from "tailwind-variants";
+<script module>
+	import { tv } from "tailwind-variants";
 
 	export const itemVariants = tv({
 		base: "group/item [a]:hover:bg-accent/50 [a]:transition-colors focus-visible:border-ring focus-visible:ring-ring/50 flex flex-wrap items-center rounded-md border border-transparent text-sm outline-none transition-colors duration-100 focus-visible:ring-[3px]",
@@ -20,31 +20,21 @@
 		},
 	});
 
-	export type ItemSize = VariantProps<typeof itemVariants>["size"];
-	export type ItemVariant = VariantProps<typeof itemVariants>["variant"];
 </script>
 
-<script lang="ts">
+<script>
 	import { cn } from "$lib/utils.js";
-	import type { HTMLAttributes } from "svelte/elements";
-	import type { Snippet } from "svelte";
-
 	let {
+		ref = $bindable(null),
 		class: className,
 		child,
 		variant,
 		size,
 		...restProps
-	}: HTMLAttributes<HTMLDivElement> & {
-		child?: Snippet<[{ props: Record<string, unknown> }]>;
-		variant?: ItemVariant;
-		size?: ItemSize;
 	} = $props();
 
-	const classes = $derived(cn(itemVariants({ variant, size }), className));
-
 	const mergedProps = $derived({
-		class: classes,
+		class: cn(itemVariants({ variant, size }), className),
 		"data-slot": "item",
 		"data-variant": variant,
 		"data-size": size,
@@ -55,7 +45,7 @@
 {#if child}
 	{@render child({ props: mergedProps })}
 {:else}
-	<div {...mergedProps}>
+	<div bind:this={ref} {...mergedProps}>
 		{@render mergedProps.children?.()}
 	</div>
 {/if}

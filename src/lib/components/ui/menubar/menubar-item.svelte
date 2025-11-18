@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { Menubar as MenubarPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -8,9 +8,6 @@
 		inset = undefined,
 		variant = "default",
 		...restProps
-	}: MenubarPrimitive.ItemProps & {
-		inset?: boolean;
-		variant?: "default" | "destructive";
 	} = $props();
 </script>
 

@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { ContextMenu as ContextMenuPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -7,8 +7,6 @@
 		class: className,
 		inset,
 		...restProps
-	}: ContextMenuPrimitive.GroupHeadingProps & {
-		inset?: boolean;
 	} = $props();
 </script>
 

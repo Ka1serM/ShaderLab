@@ -4,7 +4,8 @@ type: 2D
 inputs:
   - name: volumeTexture
     type: texture3D
-    init: textures/CTVolumeAtlas.raw
+    value: textures/CTVolumeAtlas.raw
+
 title: Volumetric Raymarching
 hints:
   - Berechne für jedes Pixel die Rayrichtung aus Kameraposition und Blickrichtung (orthographisch).
@@ -222,10 +223,10 @@ vec4 TransferFunction(float F, float gradientMagnitude)
 }
 
 vec3 PhongShade(vec3 N, vec3 BaseColor, vec3 ViewDir, vec3 lightDir) {
-    const vec3 Ka = vec3(0.01); // Ambient
+    const vec3 Ka = vec3(0.0); // Ambient
     const vec3 Kd = vec3(1.0); // Diffus
     const vec3 Ks = vec3(0.3); // Spekular
-    const float NExp = 120.0; // Rauheit
+    const float NExp = 128.0; // Rauheit
 
     vec3 H = normalize(ViewDir + lightDir); // Halfvector
     float Diff = max(dot(N, lightDir), 0.0); // Diffus
@@ -269,7 +270,7 @@ void main() {
     int Steps = min(int(1.0 / stepSize), maxSteps);
 
     for (int I = Steps - 1; I >= 0; --I) {     // Back-to-front
-        float T = float(I) * stepSize;         // 0 → 1
+        float T = float(I) * stepSize;
         vec3 P = rayOrigin + rayDir * T;
         vec3 UVW = P + 0.5;
 

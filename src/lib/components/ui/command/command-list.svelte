@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { Command as CommandPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -6,7 +6,7 @@
 		ref = $bindable(null),
 		class: className,
 		...restProps
-	}: CommandPrimitive.ListProps = $props();
+	} = $props();
 </script>
 
 <CommandPrimitive.List

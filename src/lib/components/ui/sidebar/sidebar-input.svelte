@@ -1,5 +1,4 @@
-<script lang="ts">
-	import type { ComponentProps } from "svelte";
+<script>
 	import { Input } from "$lib/components/ui/input/index.js";
 	import { cn } from "$lib/utils.js";
 
@@ -8,7 +7,7 @@
 		value = $bindable(""),
 		class: className,
 		...restProps
-	}: ComponentProps<typeof Input> = $props();
+	} = $props();
 </script>
 
 <Input

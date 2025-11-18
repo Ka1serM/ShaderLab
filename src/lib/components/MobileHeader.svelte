@@ -1,8 +1,8 @@
-<script lang="ts">
+<script>
   import { useSidebar } from "$lib/components/ui/sidebar/index.js";
   import { PanelLeft } from "lucide-svelte";
   import { asset, base } from "$app/paths";
-  import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+  import { IsMobile } from '$lib/hooks/is-mobile.js';
   import { goto } from "$app/navigation";
 
   const sidebar = useSidebar();      
@@ -11,16 +11,14 @@
   function toggleSidebar() {
     if (!sidebar) return;
 
-    // Toggle mobile sidebar if on mobile
     if (sidebar.isMobile) {
       sidebar.setOpenMobile(!sidebar.openMobile);
     } else {
-      sidebar.toggle(); // fallback desktop
+      sidebar.toggle();
     }
   }
 
   function navigateHome() {
-    // Prepend base path
     goto(base + '/');
   }
 </script>

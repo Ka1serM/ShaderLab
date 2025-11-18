@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { Separator as SeparatorPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
@@ -7,7 +7,7 @@
 		class: className,
 		"data-slot": dataSlot = "separator",
 		...restProps
-	}: SeparatorPrimitive.RootProps = $props();
+	} = $props();
 </script>
 
 <SeparatorPrimitive.Root

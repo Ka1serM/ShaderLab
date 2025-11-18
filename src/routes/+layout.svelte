@@ -1,9 +1,9 @@
-<script lang="ts">
+<script>
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import AppSidebar from '$lib/components/SideBar.svelte';
   import MobileHeader from '$lib/components/MobileHeader.svelte';
   import { ModeWatcher } from "mode-watcher";
-  import '../App.css';
+  import '../app.css';
 </script>
 
 <Sidebar.Provider>

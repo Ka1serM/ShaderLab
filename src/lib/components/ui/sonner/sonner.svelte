@@ -1,8 +1,8 @@
-<script lang="ts">
-	import { Toaster as Sonner, type ToasterProps as SonnerProps } from "svelte-sonner";
+<script>
+	import { Toaster as Sonner } from "svelte-sonner";
 	import { mode } from "mode-watcher";
 
-	let { ...restProps }: SonnerProps = $props();
+	let { ...restProps } = $props();
 </script>
 
 <Sonner

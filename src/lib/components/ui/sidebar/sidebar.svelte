@@ -1,7 +1,6 @@
-<script lang="ts">
+<script>
 	import * as Sheet from "$lib/components/ui/sheet/index.js";
-	import { cn, type WithElementRef } from "$lib/utils.js";
-	import type { HTMLAttributes } from "svelte/elements";
+	import { cn } from "$lib/utils.js";
 	import { SIDEBAR_WIDTH_MOBILE } from "./constants.js";
 	import { useSidebar } from "./context.svelte.js";
 
@@ -13,10 +12,6 @@
 		class: className,
 		children,
 		...restProps
-	}: WithElementRef<HTMLAttributes<HTMLDivElement>> & {
-		side?: "left" | "right";
-		variant?: "sidebar" | "floating" | "inset";
-		collapsible?: "offcanvas" | "icon" | "none";
 	} = $props();
 
 	const sidebar = useSidebar();
