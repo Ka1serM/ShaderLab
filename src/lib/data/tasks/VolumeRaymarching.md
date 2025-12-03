@@ -13,65 +13,148 @@ hints:
 
 Wir bauen einen Volume Renderer basierend auf der Pipeline von Marc Levoy. Hilfsfunktionen für Gradienten und Beleuchtung sind bereits gegeben.
 
-**Ziel:** Implementieren Sie die drei fehlenden Kernkomponenten anhand der Formeln aus der Vorlesung.
+## Aufgaben
 
 1.  **Orthographic Ray Generation**
-    *   Bestimmen Sie Startpunkt und Richtung des Strahls.
+    *   Bestimmen Sie Startpunkt (`rayOrigin`) und Richtung (`rayDirection`) des Strahls.
     *   *Feedback:* Sobald dies implementiert ist, wechselt die Ansicht automatisch von "UV-Gradient" zu "Ray-Koordinaten" (Bunt).
 
 2.  **Raymarching Loop**
-    *   Implementieren Sie die Raymarching Loop.
-    *   *Feedback:* Sobald der Loop läuft, sehen Sie den Schädel als weiße "Geister"-Silhouette.
+    *   Implementieren Sie die Schleife, die das Volumen abtastet.
+    *   *Feedback:* Sobald der Loop läuft, sehen Sie den Kopf im Viewport.
 
 3.  **Transfer Function**
-    *   Implementieren Sie die Transfer Funktion für Luft, Gewebe und Knochen.
+    *   Implementieren Sie die Transfer Funktion, um Dichtewerte in Farben zu übersetzen (Luft, Gewebe, Knochen).
     *   *Ergebnis:* Ein korrektes, eingefärbtes CT-Bild (Haut & Knochen).
+
+## Nützliches zur Programmierung
+
+### **Vektoren und Skalare**
+- `vec3` = 3 Komponenten, `vec4` = 4 Komponenten  
+- Zugriff auf Komponenten: `.x`, `.y`, `.z` oder `.r`, `.g`, `.b`  oder `.rgb`
+- Ganze Vektoren oder einzelne Komponenten können mit Skalaren multipliziert oder addiert werden:
+
+```glsl
+vec3 pos = origin + direction * t;  // Addition + Skalierung
+vec3 rgb = vec3(1.0, 0.5, 0.0);    // Initialisierung eines Vektors
+```
+- Skalar * Skalar = Skalar, Vektor + Vektor = Vektor, Vektor * Skalar = Vektor
+
+---
+
+### **If-Abfragen**
+```glsl
+// if / else if / else für Wertebereiche:
+
+if (wert < grenzeA) {  
+ // Aktion 1  
+}  
+else if (wert < grenzeB) {  
+ // Aktion 2  
+}  
+else {  
+ // Standardfall  
+}
+```
+
+---
+
+### **Interpolation / mix**
+- `mix(a, b, t)` blendet linear zwischen a und b  
+- t = 0 → Ergebnis = a, t = 1 → Ergebnis = b
+
+```glsl
+float t = (x - min) / (max - min);  // Normalisierung eines Wertes für mix
+
+vec3 ergebnis = mix(vec3(0.0), vec3(1.0, 0.0, 0.0), t);
+```
+---
+
+### **For-Schleifen**
+for-Schleifen wiederholen Schritte:
+```glsl
+for (int i = 0; i < steps; i++) {  
+ float t = float(i) * stepSize;  // int → float für Berechnung  
+ // Verarbeitung von t  
+}
+```
+- `continue;` springt zum nächsten Schleifendurchlauf
+
+---
+
+### **Überprüfung von Vektoren**
+any() prüft, ob **irgendeine Komponente** einer Bedingung entspricht:
+
+```glsl
+if (any(lessThan(pos, vec3(0.0))) || any(greaterThan(pos, vec3(1.0)))) {  
+ continue;  // Überspringt ungültige Position  
+}
+```
+
+---
+
+### **SampleVolume**
+
+SampleVolume berechnet **an einer 3D-Koordinate im Volumen** die benötigten Werte.
+
+```glsl
+vec4 sample = SampleVolume(coord, direction);
+```
+
+- **Inputs:**  
+  - `coord` → 3D-Position im normalisierten Raum (0..1)  
+  - `direction` → Richtungsvektor (für Gradienten / Beleuchtung berechnung)  
+- **Output:** `vec4`  
+  - `rgb` → berechnete Farbe / Materialwert  
+  - `a` → Transparenz / Gewichtung
 
 # Theory
 
 ## 1. Strahlgenerierung (Orthographisch)
-Bei einer orthographischen Kamera sind alle Strahlen parallel. Der Startpunkt verschiebt sich basierend auf der Pixelposition auf der Bildebene.
+Bei einer orthographischen Kamera sind alle Strahlen parallel. Der Startpunkt verschiebt sich basierend auf der Pixelposition auf der Bildebene relativ zur Kameraposition.
 
-*   **Richtung** ($\vec{D}$): Entspricht dem `forward` Vektor der Kamera.
+*   **Richtung** ($\vec{D}$): Entspricht konstant dem `forward` Vektor der Kamera.
 *   **Startpunkt** ($O$):
     $$
     O = P_{camera} + (\vec{Right} \cdot x_{uv} + \vec{Up} \cdot y_{uv}) \cdot \text{scale}
     $$
+    *(Code-Variablen: `pixelPos.x` entspricht $x_{uv}$, `orthoScale` entspricht scale)*
 
 ## 2. Raymarching Loop (Back-to-Front)
-Wir laufen den Strahl von hinten nach vorne ab.
-Der Parameter $t$ läuft von `maxSteps` runter auf $0$.
+Wir laufen den Strahl von hinten nach vorne ab. Der Parameter $t$ läuft in der Schleife von `maxSteps` (bzw. 1.0) runter auf $0$.
 
 *   **Position auf dem Strahl**:
     $$
     P(t) = O + t \cdot \vec{D}
     $$
-*   **Textur-Koordinate** (Da der Würfel bei 0,0,0 zentriert definiert ist):
+*   **Textur-Koordinate**:
+    Da der Volumenwürfel im Weltraum um $(0,0,0)$ zentriert ist, Texturen aber Koordinaten von $0$ bis $1$ erwarten, müssen wir verschieben:
     $$
     \vec{UVW} = P(t) + 0.5
     $$
-
-*   **Bounds Check**: Samples sind nur gültig, wenn $\vec{UVW} \in [0, 1]$.
+*   **Bounds Check**:
+    Samples sind nur gültig, wenn $\vec{UVW} \in [0, 1]$. Liegt der Punkt außerhalb, wird er ignoriert (`continue`).
 
 ## 3. Compositing (Over Operator)
-Das Mischen der Farben erfolgt iterativ:
+Das Mischen der Farben erfolgt iterativ. Da wir von hinten nach vorne laufen, "übermalen" wir die bisherige Farbe mit der neuen Schicht, gewichtet nach deren Transparenz.
 
 $$
 C_{acc} = C_{src} \cdot \alpha_{src} + C_{acc} \cdot (1 - \alpha_{src})
 $$
 
-*   $C_{acc}$: Bisher akkumulierte Farbe.
-*   $C_{src}, \alpha_{src}$: Farbe und Opazität des aktuellen Voxels.
+*   $C_{acc}$: Bisher akkumulierte Farbe (Variable `accumulatedColor`).
+*   $C_{src}, \alpha_{src}$: Farbe und Alpha des aktuellen Voxels (Rückgabe von `SampleVolume`).
 
-## 4. Transfer Function (Wertetabelle)
+## 4. Transfer Function
+Die Dichte (HU) bestimmt das Material. Wir interpolieren linear zwischen den bekannten Stützstellen.
 
 | Material | HU Wert ($F$) | Farbe | Opazität ($\alpha$) |
 | :--- | :--- | :--- | :--- |
-| **Luft** | $< -800$ | Schwarz | $0.0$ |
-| **Gewebe** | $-800 \dots 50$ | Rot/Orange | $\approx 0.03$ |
-| **Knochen**| $> 700$ | Weiß/Beige | $\approx 1.0$ |
+| **Luft** | $\le \text{huAir}$ | Schwarz (0,0,0) | $0.0$ |
+| **Gewebe** | $\dots \text{huTissue}$ | $\to$ `colorTissue` | $\to$ `alphaTissue` |
+| **Knochen**| $\ge \text{huBone}$ | `colorBone` | `alphaBone` |
 
-*Nutzen Sie lineare Interpolation (`mix`), um weiche Übergänge zwischen den Materialien zu schaffen.*
+*Berechnen Sie für Bereiche zwischen den Werten einen Faktor $t$ (0 bis 1) und nutzen Sie `mix`.*
 
 # Reference Vertex Shader
 ```glsl
@@ -107,14 +190,14 @@ const int   maxSteps = 512;
 const vec3  lightDir = normalize(vec3(1.0, 1.0, 0.0));
 const float orthoScale = 0.5;
 
-vec3 ComputeGradient(vec3 texCoord) {
+vec3 ComputeGradient(vec3 samplePosition) {
     vec3 H = 1.0 / vec3(textureSize(volumeTexture, 0)); 
-    float Fx1 = texture(volumeTexture, clamp(texCoord + vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
-    float Fx2 = texture(volumeTexture, clamp(texCoord - vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
-    float Fy1 = texture(volumeTexture, clamp(texCoord + vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
-    float Fy2 = texture(volumeTexture, clamp(texCoord - vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
-    float Fz1 = texture(volumeTexture, clamp(texCoord + vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
-    float Fz2 = texture(volumeTexture, clamp(texCoord - vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
+    float Fx1 = texture(volumeTexture, clamp(samplePosition + vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
+    float Fx2 = texture(volumeTexture, clamp(samplePosition - vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
+    float Fy1 = texture(volumeTexture, clamp(samplePosition + vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
+    float Fy2 = texture(volumeTexture, clamp(samplePosition - vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
+    float Fz1 = texture(volumeTexture, clamp(samplePosition + vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
+    float Fz2 = texture(volumeTexture, clamp(samplePosition - vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
     vec3 grad = vec3((Fx1 - Fx2), (Fy1 - Fy2), (Fz1 - Fz2)) / (2.0 * H);
     return grad;
 }
@@ -265,17 +348,17 @@ const int   maxSteps = 512;
 const vec3  lightDir = normalize(vec3(1.0, 1.0, 0.0));
 const float orthoScale = 0.5;
 
-// --- Helper Functions (Bereits implementiert) ---
+//  Helper Functions (Bereits implementiert) 
 
-vec3 ComputeGradient(vec3 texCoord) {
+vec3 ComputeGradient(vec3 samplePosition) {
     // Zentraler Differenzenquotient zur Bestimmung der Normale
     vec3 H = 1.0 / vec3(textureSize(volumeTexture, 0));
-    float Fx1 = texture(volumeTexture, clamp(texCoord + vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
-    float Fx2 = texture(volumeTexture, clamp(texCoord - vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
-    float Fy1 = texture(volumeTexture, clamp(texCoord + vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
-    float Fy2 = texture(volumeTexture, clamp(texCoord - vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
-    float Fz1 = texture(volumeTexture, clamp(texCoord + vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
-    float Fz2 = texture(volumeTexture, clamp(texCoord - vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
+    float Fx1 = texture(volumeTexture, clamp(samplePosition + vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
+    float Fx2 = texture(volumeTexture, clamp(samplePosition - vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
+    float Fy1 = texture(volumeTexture, clamp(samplePosition + vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
+    float Fy2 = texture(volumeTexture, clamp(samplePosition - vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
+    float Fz1 = texture(volumeTexture, clamp(samplePosition + vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
+    float Fz2 = texture(volumeTexture, clamp(samplePosition - vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
     return vec3((Fx1 - Fx2), (Fy1 - Fy2), (Fz1 - Fz2)) / (2.0 * H);
 }
 
@@ -286,7 +369,21 @@ vec3 PhongShade(vec3 N, vec3 BaseColor, vec3 ViewDir) {
     return BaseColor * (Ka + Kd * max(dot(N, lightDir), 0.0)) + Ks * pow(max(dot(N, H), 0.0), NExp);
 }
 
-// --- TASK 3: Transfer Function ---
+
+
+
+
+
+
+
+
+
+
+
+
+// --------------------------------------------------
+//  TASK 3: Transfer Function 
+// --------------------------------------------------
 vec4 TransferFunction(float density, float gradientMagnitude) {
     // Referenzwerte HU (Hounsfield Units)
     const float huAir    = -800.0;
@@ -302,13 +399,15 @@ vec4 TransferFunction(float density, float gradientMagnitude) {
     vec3 color = vec3(1.0); // Default Weiß
     float alpha = 0.0;      // Default Transparent
 
-    // TODO: Implementieren Sie die Klassifizierung für die Zielwerte oben
     
-    /* --- SOLUTION TASK 3 START --- 
     if (density <= huAir) {
         alpha = 0.0;
         color = vec3(0.0);
-    } 
+    }
+
+    // TODO: Implementieren Sie die Klassifizierung für die Zielwerte oben
+
+    /*  SOLUTION TASK 3 START  
     else if (density < huTissue) {
         float t = (density - huAir) / (huTissue - huAir);
         alpha = mix(0.0, alphaTissue, t);
@@ -318,12 +417,13 @@ vec4 TransferFunction(float density, float gradientMagnitude) {
         float t = (density - huTissue) / (huBone - huTissue);
         alpha = mix(alphaTissue, alphaBone, t);
         color = mix(colorTissue, colorBone, t);
-    } 
+    }
+     SOLUTION TASK 3 END  */
+    
     else {
         alpha = alphaBone;
         color = colorBone;
     }
-    --- SOLUTION TASK 3 END --- */
 
     // Fallback für Task 2 (Silhouetten-Modus):
     // Wenn die TransferFunction noch leer ist (alpha 0), aber Dichte da ist, mach es weiß.
@@ -332,12 +432,20 @@ vec4 TransferFunction(float density, float gradientMagnitude) {
     return vec4(color, alpha);
 }
 
-// Wrapper (Verbindet Transfer Function & Shading)
-vec4 SampleVolume(vec3 texCoord, vec3 rayDirection) {
-    float rawValue = texture(volumeTexture, texCoord).r;
+
+
+
+
+
+// SampleVolume berechnet **an einer 3D-Koordinate im Volumen** die benötigten Werte.
+// samplePosition → Koordinate im Volumen
+// rayDirection → Richtungsvektor (für Gradienten / Beleuchtung berechnung)
+// return → vec4, rgb = Farbe, a = Opazität
+vec4 SampleVolume(vec3 samplePosition, vec3 rayDirection) {
+    float rawValue = texture(volumeTexture, samplePosition).r;
     float density = rawValue - 1100.0; // Korrektur der Rohdaten
     
-    vec3 gradient = ComputeGradient(texCoord);
+    vec3 gradient = ComputeGradient(samplePosition);
     
     vec4 material = TransferFunction(density, length(gradient));
     
@@ -348,7 +456,12 @@ vec4 SampleVolume(vec3 texCoord, vec3 rayDirection) {
     return vec4(shadedColor, material.a);
 }
 
-// --- TASK 2: Raymarching Loop ---
+
+
+
+// --------------------------------------------------
+//  TASK 2: Raymarching Loop 
+// --------------------------------------------------
 vec3 Raymarch(vec3 rayOrigin, vec3 rayDirection) {
     // SENTINEL: Wir initialisieren auf -1.0. 
     // Sobald Sie Task 2 beginnen, ändern Sie dies auf vec3(0.0) (Schwarz).
@@ -358,28 +471,31 @@ vec3 Raymarch(vec3 rayOrigin, vec3 rayDirection) {
 
     // TODO: Implementieren Sie die Schleife (Siehe Theory Abschnitt 2 & 3)
     
-    /* --- SOLUTION TASK 2 START --- 
+    /*  SOLUTION TASK 2 START  
     accumulatedColor = vec3(0.0); // Überschreibe Sentinel
     for (int i = totalSteps - 1; i >= 0; --i) {
         float t = float(i) * stepSize;
+
         vec3 currentPosition = rayOrigin + rayDirection * t;
-        vec3 texCoord = currentPosition + 0.5;
 
         // Bounds Check
-        if (texCoord.x < 0.0 || texCoord.x > 1.0 || 
-            texCoord.y < 0.0 || texCoord.y > 1.0 || 
-            texCoord.z < 0.0 || texCoord.z > 1.0)
+        if (any(lessThan(currentPosition, vec3(0.0))) || any(greaterThan(currentPosition, vec3(1.0))))
             continue;
 
-        vec4 src = SampleVolume(texCoord, rayDirection);
+        vec4 src = SampleVolume(currentPosition, rayDirection);
         accumulatedColor = src.rgb * src.a + accumulatedColor * (1.0 - src.a);
     }
-    --- SOLUTION TASK 2 END --- */
+     SOLUTION TASK 2 END  */
     
     return accumulatedColor;
 }
 
-// --- TASK 1: Ray Generation ---
+
+
+
+// --------------------------------------------------
+//  TASK 1: Ray Generation 
+// --------------------------------------------------
 void GenerateRay(out vec3 rayOrigin, out vec3 rayDirection) {
     float Aspect = float(iResolution.x) / float(iResolution.y);
     vec2 pixelPos = vUv;
@@ -396,11 +512,27 @@ void GenerateRay(out vec3 rayOrigin, out vec3 rayDirection) {
     rayDirection = vec3(0.0); // Platzhalter
     rayOrigin = vec3(0.0);    // Platzhalter
 
-    /* --- SOLUTION TASK 1 START --- 
+    /*  SOLUTION TASK 1 START  
     rayDirection = forward;
     rayOrigin = cameraPosition + (right * pixelPos.x + up * pixelPos.y) * orthoScale;
-    --- SOLUTION TASK 1 END --- */
+     SOLUTION TASK 1 END  */
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void main() {
     vec3 rayOrigin, rayDirection;
@@ -408,9 +540,9 @@ void main() {
 
     // Wir rufen den Loop immer auf.
     // Wenn er noch nicht implementiert ist, kommt der Sentinel (-1.0) zurück.
-    vec3 resultColor = Raymarch(rayOrigin, rayDirection);
+    vec3 resultColor = Raymarch(rayOrigin + 0.5, rayDirection); // +0.5 um den Kopf in den Ursprung zu verschieben
 
-    // --- AUTOMATISCHE VORSCHAU ---
+    //  AUTOMATISCHE VORSCHAU 
     
     // ZUSTAND 3: Sentinel (-1.0) wurde im Loop überschrieben -> Task 2 ist aktiv!
     // Wir zeigen das Ergebnis (Schwarz oder Bunt)
