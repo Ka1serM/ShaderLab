@@ -399,31 +399,22 @@ vec4 TransferFunction(float density, float gradientMagnitude) {
     vec3 color = vec3(1.0); // Default Weiß
     float alpha = 0.0;      // Default Transparent
 
-    
+
     if (density <= huAir) {
         alpha = 0.0;
         color = vec3(0.0);
     }
 
+
     // TODO: Implementieren Sie die Klassifizierung für die Zielwerte oben
 
-    /*  SOLUTION TASK 3 START  
-    else if (density < huTissue) {
-        float t = (density - huAir) / (huTissue - huAir);
-        alpha = mix(0.0, alphaTissue, t);
-        color = mix(vec3(0.0), colorTissue, t);
-    } 
-    else if (density < huBone) {
-        float t = (density - huTissue) / (huBone - huTissue);
-        alpha = mix(alphaTissue, alphaBone, t);
-        color = mix(colorTissue, colorBone, t);
-    }
-     SOLUTION TASK 3 END  */
-    
+
     else {
         alpha = alphaBone;
         color = colorBone;
     }
+
+
 
     // Fallback für Task 2 (Silhouetten-Modus):
     // Wenn die TransferFunction noch leer ist (alpha 0), aber Dichte da ist, mach es weiß.
@@ -463,29 +454,13 @@ vec4 SampleVolume(vec3 samplePosition, vec3 rayDirection) {
 //  TASK 2: Raymarching Loop 
 // --------------------------------------------------
 vec3 Raymarch(vec3 rayOrigin, vec3 rayDirection) {
-    // SENTINEL: Wir initialisieren auf -1.0. 
-    // Sobald Sie Task 2 beginnen, ändern Sie dies auf vec3(0.0) (Schwarz).
-    vec3 accumulatedColor = vec3(-1.0);
-    
+
     int totalSteps = min(int(1.0 / stepSize), maxSteps);
 
-    // TODO: Implementieren Sie die Schleife (Siehe Theory Abschnitt 2 & 3)
-    
-    /*  SOLUTION TASK 2 START  
-    accumulatedColor = vec3(0.0); // Überschreibe Sentinel
-    for (int i = totalSteps - 1; i >= 0; --i) {
-        float t = float(i) * stepSize;
+    // Sobald Sie Task 2 beginnen, ändern Sie dies auf vec3(0.0) (Schwarz).
+    vec3 accumulatedColor = vec3(-1.0);
 
-        vec3 currentPosition = rayOrigin + rayDirection * t;
-
-        // Bounds Check
-        if (any(lessThan(currentPosition, vec3(0.0))) || any(greaterThan(currentPosition, vec3(1.0))))
-            continue;
-
-        vec4 src = SampleVolume(currentPosition, rayDirection);
-        accumulatedColor = src.rgb * src.a + accumulatedColor * (1.0 - src.a);
-    }
-     SOLUTION TASK 2 END  */
+    // TODO: Implementieren Sie die Raymarching Schleife (Siehe Theory Abschnitt 2 & 3)
     
     return accumulatedColor;
 }
@@ -506,16 +481,10 @@ void GenerateRay(out vec3 rayOrigin, out vec3 rayDirection) {
     vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
     vec3 up = cross(right, forward);
 
-    // TODO: Berechnen Sie Strahlstartpunkt und Richtung für Orthographische Projektion
-    // Formel: Siehe Theory Abschnitt 1
+    // TODO: Berechnen Sie Strahlstartpunkt und Richtung für Orthographische Projektion (Siehe Theory Abschnitt 1)
     
     rayDirection = vec3(0.0); // Platzhalter
     rayOrigin = vec3(0.0);    // Platzhalter
-
-    /*  SOLUTION TASK 1 START  
-    rayDirection = forward;
-    rayOrigin = cameraPosition + (right * pixelPos.x + up * pixelPos.y) * orthoScale;
-     SOLUTION TASK 1 END  */
 }
 
 
