@@ -26,7 +26,7 @@
 </script>
 
 {#if mobileQuery.current}
-  <div class="fixed top-0 left-0 right-0 z-50 flex items-center justify-center bg-background shadow-md h-14 px-4">
+  <div class="shaderlab-mobile-header fixed top-0 left-0 right-0 z-50 flex items-center justify-center bg-background shadow-md h-14 px-4">
     
     <!-- Sidebar toggle button -->
     <button 
@@ -38,9 +38,9 @@
     </button>
 
     <!-- Logo + title clickable -->
-    <a class="flex items-center gap-2 cursor-pointer" onclick={navigateHome}>
-      <img src={asset('/favicon.svg')} alt="ShaderLab Logo" class="w-6 h-6 dark:invert" />
-      <span class="font-semibold text-xl text-foreground">ShaderLab</span>
+    <a href={base + '/'} class="flex items-center gap-2 cursor-pointer" onclick={(event) => { event.preventDefault(); navigateHome(); }}>
+      <img src={asset('/favicon.svg')} alt="ShaderLab Logo" class="shaderlab-gizmo w-6 h-6" />
+      <span class="shaderlab-brand font-semibold text-xl text-foreground"><span class="shaderlab-word">Shader</span><span class="shaderlab-accent">Lab</span></span>
     </a>
   </div>
 {/if}

@@ -1,31 +1,47 @@
 ---
-category: Grundlagen Computergrafik
+category: Transformation
 type: 3D
 title: Planeten System
+shaderStages:
+  - vertex
+camera:
+  position: [8.5, 8.5, 8.5]
+  target: [0, 0, 0]
+  fov: 30
 modelPath: models/Sphere.glb
-instanceCount: 10
-hints:
-- Verwende gl_InstanceID, um zwischen den Planeten im Shader zu unterscheiden.
-- Die Reihenfolge der Matrixmultiplikation ist entscheidend: Translation * Rotation * Skalierung wendet die Skalierung zuerst an.
-- Um eine Hierarchie zu schaffen (z.B. Mond um Erde), multipliziere die Transformation des Kindes mit der des Elternteils: earthMatrix * moonMatrix.
-- Benutze den time-Uniform, um die Rotationswinkel zu animieren.
+instanceCount: 6
 ---
 
 # Task
-Erstelle ein hierarchisches Planetensystem (Sonne, Erde, Mond) mithilfe von Instancing. Alle Transformationslogiken, wie Rotation und Translation, sollen direkt im Vertex-Shader unter Verwendung von Matrizen und dem gl_InstanceID implementiert werden.
+Erstelle ein animiertes System aus **Sonne**, **Merkur**, **Venus**, **Erde**, **Mond** und **Mars**. Alle sechs Kugeln werden als Instanzen desselben Meshes gerendert.
+
+Implementiere für jedes Objekt eine Funktion. `main` berechnet die Transformationen einmal pro Vertex. Die gemeinsamen Matrizen bilden dabei die wiederverwendbare Hierarchie.
+
+# Hints
+
+## Hint
+Die `pointMatrix` beschreibt die vollständige Transformation eines Objekts. Die rechte Matrix wird zuerst angewendet.
+
+## Hint
+Schreibe dir eigene Hilfsfunktionen wie `mat4 translationMatrix(vec3)`, `mat4 scalingMatrix(vec3)` und `mat4 rotationYMatrix(float)`. Als Vorlage für die Schreibweise dient die ausgeschriebene Matrix in `animateSun`.
+
+## Hint
+Jeder Planet braucht eine Drehung um die Sonne und anschließend eine Translation entlang seiner Umlaufbahn: `rotationYMatrix(...) * translationMatrix(...)`.
+
+## Hint
+Der Mond ist von der Erde abhängig: `animateMoon` verwendet die bereits berechnete `earthPointMatrix` und multipliziert sie mit seiner lokalen Transformation.
+
+## Hint
+Für korrekt beleuchtete, skalierte Objekte gilt: `normalMatrix = mat3(transpose(inverse(pointMatrix)))`.
 
 # Theory
-Hierarchische Transformationen ermöglichen es, Objekte relativ zueinander zu positionieren und zu bewegen. In der Computergrafik wird dies durch die Multiplikation von Transformationsmatrizen erreicht.
+Wie im Transformationspraktikum wird pro Objekt eine **Punktmatrix** und daraus eine **Normalenmatrix** bestimmt. Die Punktmatrix transformiert Positionen. Die Normalenmatrix stellt sicher, dass Oberflächennormalen auch bei Skalierung korrekt für die Beleuchtung verwendet werden.
 
-Ein Objekt (z.B. der Mond) kann an ein anderes Objekt (die Erde) "gebunden" werden, indem seine eigene lokale Transformation (Rotation und Abstand zur Erde) mit der Transformation des Elternobjekts (die Position der Erde im Sonnensystem) multipliziert wird.
-
-Die finale Transformationsmatrix für den Mond wäre also:
-finalMoonMatrix = projectionMatrix * viewMatrix * earthMatrix * localMoonMatrix
-
-Indem wir dies für jede Instanz im Vertex-Shader tun, können wir mit einem einzigen Draw-Call ein ganzes, animiertes System rendern.
+Die Sonne ist das Elternobjekt. Die Planeten bewegen sich relativ zur Sonne. Der Mond bewegt sich wiederum relativ zur Erde. Diese Abhängigkeit wird durch Matrixmultiplikation beschrieben.
 
 # Starter Vertex Shader
 ```glsl
+// @prefix
 precision highp float;
 
 in vec3 position;
@@ -38,22 +54,117 @@ uniform float time;
 out vec3 vNormal;
 out vec3 vColor;
 
+void animateSun(float time);
+void animateMercury(float time);
+void animateVenus(float time);
+void animateEarth(float time);
+void animateMoon(float time);
+void animateMars(float time);
+void renderCurrentInstance();
+// @prefix
+
+mat4 sunPointMatrix;
+mat4 mercuryPointMatrix;
+mat4 venusPointMatrix;
+mat4 earthPointMatrix;
+mat4 moonPointMatrix;
+mat4 marsPointMatrix;
+mat3 sunNormalMatrix;
+mat3 mercuryNormalMatrix;
+mat3 venusNormalMatrix;
+mat3 earthNormalMatrix;
+mat3 moonNormalMatrix;
+mat3 marsNormalMatrix;
+
 void main() {
+    animateSun(time);
+    animateMercury(time);
+    animateVenus(time);
+    animateEarth(time);
+    animateMoon(time);
+    animateMars(time);
+    renderCurrentInstance();
+}
+
+void animateSun(float time) {
+    // Beispiel: So baust du eine Matrix von Hand auf. Schreib sie genau wie auf dem
+    // Papier, Zeile fuer Zeile -- ShaderLab dreht mat4(...)/mat3(...)-Literale mit
+    // allen 16 bzw. 9 Werten beim Kompilieren automatisch in die richtige Reihenfolge.
+    // Ausgeschrieben ist das hier die Identitätsmatrix mat4(1.0).
+    sunPointMatrix = mat4(1.0, 0.0, 0.0, 0.0,
+                          0.0, 1.0, 0.0, 0.0,
+                          0.0, 0.0, 1.0, 0.0,
+                          0.0, 0.0, 0.0, 1.0);
+    sunNormalMatrix = mat3(1.0);
+    // TODO: Skaliere die Sonne. Schreibe dir dafür eine eigene Funktion
+    // mat4 scalingMatrix(vec3 scaleVector) nach dem Muster oben.
+}
+
+void animateMercury(float time) {
+    mercuryPointMatrix = sunPointMatrix;
+    mercuryNormalMatrix = mat3(1.0);
+    // TODO: Lasse Merkur die Sonne umkreisen und skaliere ihn.
+}
+
+void animateVenus(float time) {
+    venusPointMatrix = sunPointMatrix;
+    venusNormalMatrix = mat3(1.0);
+    // TODO: Lasse Venus die Sonne umkreisen und skaliere sie.
+}
+
+void animateEarth(float time) {
+    earthPointMatrix = sunPointMatrix;
+    earthNormalMatrix = mat3(1.0);
+    // TODO: Lasse die Erde die Sonne umkreisen und skaliere sie.
+}
+
+void animateMoon(float time) {
+    moonPointMatrix = earthPointMatrix;
+    moonNormalMatrix = mat3(1.0);
+    // TODO: Erzeuge die lokale Mondmatrix.
+}
+
+void animateMars(float time) {
+    marsPointMatrix = sunPointMatrix;
+    marsNormalMatrix = mat3(1.0);
+    // TODO: Lasse Mars die Sonne umkreisen und skaliere ihn.
+}
+
+// @suffix
+void renderCurrentInstance() {
+    mat4 pointMatrix;
+    mat3 normalMatrix;
+
     if (gl_InstanceID == 0) {
-        // --- Sonne ---
-
+        pointMatrix = sunPointMatrix;
+        normalMatrix = sunNormalMatrix;
+        vColor = vec3(1.0, 0.8, 0.2);
     } else if (gl_InstanceID == 1) {
-        // --- Erde ---
-
+        pointMatrix = mercuryPointMatrix;
+        normalMatrix = mercuryNormalMatrix;
+        vColor = vec3(0.7, 0.7, 0.7);
     } else if (gl_InstanceID == 2) {
-        // --- Mond ---
-   
+        pointMatrix = venusPointMatrix;
+        normalMatrix = venusNormalMatrix;
+        vColor = vec3(0.9, 0.7, 0.3);
+    } else if (gl_InstanceID == 3) {
+        pointMatrix = earthPointMatrix;
+        normalMatrix = earthNormalMatrix;
+        vColor = vec3(0.2, 0.4, 1.0);
+    } else if (gl_InstanceID == 4) {
+        pointMatrix = moonPointMatrix;
+        normalMatrix = moonNormalMatrix;
+        vColor = vec3(0.6);
+    } else {
+        pointMatrix = marsPointMatrix;
+        normalMatrix = marsNormalMatrix;
+        vColor = vec3(0.9, 0.3, 0.1);
     }
 
-    vColor = vec3(1.0, 0.8, 0.2);
-    vNormal = normal;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vNormal = normalize(normalMatrix * normal);
+    gl_Position = projectionMatrix * modelViewMatrix * pointMatrix * vec4(position, 1.0);
 }
+// @suffix
 ```
 
 # Starter Fragment Shader
@@ -61,21 +172,14 @@ void main() {
 precision highp float;
 
 in vec3 vNormal;
-in vec3 vColor; // Farbe vom Vertex Shader empfangen
-
+in vec3 vColor;
 out vec4 fragColor;
 
 void main() {
-    vec3 lightDir = normalize(vec3(0.5, 0.5, 1.0)); // world-space light
-    float diffuse = max(dot(normalize(vNormal), lightDir), 0.0);
-        
-    // Umgebungslicht, damit die dunkle Seite nicht komplett schwarz ist
+    vec3 lightDirection = normalize(vec3(0.5, 0.5, 1.0));
+    float diffuse = max(dot(normalize(vNormal), lightDirection), 0.0);
     float ambient = 0.2;
-    
-    // Farbe mit Beleuchtung kombinieren
-    vec3 finalColor = vColor * (diffuse + ambient);
-    
-    fragColor = vec4(finalColor, 1.0);
+    fragColor = vec4(vColor * (diffuse + ambient), 1.0);
 }
 ```
 
@@ -93,119 +197,135 @@ uniform float time;
 out vec3 vNormal;
 out vec3 vColor;
 
-// Helper functions
-mat4 translation(vec3 t) {
-    return mat4(
-        1.0, 0.0, 0.0, 0.0,
-        0.0, 1.0, 0.0, 0.0,
-        0.0, 0.0, 1.0, 0.0,
-        t.x, t.y, t.z, 1.0
-    );
-}
+void animateSun(float time);
+void animateMercury(float time);
+void animateVenus(float time);
+void animateEarth(float time);
+void animateMoon(float time);
+void animateMars(float time);
+void renderCurrentInstance();
 
-mat4 scale(vec3 s) {
-    return mat4(
-        s.x, 0.0, 0.0, 0.0,
-        0.0, s.y, 0.0, 0.0,
-        0.0, 0.0, s.z, 0.0,
-        0.0, 0.0, 0.0, 1.0
-    );
-}
-
-mat4 rotationY(float angle) {
-    float c = cos(angle);
-    float s = sin(angle);
-    return mat4(
-        c, 0.0, s, 0.0,
-        0.0, 1.0, 0.0, 0.0,
-        -s, 0.0, c, 0.0,
-        0.0, 0.0, 0.0, 1.0
-    );
-}
+mat4 sunPointMatrix;
+mat4 mercuryPointMatrix;
+mat4 venusPointMatrix;
+mat4 earthPointMatrix;
+mat4 moonPointMatrix;
+mat4 marsPointMatrix;
+mat3 sunNormalMatrix;
+mat3 mercuryNormalMatrix;
+mat3 venusNormalMatrix;
+mat3 earthNormalMatrix;
+mat3 moonNormalMatrix;
+mat3 marsNormalMatrix;
 
 void main() {
-mat4 modelMatrix = mat4(1.0);
-
-// Declare variables for artistic scale and orbital speed
-float planetScale = 0.25;  // default, overridden below
-float speed = 0.0;   // default, overridden below
-
-if (gl_InstanceID == 0) {
-    // Sun
-    vColor = vec3(1.0, 0.8, 0.2);
-    planetScale = 2.0;
-    modelMatrix = scale(vec3(planetScale));
-
-} else if (gl_InstanceID == 1) {
-    // Earth
-    vColor = vec3(0.2, 0.4, 1.0);
-    planetScale = 0.7;
-    speed = 1.0;
-    modelMatrix = rotationY(time * speed) * translation(vec3(5.0, 0.0, 0.0)) * scale(vec3(planetScale));
-
-} else if (gl_InstanceID == 2) {
-    // Moon
-    vColor = vec3(0.5, 0.5, 0.5);
-    planetScale = 0.25;
-    speed = 12.0; // fast around Earth
-    mat4 earthMatrix = rotationY(time * 1.0) * translation(vec3(5.0, 0.0, 0.0));
-    mat4 moonMatrix  = rotationY(time * speed) * translation(vec3(1.5, 0.0, 0.0)) * scale(vec3(planetScale));
-    modelMatrix = earthMatrix * moonMatrix;
-
-} else if (gl_InstanceID == 3) {
-    // Mercury
-    vColor = vec3(0.8, 0.6, 0.4);
-    planetScale = 0.3;
-    speed = 4.15;
-    modelMatrix = rotationY(time * speed) * translation(vec3(3.0, 0.0, 0.0)) * scale(vec3(planetScale));
-
-} else if (gl_InstanceID == 4) {
-    // Venus
-    vColor = vec3(1.0, 0.7, 0.3);
-    planetScale = 0.5;
-    speed = 1.62;
-    modelMatrix = rotationY(time * speed) * translation(vec3(4.0, 0.0, 0.0)) * scale(vec3(planetScale));
-
-} else if (gl_InstanceID == 5) {
-    // Mars
-    vColor = vec3(1.0, 0.3, 0.2);
-    planetScale = 0.5;
-    speed = 0.53;
-    modelMatrix = rotationY(time * speed) * translation(vec3(7.0, 0.0, 0.0)) * scale(vec3(planetScale));
-
-} else if (gl_InstanceID == 6) {
-    // Jupiter
-    vColor = vec3(1.0, 0.9, 0.6);
-    planetScale = 1.5;
-    speed = 0.08;
-    modelMatrix = rotationY(time * speed) * translation(vec3(10.0, 0.0, 0.0)) * scale(vec3(planetScale));
-
-} else if (gl_InstanceID == 7) {
-    // Saturn
-    vColor = vec3(0.9, 0.8, 0.5);
-    planetScale = 1.2;
-    speed = 0.03;
-    modelMatrix = rotationY(time * speed) * translation(vec3(13.0, 0.0, 0.0)) * scale(vec3(planetScale));
-
-} else if (gl_InstanceID == 8) {
-    // Uranus
-    vColor = vec3(0.5, 0.9, 1.0);
-    planetScale = 1.0;
-    speed = 0.01;
-    modelMatrix = rotationY(time * speed) * translation(vec3(16.0, 0.0, 0.0)) * scale(vec3(planetScale));
-
-} else if (gl_InstanceID == 9) {
-    // Neptune
-    vColor = vec3(0.3, 0.5, 1.0);
-    planetScale = 0.95;
-    speed = 0.006;
-    modelMatrix = rotationY(time * speed) * translation(vec3(19.0, 0.0, 0.0)) * scale(vec3(planetScale));
+    animateSun(time);
+    animateMercury(time);
+    animateVenus(time);
+    animateEarth(time);
+    animateMoon(time);
+    animateMars(time);
+    renderCurrentInstance();
 }
 
-// Normals
-mat3 normalMatrix = mat3(transpose(inverse(modelMatrix)));
-vNormal = normalize(normalMatrix * normal);
-gl_Position = projectionMatrix * modelViewMatrix * modelMatrix * vec4(position, 1.0);
+mat4 translationMatrix(vec3 translationVector) {
+    return mat4(1.0, 0.0, 0.0, translationVector.x,
+                0.0, 1.0, 0.0, translationVector.y,
+                0.0, 0.0, 1.0, translationVector.z,
+                0.0, 0.0, 0.0, 1.0);
+}
+
+mat4 scalingMatrix(vec3 scaleVector) {
+    return mat4(scaleVector.x, 0.0, 0.0, 0.0,
+                0.0, scaleVector.y, 0.0, 0.0,
+                0.0, 0.0, scaleVector.z, 0.0,
+                0.0, 0.0, 0.0, 1.0);
+}
+
+mat4 rotationYMatrix(float rotationAngle) {
+    float cosine = cos(rotationAngle);
+    float sine = sin(rotationAngle);
+    return mat4(cosine, 0.0, sine, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                -sine, 0.0, cosine, 0.0,
+                0.0, 0.0, 0.0, 1.0);
+}
+
+void animateSun(float time) {
+    sunPointMatrix = mat4(1.0);
+    sunPointMatrix = sunPointMatrix * scalingMatrix(vec3(0.8));
+    sunNormalMatrix = mat3(transpose(inverse(sunPointMatrix)));
+}
+
+void animateMercury(float time) {
+    mercuryPointMatrix = sunPointMatrix;
+    mercuryPointMatrix = mercuryPointMatrix * rotationYMatrix(time * 2.075);
+    mercuryPointMatrix = mercuryPointMatrix * translationMatrix(vec3(2.0, 0.0, 0.0));
+    mercuryPointMatrix = mercuryPointMatrix * scalingMatrix(vec3(0.15));
+    mercuryNormalMatrix = mat3(transpose(inverse(mercuryPointMatrix)));
+}
+
+void animateVenus(float time) {
+    venusPointMatrix = sunPointMatrix;
+    venusPointMatrix = venusPointMatrix * rotationYMatrix(time * 0.81);
+    venusPointMatrix = venusPointMatrix * translationMatrix(vec3(2.8, 0.0, 0.0));
+    venusPointMatrix = venusPointMatrix * scalingMatrix(vec3(0.3));
+    venusNormalMatrix = mat3(transpose(inverse(venusPointMatrix)));
+}
+
+void animateEarth(float time) {
+    earthPointMatrix = sunPointMatrix;
+    earthPointMatrix = earthPointMatrix * rotationYMatrix(time * 0.5);
+    earthPointMatrix = earthPointMatrix * translationMatrix(vec3(3.8, 0.0, 0.0));
+    earthPointMatrix = earthPointMatrix * scalingMatrix(vec3(0.35));
+    earthNormalMatrix = mat3(transpose(inverse(earthPointMatrix)));
+}
+
+void animateMoon(float time) {
+    mat4 localMoonMatrix = rotationYMatrix(time * 2.0) * translationMatrix(vec3(1.3, 0.0, 0.0)) * scalingMatrix(vec3(0.2));
+    moonPointMatrix = earthPointMatrix * localMoonMatrix;
+    moonNormalMatrix = mat3(transpose(inverse(moonPointMatrix)));
+}
+
+void animateMars(float time) {
+    marsPointMatrix = sunPointMatrix;
+    marsPointMatrix = marsPointMatrix * rotationYMatrix(time * 0.265);
+    marsPointMatrix = marsPointMatrix * translationMatrix(vec3(5.0, 0.0, 0.0));
+    marsPointMatrix = marsPointMatrix * scalingMatrix(vec3(0.25));
+    marsNormalMatrix = mat3(transpose(inverse(marsPointMatrix)));
+}
+
+void renderCurrentInstance() {
+    mat4 pointMatrix;
+    mat3 normalMatrix;
+    if (gl_InstanceID == 0) {
+        pointMatrix = sunPointMatrix;
+        normalMatrix = sunNormalMatrix;
+        vColor = vec3(1.0, 0.8, 0.2);
+    } else if (gl_InstanceID == 1) {
+        pointMatrix = mercuryPointMatrix;
+        normalMatrix = mercuryNormalMatrix;
+        vColor = vec3(0.7, 0.7, 0.7);
+    } else if (gl_InstanceID == 2) {
+        pointMatrix = venusPointMatrix;
+        normalMatrix = venusNormalMatrix;
+        vColor = vec3(0.9, 0.7, 0.3);
+    } else if (gl_InstanceID == 3) {
+        pointMatrix = earthPointMatrix;
+        normalMatrix = earthNormalMatrix;
+        vColor = vec3(0.2, 0.4, 1.0);
+    } else if (gl_InstanceID == 4) {
+        pointMatrix = moonPointMatrix;
+        normalMatrix = moonNormalMatrix;
+        vColor = vec3(0.6);
+    } else {
+        pointMatrix = marsPointMatrix;
+        normalMatrix = marsNormalMatrix;
+        vColor = vec3(0.9, 0.3, 0.1);
+    }
+
+    vNormal = normalize(normalMatrix * normal);
+    gl_Position = projectionMatrix * modelViewMatrix * pointMatrix * vec4(position, 1.0);
 }
 ```
 
@@ -214,20 +334,13 @@ gl_Position = projectionMatrix * modelViewMatrix * modelMatrix * vec4(position, 
 precision highp float;
 
 in vec3 vNormal;
-in vec3 vColor; // Farbe vom Vertex Shader empfangen
-
+in vec3 vColor;
 out vec4 fragColor;
 
 void main() {
-    vec3 lightDir = normalize(vec3(0.5, 0.5, 1.0)); // world-space light
-    float diffuse = max(dot(normalize(vNormal), lightDir), 0.0);
-        
-    // Umgebungslicht, damit die dunkle Seite nicht komplett schwarz ist
+    vec3 lightDirection = normalize(vec3(0.5, 0.5, 1.0));
+    float diffuse = max(dot(normalize(vNormal), lightDirection), 0.0);
     float ambient = 0.2;
-    
-    // Farbe mit Beleuchtung kombinieren
-    vec3 finalColor = vColor * (diffuse + ambient);
-    
-    fragColor = vec4(finalColor, 1.0);
+    fragColor = vec4(vColor * (diffuse + ambient), 1.0);
 }
 ```

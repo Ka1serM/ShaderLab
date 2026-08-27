@@ -20,6 +20,9 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 	
 	private textures: THREE.Texture[] = [];
 	private pendingTextureLoads: Map<string, Promise<void>> = new Map();
+	private disposed = false;
+	private loadGeneration = 0;
+	private shaderRevision = 0;
 	
 	// Internal map to track input metadata (type, path)
 	inputsMap: Record<
@@ -47,6 +50,11 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 		if (params.inputs) {
 			for (const input of params.inputs) this.addInput(input);
 		}
+	}
+
+	/** Ensure each shader edit gets a fresh WebGL program cache entry. */
+	override customProgramCacheKey() {
+		return `shaderlab-${this.shaderRevision}`;
 	}
 
 	/**
@@ -157,6 +165,7 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 		resolvedPath: string
 	) {
 		const name = input.name;
+		const generation = this.loadGeneration;
 
 		if (this.pendingTextureLoads.has(name)) {
 			console.warn(`Texture load for "${name}" already in progress. Ignoring new request.`);
@@ -172,7 +181,10 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 
 				if (resolvedPath.toLowerCase().endsWith('.raw')) {
 					// Raw file: fetch and parse
-					const buffer = await fetch(resolvedPath).then((res) => res.arrayBuffer());
+					const response = await fetch(resolvedPath);
+					if (!response.ok) throw new Error(`HTTP ${response.status} while loading ${resolvedPath}`);
+					const buffer = await response.arrayBuffer();
+					if (buffer.byteLength < 16) throw new Error('Raw texture file is missing its 16-byte header');
 					const view = new DataView(buffer);
 					width = view.getUint32(0, true);
 					height = view.getUint32(4, true);
@@ -186,9 +198,13 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 					const loader = new THREE.ImageBitmapLoader();
 					loader.setOptions({ imageOrientation: 'flipY' });
 					const bitmap = await loader.loadAsync(resolvedPath);
-					width = bitmap.width;
-					height = bitmap.height;
-					arrayData = this.bitmapToFloatArray(bitmap);
+					try {
+						width = bitmap.width;
+						height = bitmap.height;
+						arrayData = this.bitmapToFloatArray(bitmap);
+					} finally {
+						bitmap.close();
+					}
 					depth = 1;
 
 					// 3D Atlas Reordering Logic (Images only)
@@ -222,6 +238,8 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 				tex.unpackAlignment = 1; // 1 byte per component (RedFormat)
 				tex.needsUpdate = true;
 
+				if (this.disposed || generation !== this.loadGeneration) return;
+
 				// Store texture for eventual disposal
 				this.textures.push(tex);
 
@@ -231,8 +249,10 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 				
 			} catch (err) {
 				console.error(`Failed to load texture ${resolvedPath}:`, err);
-				if (this.inputsMap[name]) this.inputsMap[name].value = null;
-				if (this.uniforms[name]) this.uniforms[name].value = null;
+				if (!this.disposed && generation === this.loadGeneration) {
+					if (this.inputsMap[name]) this.inputsMap[name].value = null;
+					if (this.uniforms[name]) this.uniforms[name].value = null;
+				}
 			} finally {
 				this.pendingTextureLoads.delete(name);
 			}
@@ -322,10 +342,18 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 
 	/** Sets the value of an existing uniform input */
 	setInput(name: string, value: any) {
-		const entry = this.inputsMap[name];
+		let entry = this.inputsMap[name];
 		if (!entry) {
-			console.warn(`Input "${name}" does not exist in the material's definition.`);
-			return;
+			const type: ShaderInput['type'] = Array.isArray(value) && value.length === 16
+				? 'mat4'
+				: Array.isArray(value) && value.length === 9
+				? 'mat3'
+				: Array.isArray(value)
+				? (`vec${value.length}` as ShaderInput['type'])
+				: 'float';
+			const structuredValue = Array.isArray(value) ? this.createStructuredValue(type, value) : value;
+			entry = this.inputsMap[name] = { value: structuredValue, type };
+			this.uniforms[name] = { value: structuredValue };
 		}
 
 		// Handle array of vectors/matrices
@@ -350,7 +378,8 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 				entry.value.copy(value as any);
 			} else if (Array.isArray(value)) {
 				// Allows setting a Vector with a simple array [x, y, z]
-				(entry.value as any).set(...value); 
+				if (entry.value instanceof THREE.Matrix3 || entry.value instanceof THREE.Matrix4) entry.value.fromArray(value);
+				else (entry.value as any).set(...value);
 			} else {
 				entry.value = value; // Fallback for incompatible type or primitive
 			}
@@ -369,11 +398,14 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 	updateShaders(vertexShader: string, fragmentShader: string) {
 		this.vertexShader = vertexShader;
 		this.fragmentShader = fragmentShader;
+		this.shaderRevision += 1;
 		this.needsUpdate = true; // Crucial Three.js flag for re-compilation
 	}
 
 	/** Clean up textures and inherited resources */
 	override dispose() {
+		this.disposed = true;
+		this.loadGeneration += 1;
 		// Dispose of dynamically created textures
 		this.textures.forEach(tex => tex.dispose());
 		this.textures = [];

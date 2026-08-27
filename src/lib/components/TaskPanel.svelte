@@ -3,9 +3,15 @@
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
   import { ChevronDown, Lightbulb } from "lucide-svelte";
   import { taskStore } from "$lib/stores/taskStore";
+  import MaximizeButton from "./MaximizeButton.svelte";
+  import { maximizedPanel } from "$lib/stores/panelStore";
 
-  // Track which hints are open
+  let activeTab = 'task';
   let openHints: number[] = [];
+
+  function toggleMaximize() {
+    $maximizedPanel = $maximizedPanel === activeTab ? null : activeTab;
+  }
 
   function toggleHint(index: number, open: boolean) {
     if (open) openHints = [...openHints, index];
@@ -17,16 +23,17 @@
   }
 </script>
 
-<div class="h-full flex flex-col overflow-hidden">
+<div class="app-panel h-full flex flex-col overflow-hidden" data-tutorial="instructions">
   <!-- Header -->
-  <div class="flex items-center justify-between p-6 shrink-0">
+  <div class="app-panel-header flex items-center justify-between shrink-0">
     {#if $taskStore?.task}
-      <h1 class="text-2xl font-bold text-foreground">
+      <h1 class="app-panel-title text-2xl font-bold text-foreground">
         {$taskStore.task.title}
       </h1>
     {:else}
       <div class="text-muted-foreground">Loading task...</div>
     {/if}
+    <MaximizeButton isMaximized={$maximizedPanel === activeTab} onClick={toggleMaximize} />
   </div>
 
   <!-- Tabs -->
@@ -34,9 +41,10 @@
     <Tabs.Root
       value="task"
       class="flex-1 flex flex-col min-h-0 overflow-hidden"
+      onValueChange={(v) => activeTab = v}
     >
       <!-- Tab List -->
-      <div class="flex items-center border-b px-6">
+      <div class="flex items-center px-6">
         <Tabs.List class="h-10 justify-start bg-muted/25 p-0 gap-0">
           <Tabs.Trigger 
             value="task" 
@@ -84,7 +92,9 @@
                   />
                 </Collapsible.Trigger>
                 <Collapsible.Content class="px-3 py-2">
-                  <p class="text-sm text-muted-background">{hint}</p>
+                  <div class="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
+                    {@html hint}
+                  </div>
                 </Collapsible.Content>
               </Collapsible.Root>
             {/each}
@@ -97,7 +107,7 @@
         value="theory"
         class="flex-1 h-0 overflow-y-auto overflow-x-hidden p-6 mt-0 space-y-4 data-[state=inactive]:hidden"
       >
-        <div class="prose prose-sm dark:prose-invert max-w-full">
+        <div class="prose prose-neutral dark:prose-invert max-w-none text-foreground">
           {@html $taskStore.task.theory}
         </div>
       </Tabs.Content>

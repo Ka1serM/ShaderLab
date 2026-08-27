@@ -1,12 +1,17 @@
 ---
 category: Computer Animation
 type: 2D
+shaderStages:
+  - fragment
+camera:
+  position: [1.5, 1.5, 1.5]
+  target: [0, 0, 0]
+  fov: 30
 inputs:
   - name: volumeTexture
     type: texture3D
     init: textures/CTVolumeAtlas.raw
 title: Volumetric Raymarching
-hints:
 ---
 
 # Task
@@ -107,6 +112,17 @@ vec4 sample = SampleVolume(coord, direction);
 - **Output:** `vec4`  
   - `rgb` → berechnete Farbe / Materialwert  
   - `a` → Transparenz / Gewichtung
+
+# Hints
+
+## Hint
+Implementiere zuerst die Ray-Erzeugung und prüfe die Zwischenfarbe im Viewport.
+
+## Hint
+Verwende `textureSize`, um die Schrittweite für die Gradientenberechnung zu bestimmen.
+
+## Hint
+Nutze `mix`, um zwischen den Transfer-Function-Stützstellen zu interpolieren.
 
 # Theory
 
@@ -315,6 +331,7 @@ void main() {
 
 # Starter Vertex Shader
 ```glsl
+// @prefix
 precision highp float;
 
 in vec3 position;
@@ -326,10 +343,12 @@ void main() {
     vUv = uv * 2.0 - 1.0;
     gl_Position = vec4(position, 1.0);
 }
+// @prefix
 ```
 
 # Starter Fragment Shader
 ```glsl
+// @prefix
 precision highp float;
 precision highp sampler3D;
 
@@ -348,10 +367,9 @@ const int   maxSteps = 512;
 const vec3  lightDir = normalize(vec3(1.0, 1.0, 0.0));
 const float orthoScale = 0.5;
 
-//  Helper Functions (Bereits implementiert) 
+//  Helper Functions 
 
 vec3 ComputeGradient(vec3 samplePosition) {
-    // Zentraler Differenzenquotient zur Bestimmung der Normale
     vec3 H = 1.0 / vec3(textureSize(volumeTexture, 0));
     float Fx1 = texture(volumeTexture, clamp(samplePosition + vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
     float Fx2 = texture(volumeTexture, clamp(samplePosition - vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
@@ -363,41 +381,39 @@ vec3 ComputeGradient(vec3 samplePosition) {
 }
 
 vec3 PhongShade(vec3 N, vec3 BaseColor, vec3 ViewDir) {
-    // Blinn-Phong Beleuchtungsmodell
     const vec3 Ka = vec3(0.01); const vec3 Kd = vec3(1.0); const vec3 Ks = vec3(0.3); float NExp = 120.0;
     vec3 H = normalize(ViewDir + lightDir);
     return BaseColor * (Ka + Kd * max(dot(N, lightDir), 0.0)) + Ks * pow(max(dot(N, H), 0.0), NExp);
 }
 
+vec4 TransferFunction(float density, float gradientMagnitude);
 
-
-
-
-
-
-
-
-
-
-
+vec4 SampleVolume(vec3 samplePosition, vec3 rayDirection) {
+    float rawValue = texture(volumeTexture, samplePosition).r;
+    float density = rawValue - 1100.0;
+    vec3 gradient = ComputeGradient(samplePosition);
+    vec4 material = TransferFunction(density, length(gradient));
+    material.a *= (1.0 - exp(-5.0 * length(gradient)));
+    vec3 shadedColor = PhongShade(normalize(-gradient), material.rgb, -rayDirection);
+    return vec4(shadedColor, material.a);
+}
+// @prefix
 
 // --------------------------------------------------
-//  TASK 3: Transfer Function 
+// TASK 3: Transfer Function
 // --------------------------------------------------
 vec4 TransferFunction(float density, float gradientMagnitude) {
-    // Referenzwerte HU (Hounsfield Units)
     const float huAir    = -800.0;
     const float huTissue =   50.0;
     const float huBone   =  700.0;
 
-    // Zielwerte
     const float alphaTissue = 0.03;
     const float alphaBone   = 1.0;
     const vec3 colorTissue  = vec3(0.929, 0.675, 0.522);
     const vec3 colorBone    = vec3(0.949, 0.898, 0.643);
 
-    vec3 color = vec3(1.0); // Default Weiß
-    float alpha = 0.0;      // Default Transparent
+    vec3 color = vec3(1.0);
+    float alpha = 0.0;
 
 
     if (density <= huAir) {
@@ -414,38 +430,12 @@ vec4 TransferFunction(float density, float gradientMagnitude) {
         color = colorBone;
     }
 
-
-
-    // Fallback für Task 2 (Silhouetten-Modus):
-    // Wenn die TransferFunction noch leer ist (alpha 0), aber Dichte da ist, mach es weiß.
     if (alpha == 0.0 && density > huAir) { alpha = 0.1; } 
 
     return vec4(color, alpha);
 }
 
 
-
-
-
-
-// SampleVolume berechnet **an einer 3D-Koordinate im Volumen** die benötigten Werte.
-// samplePosition → Koordinate im Volumen
-// rayDirection → Richtungsvektor (für Gradienten / Beleuchtung berechnung)
-// return → vec4, rgb = Farbe, a = Opazität
-vec4 SampleVolume(vec3 samplePosition, vec3 rayDirection) {
-    float rawValue = texture(volumeTexture, samplePosition).r;
-    float density = rawValue - 1100.0; // Korrektur der Rohdaten
-    
-    vec3 gradient = ComputeGradient(samplePosition);
-    
-    vec4 material = TransferFunction(density, length(gradient));
-    
-    // Kantenverstärkung (Levoy)
-    material.a *= (1.0 - exp(-5.0 * length(gradient))); 
-
-    vec3 shadedColor = PhongShade(normalize(-gradient), material.rgb, -rayDirection);
-    return vec4(shadedColor, material.a);
-}
 
 
 
@@ -457,7 +447,6 @@ vec3 Raymarch(vec3 rayOrigin, vec3 rayDirection) {
 
     int totalSteps = min(int(1.0 / stepSize), maxSteps);
 
-    // Sobald Sie Task 2 beginnen, ändern Sie dies auf vec3(0.0) (Schwarz).
     vec3 accumulatedColor = vec3(-1.0);
 
     // TODO: Implementieren Sie die Raymarching Schleife (Siehe Theory Abschnitt 2 & 3)
@@ -483,8 +472,8 @@ void GenerateRay(out vec3 rayOrigin, out vec3 rayDirection) {
 
     // TODO: Berechnen Sie Strahlstartpunkt und Richtung für Orthographische Projektion (Siehe Theory Abschnitt 1)
     
-    rayDirection = vec3(0.0); // Platzhalter
-    rayOrigin = vec3(0.0);    // Platzhalter
+    rayDirection = vec3(0.0);
+    rayOrigin = vec3(0.0);
 }
 
 
@@ -503,29 +492,22 @@ void GenerateRay(out vec3 rayOrigin, out vec3 rayDirection) {
 
 
 
+// @suffix
 void main() {
     vec3 rayOrigin, rayDirection;
     GenerateRay(rayOrigin, rayDirection);
 
-    // Wir rufen den Loop immer auf.
-    // Wenn er noch nicht implementiert ist, kommt der Sentinel (-1.0) zurück.
-    vec3 resultColor = Raymarch(rayOrigin + 0.5, rayDirection); // +0.5 um den Kopf in den Ursprung zu verschieben
+    vec3 resultColor = Raymarch(rayOrigin + 0.5, rayDirection);
 
-    //  AUTOMATISCHE VORSCHAU 
-    
-    // ZUSTAND 3: Sentinel (-1.0) wurde im Loop überschrieben -> Task 2 ist aktiv!
-    // Wir zeigen das Ergebnis (Schwarz oder Bunt)
     if (resultColor.x >= 0.0) {
         fragColor = vec4(resultColor, 1.0);
     } 
-    // ZUSTAND 2: RayGen ist implementiert (Richtung != 0), aber Loop fehlt noch (Sentinel -1)
-    // Wir zeigen die Ray-Origin als Debug-Farbe.
     else if (length(rayDirection) > 0.0) {
         fragColor = vec4(rayOrigin * 0.5 + 0.5, 1.0);
     } 
-    // ZUSTAND 1: Startzustand
     else {
         fragColor = vec4(vUv * 0.5 + 0.5, 0.0, 1.0); 
     }
 }
+// @suffix
 ```

@@ -1,68 +1,68 @@
 <script lang="ts">
-  import ShaderPreview from './ShaderPreview.svelte';
-  import * as THREE from 'three';
+  import Viewport from './Viewport.svelte';
   import { taskStore } from '$lib/stores/taskStore';
+  import MaximizeButton from './MaximizeButton.svelte';
+  import { maximizedPanel } from '$lib/stores/panelStore';
 
-  let sharedCameraRef: THREE.PerspectiveCamera | null = null;
-  let sharedTargetRef = new THREE.Vector3(0, 0, 0);
-  let shaderErrors: string[] = [];
+  export let uniformValues: Record<string, number | number[] | boolean> = {};
+  export let onMaximize: (panelId: string) => void = () => {};
+  export let activeMaximizedPanel: 'reference' | 'output' | null = null;
 
-  // Store reference shaders separately, these dont change during editing
   let referenceVertex = '';
   let referenceFragment = '';
-  
-  // Update reference shaders only when task changes, not when user edits
+
   $: if ($taskStore.task) {
     referenceVertex = $taskStore.task.referenceVertexShader;
     referenceFragment = $taskStore.task.referenceFragmentShader;
   }
-
-  function setShaderErrors(errors: string[]) {
-    shaderErrors = errors;
-  }
 </script>
 
-<div class="relative w-full h-full px-4 pt-4">
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4 h-full">
-    <!-- Reference Shader - Only recompiles when task changes -->
-    <div class="flex flex-col min-h-[200px] md:min-h-0 h-full">
-      <h3 class="text-xl font-medium text-muted-background pb-2">Reference</h3>
-      <div class="relative flex-1">
-        {#if $taskStore.task}
-          <ShaderPreview
-            task={$taskStore.task}
-            vertexShader={referenceVertex}
-            fragmentShader={referenceFragment}
-            bind:sharedCameraRef
-            bind:sharedTargetRef
-          />
-        {:else}
-          <div class="flex items-center justify-center h-full text-muted-foreground">
-            loading reference...
-          </div>
-        {/if}
+{#if activeMaximizedPanel}
+  <div class="relative w-full h-full">
+    {#if activeMaximizedPanel === 'reference'}
+      {#if $taskStore.task}
+        <Viewport task={$taskStore.task} vertexShader={referenceVertex} fragmentShader={referenceFragment} cameraPose={$taskStore.cameraPose} overlays={$taskStore.task.overlays} reportErrors={false} {uniformValues} />
+      {:else}
+        <div class="flex items-center justify-center h-full text-muted-foreground">loading reference...</div>
+      {/if}
+    {:else}
+      {#if $taskStore.task}
+        <Viewport task={$taskStore.task} vertexShader={$taskStore.vertexShader} fragmentShader={$taskStore.fragmentShader} cameraPose={$taskStore.cameraPose} overlays={$taskStore.task.overlays} reportErrors={true} useStudentTemplates={true} {uniformValues} />
+      {:else}
+        <div class="flex items-center justify-center h-full text-muted-foreground">loading output...</div>
+      {/if}
+    {/if}
+  </div>
+{:else}
+  <div class="relative w-full h-full px-4 pt-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4 h-full">
+      <div class="flex flex-col min-h-[200px] md:min-h-0 h-full">
+        <div class="flex items-center justify-between pb-2">
+          <h3 class="text-xl font-medium text-muted-background">Reference</h3>
+          <MaximizeButton isMaximized={$maximizedPanel === 'reference'} onClick={() => onMaximize('reference')} />
+        </div>
+        <div class="relative flex-1">
+          {#if $taskStore.task}
+            <Viewport task={$taskStore.task} vertexShader={referenceVertex} fragmentShader={referenceFragment} cameraPose={$taskStore.cameraPose} overlays={$taskStore.task.overlays} reportErrors={false} {uniformValues} />
+          {:else}
+            <div class="flex items-center justify-center h-full text-muted-foreground">loading reference...</div>
+          {/if}
+        </div>
       </div>
-    </div>
 
-    <!-- User Output Shader - Recompiles on every edit -->
-    <div class="flex flex-col min-h-[200px] md:min-h-0 h-full">
-      <h3 class="text-xl font-medium text-muted-background pb-2">Output</h3>
-      <div class="relative flex-1">
-        {#if $taskStore.task}
-          <ShaderPreview
-            task={$taskStore.task}
-            vertexShader={$taskStore.vertexShader}
-            fragmentShader={$taskStore.fragmentShader}
-            bind:sharedCameraRef
-            bind:sharedTargetRef
-            on:error={(e) => setShaderErrors(e.detail)}
-          />
-        {:else}
-          <div class="flex items-center justify-center h-full text-muted-foreground">
-            loading output...
-          </div>
-        {/if}
+      <div class="flex flex-col min-h-[200px] md:min-h-0 h-full">
+        <div class="flex items-center justify-between pb-2">
+          <h3 class="text-xl font-medium text-muted-background">Output</h3>
+          <MaximizeButton isMaximized={$maximizedPanel === 'output'} onClick={() => onMaximize('output')} />
+        </div>
+        <div class="relative flex-1">
+          {#if $taskStore.task}
+            <Viewport task={$taskStore.task} vertexShader={$taskStore.vertexShader} fragmentShader={$taskStore.fragmentShader} cameraPose={$taskStore.cameraPose} overlays={$taskStore.task.overlays} reportErrors={true} useStudentTemplates={true} {uniformValues} />
+          {:else}
+            <div class="flex items-center justify-center h-full text-muted-foreground">loading output...</div>
+          {/if}
+        </div>
       </div>
     </div>
   </div>
-</div>
+{/if}

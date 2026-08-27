@@ -1,0 +1,85 @@
+[
+  {
+    "id": "phong",
+    "title": "Phong",
+    "category": "Lighting",
+    "task": "Phong",
+    "type": "shader-controls",
+    "scene": {
+      "objects": [
+        {
+          "id": "sphere",
+          "source": {
+            "type": "primitive",
+            "geometry": "sphere"
+          },
+          "position": [
+            -1.2,
+            0,
+            0
+          ],
+          "scale": [
+            0.8,
+            0.8,
+            0.8
+          ]
+        },
+        {
+          "id": "head",
+          "source": {
+            "type": "model",
+            "path": "models/HeadDavid.glb"
+          },
+          "position": [
+            1.2,
+            0,
+            0
+          ],
+          "scale": [
+            0.8,
+            0.8,
+            0.8
+          ]
+        }
+      ]
+    },
+    "fragmentShader": "// @control ambient color label=\"Ambient\" default=\"0.1,0.1,0.1\"\nuniform vec3 uAmbient;\n// @control kd color label=\"Diffuse Kd\" default=\"1,1,1\"\nuniform vec3 uKd;\n// @control ks color label=\"Specular Ks\" default=\"0.3,0.3,0.3\"\nuniform vec3 uKs;\n// @control shininess slider label=\"Shininess n\" min=1 max=256 step=1 default=32\nuniform float uShininess;\n// @control lightDir vec3 label=\"Light Direction\" default=\"1,1,1\"\nuniform vec3 uLightDir;\nuniform vec3 cameraPosition;\n\nvoid main() {\n  vec3 lightDir = normalize(uLightDir);\n  vec3 viewDir = normalize(cameraPosition - vPosition);\n  float nDotL = dot(vNormal, lightDir);\n  float diffuse = 0.0;\n  if (nDotL > 0.0) {\n    diffuse = nDotL;\n  }\n\n  vec3 reflectDir = reflect(-lightDir, vNormal);\n  float rDotV = dot(reflectDir, viewDir);\n  float specularFactor = 0.0;\n  if (nDotL > 0.0 && rDotV > 0.0) {\n    specularFactor = pow(rDotV, uShininess);\n  }\n\n  vec3 specular = uKs * specularFactor;\n  vec3 color = uAmbient + uKd * diffuse + specular;\n  fragColor = vec4(color, 1.0);\n}",
+    "overview": "<p>Change the Phong parameters live and observe how diffuse brightness, specular intensity, and highlight size change.</p>\n",
+    "explanation": "<p><code>Kd</code> scales the diffuse component, <code>Ks</code> scales the specular component, and <code>n</code> controls the concentration of the highlight.</p>\n",
+    "fragmentShaderTemplate": {
+      "prefix": "precision highp float;\n\nin vec3 vNormal;\nin vec3 vPosition;\nout vec4 fragColor;",
+      "suffix": ""
+    }
+  },
+  {
+    "id": "transformations",
+    "title": "Transformations",
+    "category": "Transformations",
+    "task": "Lambert",
+    "type": "shader-controls",
+    "overlays": {
+      "transformControls": {
+        "mode": "translate"
+      }
+    },
+    "scene": {
+      "objects": [
+        {
+          "id": "transformObject",
+          "source": {
+            "type": "primitive",
+            "geometry": "box"
+          }
+        }
+      ]
+    },
+    "vertexShader": "// @control translationMatrix matrix label=\"Translation T\" default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\nuniform mat4 uTranslationMatrix;\n// @control rotationMatrix matrix label=\"Rotation R\" default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\nuniform mat4 uRotationMatrix;\n// @control scaleMatrix matrix label=\"Scale S\" default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\nuniform mat4 uScaleMatrix;\n\nvoid main() {\n    // @control pointMatrix matrix label=\"Point Matrix (T · R · S)\" readonly=true default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\n    mat4 pointMatrix = uTranslationMatrix * uRotationMatrix * uScaleMatrix;\n    mat3 normalMatrix = mat3(transpose(inverse(pointMatrix)));\n    vec3 transformedNormal = normalize(normalMatrix * normal);\n    vec3 lightDirection = normalize(vec3(1.0, 0.5, 1.0));\n    vLightIntensity = 0.6 + max(dot(transformedNormal, lightDirection), 0.0);\n\n    gl_Position = projectionMatrix * modelViewMatrix * pointMatrix * vec4(position, 1.0);\n}",
+    "fragmentShader": "precision highp float;\n\nin float vLightIntensity;\nout vec4 fragColor;\n\nvoid main() {\n    vec3 baseColor = vec3(0.8, 0.4, 0.2);\n    fragColor = vec4(baseColor * vLightIntensity, 1.0);\n}",
+    "overview": "<p>Edit the translation, rotation, and scale matrices to see their combined effect on the model.</p>\n",
+    "explanation": "<p>Matrix multiplication is order-dependent. The point matrix is built as <code>T · R · S</code>, so scale is applied first, then rotation, then translation.</p>\n",
+    "vertexShaderTemplate": {
+      "prefix": "precision highp float;\n\nin vec3 position;\nin vec3 normal;\n\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\n\nout float vLightIntensity;",
+      "suffix": ""
+    }
+  }
+]

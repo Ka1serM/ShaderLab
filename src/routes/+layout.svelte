@@ -3,7 +3,10 @@
   import AppSidebar from '$lib/components/SideBar.svelte';
   import MobileHeader from '$lib/components/MobileHeader.svelte';
   import { ModeWatcher } from "mode-watcher";
+  import { checkStorageVersion } from '$lib/config';
   import '../App.css';
+
+  checkStorageVersion();
 </script>
 
 <Sidebar.Provider>
@@ -15,6 +18,5 @@
     <main class="flex-1 flex flex-col min-h-0 overflow-hidden">
       <slot />
     </main>
-    <footer class="flex justify-between items-center w-full p-3"></footer>
   </Sidebar.Inset>
 </Sidebar.Provider>

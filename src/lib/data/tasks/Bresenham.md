@@ -1,14 +1,26 @@
 ---
-category: Grundlagen Computergrafik
+category: Einführung
 type: 2D
 title: Bresenham
+shaderStages:
+  - fragment
+camera:
+  position: [0, 0, 1]
+  target: [0, 0, 0]
+  fov: 30
 modelPath: models/Cube.glb
-hints:
-- Nutze Ganzzahllogik, um Linienpixel zu setzen
+overlays:
+  infiniteGrid: false
+  viewHelper: false
 ---
 
 # Task
 Implementiere den Bresenham-Linienalgorithmus
+
+# Hints
+
+## Hint
+Nutze Ganzzahllogik, um Linienpixel zu setzen.
 
 # Theory
 ## 1. Ausgangspunkt: die ideale Linie
@@ -125,6 +137,7 @@ $$
 
 # Starter Vertex Shader
 ```glsl
+// @prefix
 precision highp float;
 
 in vec3 position;
@@ -141,10 +154,12 @@ void main() {
     vUV = uv;
     gl_Position = vec4(position, 1.0);
 }
+// @prefix
 ```
 
 # Starter Fragment Shader
 ```glsl
+// @prefix
 precision highp float;
 
 in vec2 vUV;
@@ -186,12 +201,14 @@ void drawPixel(int x, int y, inout vec3 color, vec3 pixelColor) {
         color = pixelColor;
     }
 }
+// @prefix
 
 // Integer Bresenham line
 void bresenhamLine(int x0, int y0, int x1, int y1, inout vec3 color) {
 
 }
 
+// @suffix
 void main() {
     vec3 color = vec3(0.12); // dark gray background
 
@@ -212,6 +229,7 @@ void main() {
 
     fragColor = vec4(color, 1.0);
 }
+// @suffix
 ```
 
 # Reference Vertex Shader

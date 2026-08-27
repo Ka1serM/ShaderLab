@@ -1,13 +1,14 @@
 ---
-category: Grundlagen Computergrafik
+category: Illumination
 type: 3D
 title: Lambert
+shaderStages:
+  - fragment
+camera:
+  position: [2.5, 2.5, 2.5]
+  target: [0, 0, 0]
+  fov: 30
 modelPath: models/HeadDavid.glb
-hints:
-  - Transformiere die Normalen korrekt mit der `normalMatrix` für eine richtige Beleuchtung
-  - Berechne den Diffusfaktor mit dot(normal, lightDir)
-  - Klippe den Diffuswert mit max(), um negative Beleuchtung zu vermeiden
-  - Multipliziere die Basisfarbe mit dem Diffusfaktor, um die endgültige Beleuchtung zu erhalten
 ---
 
 # Task
@@ -15,6 +16,20 @@ Erstelle ein Programm, das diffuse Beleuchtung basierend auf einer Richtungslich
 
 - erster Stichpunkt
 - zweiter Stichpunkt
+
+# Hints
+
+## Hint
+Transformiere die Normalen korrekt mit der `normalMatrix` für eine richtige Beleuchtung.
+
+## Hint
+Berechne den Diffusfaktor mit `dot(normal, lightDir)`.
+
+## Hint
+Klippe den Diffuswert mit `max()`, um negative Beleuchtung zu vermeiden.
+
+## Hint
+Multipliziere die Basisfarbe mit dem Diffusfaktor, um die endgültige Beleuchtung zu erhalten.
 
 # Theory
 Lambert-Beleuchtung ist ein einfaches Modell für diffuse Lichtberechnung, bei dem die Helligkeit einer Oberfläche vom Winkel zwischen der **Oberflächennormalen** und der **Richtung der Lichtquelle** abhängt.
@@ -44,14 +59,14 @@ void main() {
 
 # Starter Fragment Shader
 ```glsl
-
+// @prefix
 precision highp float;
 
 in vec3 vNormal;
 out vec4 fragColor;
+// @prefix
 
 void main() {
-  // simple placeholder white color
   fragColor = vec4(0.18, 0.18, 0.18, 1.0);
 }
 ```

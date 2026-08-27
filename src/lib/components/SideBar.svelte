@@ -3,25 +3,20 @@
   import { useSidebar } from "$lib/components/ui/sidebar/index.js";
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
   import { slugify } from '$lib/utils/slugify';
-  import * as Avatar from "$lib/components/ui/avatar/index.js";
-  import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
-  import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
-  import BadgeCheckIcon from "@lucide/svelte/icons/badge-check";
-  import LogOutIcon from "@lucide/svelte/icons/log-out";
-  import SparklesIcon from "@lucide/svelte/icons/sparkles";
   import { Moon, Sun } from "lucide-svelte";
   import { toggleMode } from "mode-watcher";
-
 
   import { 
     House, 
     BookOpen, 
+    Presentation,
     ChevronDown,
     PanelLeftClose,
     PanelLeft
   } from "lucide-svelte";
 
   import tasks from "$lib/data/tasks.json";
+  import teaching from "$lib/data/teaching.json";
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
   import { asset, resolve } from "$app/paths";
@@ -56,6 +51,13 @@
     };
   }
 
+  function navigateToTeaching(id: string) {
+    return (e: MouseEvent) => {
+      e.preventDefault();
+      goto(resolve(`/teach/${id}`));
+    };
+  }
+
   // Check if current route is active
   function isActive(path: string) {
     return $page.url.pathname === path;
@@ -77,9 +79,9 @@
           <img 
             src={asset('/favicon.svg')} 
             alt="ShaderLab Logo" 
-            class="w-5 h-5 dark:invert" 
+            class="shaderlab-gizmo w-5 h-5" 
           />
-          <span class="font-semibold text-lg">ShaderLab</span>
+          <span class="shaderlab-brand font-semibold text-lg"><span class="shaderlab-word">Shader</span><span class="shaderlab-accent">Lab</span></span>
         </div>
       {/if}
       
@@ -133,6 +135,20 @@
             {/snippet}
           </Sidebar.MenuButton>
         </Sidebar.MenuItem>
+
+        <Sidebar.MenuItem>
+          <Sidebar.MenuButton
+            onclick={(e) => { e.preventDefault(); goto(resolve('/teach')); }}
+            isActive={$page.url.pathname === resolve('/teach')}
+          >
+            {#snippet child({ props })}
+              <a href={resolve('/teach')} {...props}>
+                <Presentation class="w-4 h-4" />
+                <span>Teaching</span>
+              </a>
+            {/snippet}
+          </Sidebar.MenuButton>
+        </Sidebar.MenuItem>
       </Sidebar.Menu>
     </Sidebar.Group>
 
@@ -180,80 +196,49 @@
         </Sidebar.Group>
       </Collapsible.Root>
     {/each}
+
+    <Collapsible.Root open class="group/collapsible">
+      <Sidebar.Group>
+        <Sidebar.GroupLabel>
+          {#snippet child({ props })}
+            <Collapsible.Trigger {...props}>
+              <div class="flex items-center gap-2"><Presentation class="w-4 h-4" /><span>Teaching demos</span></div>
+              <ChevronDown class="ml-auto w-4 h-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+            </Collapsible.Trigger>
+          {/snippet}
+        </Sidebar.GroupLabel>
+        <Collapsible.Content>
+          <Sidebar.GroupContent>
+            <Sidebar.Menu>
+              {#each teaching as demo}
+                {@const demoPath = resolve(`/teach/${demo.id}`)}
+                <Sidebar.MenuItem>
+                  <Sidebar.MenuButton onclick={navigateToTeaching(demo.id)} isActive={isActive(demoPath)}>
+                    {#snippet child({ props })}
+                      <a href={demoPath} {...props}><Presentation class="w-4 h-4" /><span>{demo.title}</span></a>
+                    {/snippet}
+                  </Sidebar.MenuButton>
+                </Sidebar.MenuItem>
+              {/each}
+            </Sidebar.Menu>
+          </Sidebar.GroupContent>
+        </Collapsible.Content>
+      </Sidebar.Group>
+    </Collapsible.Root>
   </Sidebar.Content>
 
   <!-- Footer -->
   <Sidebar.Footer>
-<Sidebar.Menu>
-  <Sidebar.MenuItem>
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger>
-        {#snippet child({ props })}
-          <Sidebar.MenuButton
-            size="lg"
-            class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-            {...props}
-          >
-            <Avatar.Root class="size-8 rounded-lg">
-              <Avatar.Fallback class="rounded-lg">MK</Avatar.Fallback>
-            </Avatar.Root>
-            <div class="grid flex-1 text-left text-sm leading-tight">
-              <span class="truncate font-medium">User</span>
-              <span class="truncate text-xs">example@email.com</span>
-            </div>
-            <ChevronsUpDownIcon class="ml-auto size-4" />
-          </Sidebar.MenuButton>
-        {/snippet}
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Content
-        class="w-(--bits-dropdown-menu-anchor-width) min-w-56 rounded-lg"
-        side={sidebar.isMobile ? "bottom" : "right"}
-        align="end"
-        sideOffset={4}
-      >
-        <DropdownMenu.Label class="p-0 font-normal">
-          <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-            <Avatar.Root class="size-8 rounded-lg">
-              <Avatar.Fallback class="rounded-lg">MK</Avatar.Fallback>
-            </Avatar.Root>
-            <div class="grid flex-1 text-left text-sm leading-tight">
-              <span class="truncate font-medium">User</span>
-              <span class="truncate text-xs">example@mail.com</span>
-            </div>
-          </div>
-        </DropdownMenu.Label>
-        <DropdownMenu.Separator />
-        <DropdownMenu.Group>
-          <DropdownMenu.Item>
-            <SparklesIcon />
-            Upgrade to Pro
-          </DropdownMenu.Item>
-        </DropdownMenu.Group>
-        <DropdownMenu.Separator />
-        <DropdownMenu.Group>
-          <DropdownMenu.Item>
-            <BadgeCheckIcon />
-            Account
-          </DropdownMenu.Item>
-<DropdownMenu.Item onclick={toggleMode}>
-  <div class="flex items-center gap-2">
-    <!-- Instantly show/hide using hidden/block -->
-    <Sun class="block dark:hidden h-4 w-4" />
-    <Moon class="hidden dark:block h-4 w-4" />
-    <span class="block dark:hidden">Dark Mode</span>
-    <span class="hidden dark:block">Light Mode</span>
-  </div>
-</DropdownMenu.Item>
-        </DropdownMenu.Group>
-        <DropdownMenu.Separator />
-        <DropdownMenu.Item>
-          <LogOutIcon />
-          Log out
-        </DropdownMenu.Item>
-      </DropdownMenu.Content>
-    </DropdownMenu.Root>
-  </Sidebar.MenuItem>
-</Sidebar.Menu>
+    <Sidebar.Menu>
+      <Sidebar.MenuItem>
+        <Sidebar.MenuButton onclick={toggleMode} class="w-full justify-start gap-2">
+          <Sun class="block dark:hidden h-4 w-4" />
+          <Moon class="hidden dark:block h-4 w-4" />
+          <span class="block dark:hidden">Dark Mode</span>
+          <span class="hidden dark:block">Light Mode</span>
+        </Sidebar.MenuButton>
+      </Sidebar.MenuItem>
+    </Sidebar.Menu>
   </Sidebar.Footer>
 
   <!-- Sidebar Rail (hover to expand when collapsed) -->

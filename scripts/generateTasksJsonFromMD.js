@@ -3,6 +3,7 @@ import path from "path";
 import matter from "gray-matter";
 import { marked } from "marked";
 import katex from "katex";
+import { splitStudentShader } from "./shaderTemplate.js";
 
 const tasksFolder = path.join(process.cwd(), "src/lib/data/tasks");
 const outputFile = path.join(process.cwd(), "src/lib/data/tasks.json");
@@ -28,6 +29,19 @@ function markdownToHtml(md) {
     }
   });
   return marked.parse(md);
+}
+
+function markdownHints(md) {
+  const heading = /^##\s+Hint(?:\s+\d+)?\s*$/gim;
+  const starts = [...md.matchAll(heading)].map(match => match.index ?? 0);
+  if (starts.length === 0) return md.trim() ? [markdownToHtml(md)] : [];
+
+  return starts.map((start, index) => {
+    const headingEnd = md.indexOf('\n', start);
+    const end = index + 1 < starts.length ? starts[index + 1] : md.length;
+    const bodyStart = headingEnd === -1 ? md.length : headingEnd + 1;
+    return markdownToHtml(md.slice(bodyStart, end).trim());
+  });
 }
 
 function toCamelCase(str) {
@@ -65,7 +79,16 @@ const tasks = files.map(file => {
   Object.entries(sections).forEach(([key, value]) => {
     const normalizedKey = toCamelCase(key);
     if (/shader/i.test(key)) {
-      shaderSections[normalizedKey] = stripCodeFences(value);
+      const source = stripCodeFences(value);
+      if (normalizedKey.startsWith('starter')) {
+        const studentShader = splitStudentShader(source);
+        shaderSections[normalizedKey] = studentShader.source;
+        if (studentShader.template) shaderSections[`${normalizedKey}Template`] = studentShader.template;
+      } else {
+        shaderSections[normalizedKey] = source;
+      }
+    } else if (normalizedKey === 'hints') {
+      contentSections.hints = markdownHints(value);
     } else {
       contentSections[normalizedKey] = markdownToHtml(value);
     }
