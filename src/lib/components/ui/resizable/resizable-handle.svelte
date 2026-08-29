@@ -1,5 +1,5 @@
 <script lang="ts">
-	import GripVerticalIcon from "@lucide/svelte/icons/grip-vertical";
+	import GripVerticalIcon from "phosphor-svelte/lib/DotsSixVerticalIcon";
 	import * as ResizablePrimitive from "paneforge";
 	import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
 

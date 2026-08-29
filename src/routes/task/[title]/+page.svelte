@@ -12,7 +12,7 @@
   import { loadSplitterSizes, saveSplitterSizes, type SplitterSizes } from '$lib/utils/splitPaneStorage';
 
   const mobileQuery = new IsMobile();
-  const defaultSplitterSizes: SplitterSizes = { outer: 35, inner: 60 };
+  const defaultSplitterSizes: SplitterSizes = { outer: 35, inner: 60, viewports: 50 };
   export let data: PageData;
 
   let mounted = false;
@@ -25,7 +25,7 @@
 
   function handleSplitterResize(slot: keyof SplitterSizes, event: CustomEvent<Array<{ size: number }>>) {
     const size = event.detail?.[0]?.size;
-    if (!Number.isFinite(size) || size <= 0 || size >= 100) return;
+    if (!Number.isFinite(size) || size < 0 || size > 100) return;
     splitterSizes = { ...splitterSizes, [slot]: size };
     saveSplitterSizes(splitterStorageKey(), splitterSizes);
   }
@@ -64,7 +64,7 @@
   <div class="h-full w-full overflow-hidden relative">
     {#if !mobileQuery.current}
       <!-- Desktop layout -->
-      <div class="h-full w-full" class:hidden={$maximizedPanel !== null}>
+      <div class="workspace-layout h-full w-full">
         <Splitpanes class="splitpanes-root" theme="my-theme" on:resized={(event) => handleSplitterResize('outer', event)}>
           <Pane size={splitterSizes.outer}>
             <TaskPanel />
@@ -84,28 +84,34 @@
                 />
               </Pane>
               <Pane size={100 - splitterSizes.inner}>
-                <div class="grid h-full grid-cols-2 gap-4" data-tutorial="viewports">
-                  <Viewport
-                    task={$taskStore.task}
-                    vertexShader={$taskStore.task.referenceVertexShader}
-                    fragmentShader={$taskStore.task.referenceFragmentShader}
-                    cameraPose={$taskStore.cameraPose}
-                    overlays={$taskStore.task.overlays}
-                    reportErrors={false}
-                    title="Reference"
-                    panelId="reference"
-                  />
-                  <Viewport
-                    task={$taskStore.task}
-                    vertexShader={$taskStore.vertexShader}
-                    fragmentShader={$taskStore.fragmentShader}
-                    cameraPose={$taskStore.cameraPose}
-                    overlays={$taskStore.task.overlays}
-                    reportErrors={true}
-                    useStudentTemplates={true}
-                    title="Output"
-                    panelId="output"
-                  />
+                <div class="h-full" data-tutorial="viewports">
+                  <Splitpanes class="splitpanes-nested" theme="my-theme" on:resized={(event) => handleSplitterResize('viewports', event)}>
+                    <Pane size={splitterSizes.viewports}>
+                      <Viewport
+                        task={$taskStore.task}
+                        vertexShader={$taskStore.task.referenceVertexShader}
+                        fragmentShader={$taskStore.task.referenceFragmentShader}
+                        cameraPose={$taskStore.cameraPose}
+                        overlays={$taskStore.task.overlays}
+                        reportErrors={false}
+                        title="Referenz"
+                        panelId="reference"
+                      />
+                    </Pane>
+                    <Pane size={100 - splitterSizes.viewports}>
+                      <Viewport
+                        task={$taskStore.task}
+                        vertexShader={$taskStore.vertexShader}
+                        fragmentShader={$taskStore.fragmentShader}
+                        cameraPose={$taskStore.cameraPose}
+                        overlays={$taskStore.task.overlays}
+                        reportErrors={true}
+                        useStudentTemplates={true}
+                        title="Ausgabe"
+                        panelId="output"
+                      />
+                    </Pane>
+                  </Splitpanes>
                 </div>
               </Pane>
             </Splitpanes>
@@ -114,7 +120,7 @@
       </div>
     {:else}
       <!-- Mobile layout -->
-      <div class="flex flex-col h-full overflow-auto gap-4 p-2" class:hidden={$maximizedPanel !== null}>
+      <div class="workspace-layout flex flex-col h-full overflow-auto gap-0">
         <div class="min-h-[400px]">
           <TaskPanel />
         </div>
@@ -129,7 +135,7 @@
             cameraPose={$taskStore.cameraPose}
             overlays={$taskStore.task.overlays}
             reportErrors={false}
-            title="Reference"
+            title="Referenz"
             panelId="reference"
           />
         </div>
@@ -142,7 +148,7 @@
             overlays={$taskStore.task.overlays}
             reportErrors={true}
             useStudentTemplates={true}
-            title="Output"
+            title="Ausgabe"
             panelId="output"
           />
         </div>
@@ -151,143 +157,10 @@
 
     <AppTutorial mode="task" />
 
-    <!-- Maximized panel (shared desktop + mobile) -->
-    {#if $maximizedPanel}
-      <div class="absolute inset-0 z-50 bg-background">
-        {#if $maximizedPanel === 'task' || $maximizedPanel === 'theory'}
-          <TaskPanel />
-        {:else if $maximizedPanel === 'task-desktop' || $maximizedPanel === 'task-mobile'}
-          <MonacoEditor
-            sources={{ vertex: $taskStore.vertexShader, fragment: $taskStore.fragmentShader }}
-            defaultSources={{ vertex: $taskStore.task.starterVertexShader, fragment: $taskStore.task.starterFragmentShader }}
-            visibleSources={getTaskShaderStages($taskStore.task)}
-            activeSource={$taskStore.activeTab}
-            diagnostics={$taskStore.shaderErrors}
-            editorId={$maximizedPanel}
-            onSourceChange={(source, value) => source === 'vertex' ? taskStore.setVertexShader(value) : taskStore.setFragmentShader(value)}
-            onActiveSourceChange={(source) => taskStore.setActiveTab(source)}
-          />
-        {:else if $maximizedPanel === 'reference'}
-          <Viewport
-            task={$taskStore.task}
-            vertexShader={$taskStore.task.referenceVertexShader}
-            fragmentShader={$taskStore.task.referenceFragmentShader}
-            cameraPose={$taskStore.cameraPose}
-            overlays={$taskStore.task.overlays}
-            reportErrors={false}
-            title="Reference"
-            panelId="reference"
-          />
-        {:else if $maximizedPanel === 'output'}
-          <Viewport
-            task={$taskStore.task}
-            vertexShader={$taskStore.vertexShader}
-            fragmentShader={$taskStore.fragmentShader}
-            cameraPose={$taskStore.cameraPose}
-            overlays={$taskStore.task.overlays}
-            reportErrors={true}
-            useStudentTemplates={true}
-            title="Output"
-            panelId="output"
-          />
-        {/if}
-      </div>
-    {/if}
+    <div class="pointer-events-none absolute inset-0 z-50" data-panel-maximizer></div>
   </div>
 {:else}
   <div class="flex items-center justify-center h-full">
-    <p class="text-muted-foreground">Loading task...</p>
+    <p class="text-muted-foreground">Aufgabe wird geladen …</p>
   </div>
 {/if}
-
-<style>
-:global(.splitpanes-root),
-:global(.splitpanes-nested) {
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-}
-
-:global(.pane-content) {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  position: relative;
-  box-sizing: border-box;
-}
-
-:global(.splitpanes.my-theme .splitpanes__pane) {
-  background-color: transparent;
-  overflow: hidden !important;
-  box-sizing: border-box;
-}
-
-:global(.splitpanes.my-theme.splitpanes--vertical > .splitpanes__splitter) {
-  width: 8px;
-  background-color: transparent;
-  cursor: col-resize;
-  position: relative;
-  z-index: 10;
-  transition: background-color 0.2s;
-}
-
-:global(.splitpanes.my-theme.splitpanes--vertical > .splitpanes__splitter:hover) {
-  background-color: rgba(74, 74, 74, 0.15);
-}
-
-:global(.splitpanes.my-theme.splitpanes--vertical > .splitpanes__splitter::before) {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 2px;
-  height: 30px;
-  background-color: rgba(74, 74, 74, 0.4);
-  border-radius: 2px;
-  pointer-events: none;
-  transition: background-color 0.2s;
-}
-
-:global(.splitpanes.my-theme.splitpanes--vertical > .splitpanes__splitter:hover::before) {
-  background-color: rgba(74, 74, 74, 0.4);
-}
-
-:global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter) {
-  height: 8px;
-  background-color: transparent;
-  cursor: row-resize;
-  position: relative;
-  z-index: 10;
-  transition: background-color 0.2s;
-}
-
-:global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter:hover) {
-  background-color: rgba(74, 74, 74, 0.15);
-}
-
-:global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter::before) {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 30px;
-  height: 2px;
-  background-color: rgba(74, 74, 74, 0.4);
-  border-radius: 2px;
-  pointer-events: none;
-  transition: background-color 0.2s;
-}
-
-:global(.splitpanes.my-theme.splitpanes--horizontal > .splitpanes__splitter:hover::before) {
-  background-color: rgba(74, 74, 74, 0.4);
-}
-
-:global(.splitpanes.my-theme .splitpanes__splitter::after) {
-  content: '';
-  position: absolute;
-  z-index: 1;
-}
-
-</style>

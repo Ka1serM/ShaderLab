@@ -8,8 +8,14 @@ camera:
   position: [8.5, 8.5, 8.5]
   target: [0, 0, 0]
   fov: 30
-modelPath: models/Sphere.glb
-instanceCount: 6
+scene:
+  objects:
+    - id: planets
+      source:
+        type: primitive
+        geometry: sphere
+      instances:
+        count: 6
 ---
 
 # Task

@@ -41,7 +41,7 @@
 </script>
 
 <div class="teaching-control-body">
-  <div class="teaching-control-heading"><span class="teaching-control-label">{label}</span>{#if readOnly}<span class="teaching-readonly">read-only</span>{/if}</div>
+  <div class="teaching-control-heading"><span class="teaching-control-label">{label}</span>{#if readOnly}<span class="teaching-readonly">nur lesbar</span>{/if}</div>
   <div class="teaching-matrix-grid">
     {#each [0, 1, 2, 3] as row}
       {#each [0, 1, 2, 3] as column}

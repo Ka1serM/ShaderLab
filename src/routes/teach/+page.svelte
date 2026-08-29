@@ -1,7 +1,8 @@
 <script lang="ts">
   import * as Card from '$lib/components/ui/card/index.js';
   import { Input } from '$lib/components/ui/input/index.js';
-  import { Search, Presentation } from 'lucide-svelte';
+  import Search from 'phosphor-svelte/lib/MagnifyingGlassIcon';
+  import Presentation from 'phosphor-svelte/lib/PresentationIcon';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import teaching from '$lib/data/teaching.json';
@@ -48,7 +49,7 @@
           </Card.Root>
         {/each}
       {:else}
-        <p class="col-span-full text-center text-muted-foreground">No teaching demos found.</p>
+        <p class="col-span-full text-center text-muted-foreground">Keine Lehr-Demos gefunden.</p>
       {/if}
     </div>
   </main>

@@ -43,18 +43,44 @@
         }
       ]
     },
-    "fragmentShader": "// @control ambient color label=\"Ambient\" default=\"0.1,0.1,0.1\"\nuniform vec3 uAmbient;\n// @control kd color label=\"Diffuse Kd\" default=\"1,1,1\"\nuniform vec3 uKd;\n// @control ks color label=\"Specular Ks\" default=\"0.3,0.3,0.3\"\nuniform vec3 uKs;\n// @control shininess slider label=\"Shininess n\" min=1 max=256 step=1 default=32\nuniform float uShininess;\n// @control lightDir vec3 label=\"Light Direction\" default=\"1,1,1\"\nuniform vec3 uLightDir;\nuniform vec3 cameraPosition;\n\nvoid main() {\n  vec3 lightDir = normalize(uLightDir);\n  vec3 viewDir = normalize(cameraPosition - vPosition);\n  float nDotL = dot(vNormal, lightDir);\n  float diffuse = 0.0;\n  if (nDotL > 0.0) {\n    diffuse = nDotL;\n  }\n\n  vec3 reflectDir = reflect(-lightDir, vNormal);\n  float rDotV = dot(reflectDir, viewDir);\n  float specularFactor = 0.0;\n  if (nDotL > 0.0 && rDotV > 0.0) {\n    specularFactor = pow(rDotV, uShininess);\n  }\n\n  vec3 specular = uKs * specularFactor;\n  vec3 color = uAmbient + uKd * diffuse + specular;\n  fragColor = vec4(color, 1.0);\n}",
-    "overview": "<p>Change the Phong parameters live and observe how diffuse brightness, specular intensity, and highlight size change.</p>\n",
-    "explanation": "<p><code>Kd</code> scales the diffuse component, <code>Ks</code> scales the specular component, and <code>n</code> controls the concentration of the highlight.</p>\n",
+    "fragmentShader": "// @control ambient color label=\"Ambient\" default=\"0.1,0.1,0.1\"\nuniform vec3 uAmbient;\n// @control kd color label=\"Diffuse Kd\" default=\"1,1,1\"\nuniform vec3 uKd;\n// @control ks color label=\"Specular Ks\" default=\"0.3,0.3,0.3\"\nuniform vec3 uKs;\n// @control shininess slider label=\"Shininess n\" min=1 max=256 step=1 default=32\nuniform float uShininess;\n// @control lightDir vec3 label=\"Light Direction\" default=\"1,1,1\" visualize=vector\nuniform vec3 uLightDir;\nuniform vec3 cameraPosition;\n\nvoid main() {\n  vec3 lightDir = normalize(uLightDir);\n  vec3 viewDir = normalize(cameraPosition - vPosition);\n  float nDotL = dot(vNormal, lightDir);\n  float diffuse = 0.0;\n  if (nDotL > 0.0) {\n    diffuse = nDotL;\n  }\n\n  vec3 reflectDir = reflect(-lightDir, vNormal);\n  float rDotV = dot(reflectDir, viewDir);\n  float specularFactor = 0.0;\n  if (nDotL > 0.0 && rDotV > 0.0) {\n    specularFactor = pow(rDotV, uShininess);\n  }\n\n  vec3 specular = uKs * specularFactor;\n  vec3 color = uAmbient + uKd * diffuse + specular;\n  fragColor = vec4(color, 1.0);\n}",
+    "overview": "<p>Verändere die Materialparameter des Phong-Beleuchtungsmodells und beobachte diffusen Anteil, Spiegelstärke und Glanzlichtgröße.</p>\n",
+    "explanation": "<p>Das lokale Phong-Beleuchtungsmodell addiert ambienten, diffusen und spekularen Anteil. Für jede Lichtquelle gilt sinngemäß <code>I = Ia·ka + Ip·[kd·max(N·L,0) + ks·max(V·R,0)^n]</code>. Farben und Koeffizienten werden kanalweise als RGB-Werte verrechnet.</p>\n<p><code>kd</code> bestimmt die diffuse Reflexion, <code>ks</code> die spiegelnde Reflexion und der Exponent <code>n</code> die Konzentration des Glanzlichts. Alle Richtungsvektoren müssen normiert sein. Das Phong-Beleuchtungsmodell beschreibt die Reflexion und ist nicht dasselbe wie Phong Shading: Beim Phong Shading werden Normalen interpoliert und die Beleuchtung pro Fragment ausgewertet—genau das geschieht in diesem Shader.</p>\n",
     "fragmentShaderTemplate": {
       "prefix": "precision highp float;\n\nin vec3 vNormal;\nin vec3 vPosition;\nout vec4 fragColor;",
       "suffix": ""
     }
   },
   {
+    "id": "projection",
+    "title": "Projektion",
+    "category": "Transformationen",
+    "task": "Lambert",
+    "type": "shader-controls",
+    "scene": {
+      "objects": [
+        {
+          "id": "viewFrustum",
+          "source": {
+            "type": "primitive",
+            "geometry": "box-wireframe"
+          }
+        }
+      ]
+    },
+    "vertexShader": "// @control near slider label=\"Near n\" min=-2 max=-0.1 step=0.05 default=-1\nuniform float uNear;\n// @control far slider label=\"Far f\" min=-10 max=-2.5 step=0.1 default=-6\nuniform float uFar;\n// @control left slider label=\"Left l\" min=-3 max=-0.1 step=0.05 default=-1\nuniform float uLeft;\n// @control right slider label=\"Right r\" min=0.1 max=3 step=0.05 default=1\nuniform float uRight;\n// @control bottom slider label=\"Bottom b\" min=-3 max=-0.1 step=0.05 default=-0.75\nuniform float uBottom;\n// @control top slider label=\"Top t\" min=0.1 max=3 step=0.05 default=0.75\nuniform float uTop;\n\nvoid main() {\n    // Exakt die für die Papieraufgabe angegebene Matrix. ShaderLab lässt\n    // Matrixliterale zeilenweise notieren und konvertiert sie für GLSL.\n    // @readback projectionMatrix matrix label=\"Projektionsmatrix P\" default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\n    mat4 teachingProjectionMatrix = mat4(\n        2.0 * uNear / (uRight - uLeft), 0.0,\n        (uRight + uLeft) / (uRight - uLeft), 0.0,\n        0.0, 2.0 * uNear / (uTop - uBottom),\n        (uBottom + uTop) / (uTop - uBottom), 0.0,\n        0.0, 0.0, -(uFar + uNear) / (uFar - uNear),\n        (2.0 * uFar * uNear) / (uFar - uNear),\n        0.0, 0.0, 1.0, 0.0\n    );\n\n    // A box spans [-0.5, 0.5]. Map it to the NDC cube [-1, 1], then apply\n    // P^-1 and divide by w. Its eight corners become the frustum corners.\n    vec4 frustumPosition = inverse(teachingProjectionMatrix) * vec4(position * 2.0, 1.0);\n    frustumPosition /= frustumPosition.w;\n    vLocalPosition = position;\n\n    // The viewport's own camera lets us inspect the constructed frustum.\n    gl_Position = projectionMatrix * modelViewMatrix * vec4(frustumPosition.xyz, 1.0);\n}",
+    "fragmentShader": "precision highp float;\n\nin vec3 vLocalPosition;\nout vec4 fragColor;\n\nvoid main() {\n    vec3 nearColor = vec3(0.75, 0.15, 0.2);\n    vec3 farColor = vec3(1.0, 0.65, 0.25);\n    float depth = vLocalPosition.z + 0.5;\n    fragColor = vec4(mix(nearColor, farColor, depth), 1.0);\n}",
+    "overview": "<p>Verändere die sechs Grenzen <code>l</code>, <code>r</code>, <code>b</code>, <code>t</code>, <code>n</code> und <code>f</code> des Sichtvolumens. Der Einheitswürfel wird zum zugehörigen Sichtfrustum; die Matrixanzeige zeigt parallel dazu dieselbe Projektionsmatrix wie der Shader.</p>\n",
+    "explanation": "<p>Die Ausgangswerte entsprechen exakt der Projektionsübung: <code>n = -1</code>, <code>f = -6</code>, <code>l = -1</code>, <code>r = 1</code>, <code>b = -0,75</code> und <code>t = 0,75</code>. Damit besitzt die Nearplane das Seitenverhältnis <code>4:3</code>; in der Draufsicht ergibt sich ein Öffnungswinkel von <code>90°</code>.</p>\n<p>Wie auf dem Übungsblatt sind <code>n</code> und <code>f</code> hier die vorzeichenbehafteten z-Koordinaten der beiden Ebenen. Außerdem wird absichtlich die dort angegebene, gegenüber der Vorlesung abgewandelte Papiermatrix verwendet. Nach der Matrixmultiplikation gilt deshalb <code>w = z</code>.</p>\n<p>Erst die anschließende Division durch <code>w</code> erzeugt die perspektivische Verkürzung. Genau wie in Aufgabe 1 werden die Frustumecken zunächst mit <code>P</code> multipliziert und danach homogenisiert. Für die Visualisierung wird dieser Weg umgekehrt: <code>P⁻¹</code> transformiert den Einheitswürfel zurück in das Sichtfrustum.</p>\n",
+    "vertexShaderTemplate": {
+      "prefix": "precision highp float;\n\nin vec3 position;\n\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\n\nout vec3 vLocalPosition;",
+      "suffix": ""
+    }
+  },
+  {
     "id": "transformations",
-    "title": "Transformations",
-    "category": "Transformations",
+    "title": "Transformationen",
+    "category": "Transformationen",
     "task": "Lambert",
     "type": "shader-controls",
     "overlays": {
@@ -66,6 +92,7 @@
       "objects": [
         {
           "id": "transformObject",
+          "selectable": true,
           "source": {
             "type": "primitive",
             "geometry": "box"
@@ -73,10 +100,10 @@
         }
       ]
     },
-    "vertexShader": "// @control translationMatrix matrix label=\"Translation T\" default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\nuniform mat4 uTranslationMatrix;\n// @control rotationMatrix matrix label=\"Rotation R\" default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\nuniform mat4 uRotationMatrix;\n// @control scaleMatrix matrix label=\"Scale S\" default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\nuniform mat4 uScaleMatrix;\n\nvoid main() {\n    // @control pointMatrix matrix label=\"Point Matrix (T · R · S)\" readonly=true default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\n    mat4 pointMatrix = uTranslationMatrix * uRotationMatrix * uScaleMatrix;\n    mat3 normalMatrix = mat3(transpose(inverse(pointMatrix)));\n    vec3 transformedNormal = normalize(normalMatrix * normal);\n    vec3 lightDirection = normalize(vec3(1.0, 0.5, 1.0));\n    vLightIntensity = 0.6 + max(dot(transformedNormal, lightDirection), 0.0);\n\n    gl_Position = projectionMatrix * modelViewMatrix * pointMatrix * vec4(position, 1.0);\n}",
+    "vertexShader": "// @control translationMatrix matrix label=\"Translation T\" default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\nuniform mat4 uTranslationMatrix;\n// @control rotationMatrix matrix label=\"Rotation R\" default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\nuniform mat4 uRotationMatrix;\n// @control scaleMatrix matrix label=\"Scale S\" default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\nuniform mat4 uScaleMatrix;\n\nvoid main() {\n    // @readback pointMatrix matrix label=\"Punktmatrix (T · R · S)\" default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\n    mat4 pointMatrix = uTranslationMatrix * uRotationMatrix * uScaleMatrix;\n    mat3 normalMatrix = mat3(transpose(inverse(pointMatrix)));\n    vec3 transformedNormal = normalize(normalMatrix * normal);\n    vec3 lightDirection = normalize(vec3(1.0, 0.5, 1.0));\n    vLightIntensity = 0.6 + max(dot(transformedNormal, lightDirection), 0.0);\n\n    gl_Position = projectionMatrix * modelViewMatrix * pointMatrix * vec4(position, 1.0);\n}",
     "fragmentShader": "precision highp float;\n\nin float vLightIntensity;\nout vec4 fragColor;\n\nvoid main() {\n    vec3 baseColor = vec3(0.8, 0.4, 0.2);\n    fragColor = vec4(baseColor * vLightIntensity, 1.0);\n}",
-    "overview": "<p>Edit the translation, rotation, and scale matrices to see their combined effect on the model.</p>\n",
-    "explanation": "<p>Matrix multiplication is order-dependent. The point matrix is built as <code>T · R · S</code>, so scale is applied first, then rotation, then translation.</p>\n",
+    "overview": "<p>Verändere Translation, Rotation und Skalierung und beobachte ihre kombinierte Wirkung auf das Objekt.</p>\n",
+    "explanation": "<p>Translation lässt sich zusammen mit Rotation und Skalierung durch Matrizen ausdrücken, weil Punkte in homogenen Koordinaten <code>(x,y,z,w)</code> dargestellt werden. Für Punkte gilt <code>w = 1</code>, für Richtungsvektoren <code>w = 0</code>.</p>\n<p>Matrixmultiplikation ist nicht kommutativ. Die Punktmatrix lautet hier <code>M = T · R · S</code>; bei Spaltenvektoren wirkt deshalb zuerst <code>S</code>, danach <code>R</code> und zuletzt <code>T</code>. Die nur lesbare Matrix wird direkt aus dem Shader ausgelesen. Normalen müssen bei nicht-uniformer Skalierung mit der invers transponierten Matrix <code>transpose(inverse(M))</code> transformiert werden.</p>\n",
     "vertexShaderTemplate": {
       "prefix": "precision highp float;\n\nin vec3 position;\nin vec3 normal;\n\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\n\nout float vLightIntensity;",
       "suffix": ""

@@ -3,10 +3,11 @@ import { browser } from '$app/environment';
 export type SplitterSizes = {
   outer: number;
   inner: number;
+  viewports: number;
 };
 
 function isValidSize(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value < 100;
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
 }
 
 export function loadSplitterSizes(key: string, fallback: SplitterSizes): SplitterSizes {
@@ -16,7 +17,8 @@ export function loadSplitterSizes(key: string, fallback: SplitterSizes): Splitte
     const stored = JSON.parse(localStorage.getItem(key) ?? 'null') as Partial<SplitterSizes> | null;
     return {
       outer: isValidSize(stored?.outer) ? stored.outer : fallback.outer,
-      inner: isValidSize(stored?.inner) ? stored.inner : fallback.inner
+      inner: isValidSize(stored?.inner) ? stored.inner : fallback.inner,
+      viewports: isValidSize(stored?.viewports) ? stored.viewports : fallback.viewports
     };
   } catch {
     return fallback;

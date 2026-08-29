@@ -1,7 +1,7 @@
 ---
 id: transformations
-title: Transformations
-category: Transformations
+title: Transformationen
+category: Transformationen
 task: Lambert
 type: shader-controls
 overlays:
@@ -10,6 +10,7 @@ overlays:
 scene:
   objects:
     - id: transformObject
+      selectable: true
       source:
         type: primitive
         geometry: box
@@ -38,7 +39,7 @@ uniform mat4 uRotationMatrix;
 uniform mat4 uScaleMatrix;
 
 void main() {
-    // @control pointMatrix matrix label="Point Matrix (T · R · S)" readonly=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
+    // @readback pointMatrix matrix label="Punktmatrix (T · R · S)" default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
     mat4 pointMatrix = uTranslationMatrix * uRotationMatrix * uScaleMatrix;
     mat3 normalMatrix = mat3(transpose(inverse(pointMatrix)));
     vec3 transformedNormal = normalize(normalMatrix * normal);
@@ -65,8 +66,10 @@ void main() {
 
 # Overview
 
-Edit the translation, rotation, and scale matrices to see their combined effect on the model.
+Verändere Translation, Rotation und Skalierung und beobachte ihre kombinierte Wirkung auf das Objekt.
 
 # Explanation
 
-Matrix multiplication is order-dependent. The point matrix is built as `T · R · S`, so scale is applied first, then rotation, then translation.
+Translation lässt sich zusammen mit Rotation und Skalierung durch Matrizen ausdrücken, weil Punkte in homogenen Koordinaten `(x,y,z,w)` dargestellt werden. Für Punkte gilt `w = 1`, für Richtungsvektoren `w = 0`.
+
+Matrixmultiplikation ist nicht kommutativ. Die Punktmatrix lautet hier `M = T · R · S`; bei Spaltenvektoren wirkt deshalb zuerst `S`, danach `R` und zuletzt `T`. Die nur lesbare Matrix wird direkt aus dem Shader ausgelesen. Normalen müssen bei nicht-uniformer Skalierung mit der invers transponierten Matrix `transpose(inverse(M))` transformiert werden.

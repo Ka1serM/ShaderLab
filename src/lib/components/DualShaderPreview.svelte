@@ -38,7 +38,7 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4 h-full">
       <div class="flex flex-col min-h-[200px] md:min-h-0 h-full">
         <div class="flex items-center justify-between pb-2">
-          <h3 class="text-xl font-medium text-muted-background">Reference</h3>
+          <h3 class="text-xl font-medium text-muted-background">Referenz</h3>
           <MaximizeButton isMaximized={$maximizedPanel === 'reference'} onClick={() => onMaximize('reference')} />
         </div>
         <div class="relative flex-1">
@@ -52,7 +52,7 @@
 
       <div class="flex flex-col min-h-[200px] md:min-h-0 h-full">
         <div class="flex items-center justify-between pb-2">
-          <h3 class="text-xl font-medium text-muted-background">Output</h3>
+          <h3 class="text-xl font-medium text-muted-background">Ausgabe</h3>
           <MaximizeButton isMaximized={$maximizedPanel === 'output'} onClick={() => onMaximize('output')} />
         </div>
         <div class="relative flex-1">

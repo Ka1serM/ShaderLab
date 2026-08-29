@@ -1,6 +1,11 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
-  import { BookOpen, Code2, MousePointer2, PanelTopOpen, Sparkles, X } from 'lucide-svelte';
+  import BookOpen from 'phosphor-svelte/lib/BookOpenIcon';
+  import Code2 from 'phosphor-svelte/lib/CodeIcon';
+  import MousePointer2 from 'phosphor-svelte/lib/CursorIcon';
+  import PanelTopOpen from 'phosphor-svelte/lib/PresentationIcon';
+  import Sparkles from 'phosphor-svelte/lib/SparkleIcon';
+  import X from 'phosphor-svelte/lib/XIcon';
 
   export let mode: 'task' | 'teaching' = 'task';
 
@@ -17,7 +22,7 @@
     { title: 'Willkommen bei ShaderLab', text: 'Auf dieser Seite kannst du Shadercode ausprobieren und seine Wirkung direkt sehen. Dazu stehen dir Erklärungen und Steuerelemente zur Verfügung.', icon: Sparkles },
     { title: 'Erklärung und Steuerelemente', text: 'Hier findest du die Erklärung und die zugehörigen Steuerelemente. Änderungen werden direkt an den Shader weitergegeben.', selector: '[data-tutorial="instructions"]', icon: BookOpen },
     { title: 'Der Shader-Editor', text: 'Hier wird GLSL ausgeführt. Ändere den Code und beobachte das Ergebnis direkt in der Vorschau. Mit „Zurücksetzen“ stellst du den Ausgangscode wieder her.', selector: '[data-tutorial="editor"]', icon: Code2 },
-    { title: 'Das Live-Ergebnis', text: 'Die Vorschau wird aktualisiert, sobald du den Code oder die Einstellungen änderst. Je nach Demo stehen dir zusätzlich Werkzeuge zum Verschieben, Drehen und Skalieren zur Verfügung.', selector: '[data-tutorial="output"]', icon: PanelTopOpen },
+    { title: 'Das Live-Ergebnis', text: 'Die Vorschau wird aktualisiert, sobald du den Code oder die Einstellungen änderst. Je nach Demo stehen dir zusätzlich Werkzeuge zum Verschieben, Rotieren und Skalieren zur Verfügung.', selector: '[data-tutorial="output"]', icon: PanelTopOpen },
     { title: 'Kamera bewegen', text: 'Mit der linken Maustaste drehst du die Kamera, mit dem Mausrad zoomst du. Ziehe mit der rechten Maustaste, um die Ansicht zu verschieben. Über „Maximieren“ vergrößerst du den jeweiligen Bereich.', selector: '[data-tutorial="output"]', icon: MousePointer2 }
   ];
 
@@ -94,7 +99,7 @@
             <path d="M38 55V73" stroke="white" stroke-width="2"/>
             <path class="gesture-click" d="M25 70C25 62.268 31.268 56 39 56V73H25V70Z" fill="white" fill-opacity=".9"/>
           </g>
-          <text x="104" y="126" fill="white" font-size="13" font-family="Inter, sans-serif" font-weight="600" text-anchor="middle">Klicken und ziehen zum Drehen</text>
+          <text x="104" y="126" fill="white" font-size="13" font-family="Inter, sans-serif" font-weight="600" text-anchor="middle">Klicken und ziehen zum Rotieren</text>
         </svg>
       </div>
     {/if}

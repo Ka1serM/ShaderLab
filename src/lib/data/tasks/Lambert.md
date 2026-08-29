@@ -12,10 +12,11 @@ modelPath: models/HeadDavid.glb
 ---
 
 # Task
-Erstelle ein Programm, das diffuse Beleuchtung basierend auf einer Richtungslichtquelle implementiert.  
+Implementiere den diffusen Anteil des lokalen Beleuchtungsmodells für eine Richtungslichtquelle.
 
-- erster Stichpunkt
-- zweiter Stichpunkt
+- Normalisiere Oberflächennormale `N` und Lichtvektor `L`.
+- Berechne `max(dot(N, L), 0.0)`, damit rückseitige Flächen keinen negativen Lichtbeitrag erhalten.
+- Multipliziere den Faktor kanalweise mit Lichtintensität, Materialkoeffizient `kd` und Grundfarbe.
 
 # Hints
 
@@ -32,9 +33,11 @@ Klippe den Diffuswert mit `max()`, um negative Beleuchtung zu vermeiden.
 Multipliziere die Basisfarbe mit dem Diffusfaktor, um die endgültige Beleuchtung zu erhalten.
 
 # Theory
-Lambert-Beleuchtung ist ein einfaches Modell für diffuse Lichtberechnung, bei dem die Helligkeit einer Oberfläche vom Winkel zwischen der **Oberflächennormalen** und der **Richtung der Lichtquelle** abhängt.
+Ein Lambert-Reflektor streut einfallendes Licht ideal diffus. Seine Helligkeit hängt vom Winkel zwischen der normierten Oberflächennormalen `N` und dem normierten Vektor `L` zur Lichtquelle ab:
 
-In **GLSL** werden die Normalen der Vertices über `out`-Variablen an den Fragment-Shader weitergegeben. Der diffuse Beleuchtungsfaktor wird als **Skalarprodukt** zwischen der normalisierten Normalen und der normalisierten Licht-Richtung berechnet:
+`Id = Ip · kd · max(N · L, 0)`
+
+Das Skalarprodukt entspricht dem Kosinus des Winkels. Es ist maximal, wenn die Fläche zur Lichtquelle zeigt, wird bei 90° null und wird für abgewandte Flächen auf null begrenzt. `Ip` ist die RGB-Intensität der Lichtquelle, `kd` der diffuse RGB-Reflexionskoeffizient des Materials. Im Shader wird die Normale vom Vertex- zum Fragment-Shader interpoliert und vor der Rechnung erneut normalisiert.
 
 # Starter Vertex Shader
 ```glsl

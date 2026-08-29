@@ -8,132 +8,49 @@ camera:
   position: [0, 0, 1]
   target: [0, 0, 0]
   fov: 30
-modelPath: models/Cube.glb
 overlays:
   infiniteGrid: false
   viewHelper: false
 ---
 
 # Task
-Implementiere den Bresenham-Linienalgorithmus
+Implementiere den Bresenham-Linienalgorithmus ausschließlich mit Ganzzahlarithmetik. Beginne mit dem Fall aus der Übung, einer Linie von `(0,0)` nach `(4,3)`, und verallgemeinere die Entscheidung anschließend für alle Oktanten.
 
 # Hints
 
 ## Hint
-Nutze Ganzzahllogik, um Linienpixel zu setzen.
+Für den Übungsfall gelten `a = Δy`, `b = -Δx`, `Q_init = 2a+b`, `Q_equal = 2a` und `Q_step = 2(a+b)`.
+
+## Hint
+Setze zuerst das aktuelle Pixel. Bei `Q < 0` bleibt `y` gleich; andernfalls wird `y` erhöht.
+
+## Hint
+Für alle Oktanten brauchst du die Beträge von `Δx` und `Δy` sowie die Schrittvorzeichen `sx` und `sy`. Bei einer steilen Linie übernimmt `y` die Rolle der Hauptlaufrichtung.
 
 # Theory
-## 1. Ausgangspunkt: die ideale Linie
+## Entscheidungsvariable der Übung
 
-Eine Linie zwischen zwei Punkten $(x_0, y_0)$ und $(x_1, y_1)$ kann in der Steigungsform geschrieben werden:
+Für den ersten Oktanten gilt `0 ≤ Δy ≤ Δx` und `x` wird in jedem Schritt erhöht. Mit
 
-$$
-y = m \cdot x + b
-$$
+`a = y2-y1 = Δy` und `b = -(x2-x1) = -Δx`
 
-- $m = \frac{y_1 - y_0}{x_1 - x_0}$ → Steigung  
-- $b = y_0 - m \cdot x_0$ → y-Achsenabschnitt  
+verwendet die Übung folgende ganzzahlige Größen:
 
-> Das ist die "perfekte" Linie in kontinuierlichen Koordinaten.
+- `Q_init = 2a+b = 2Δy-Δx`
+- `Q_equal = 2a = 2Δy`
+- `Q_step = 2(a+b) = 2(Δy-Δx)`
 
----
+Ist `Q < 0`, liegt die ideale Linie näher am horizontal benachbarten Pixel: `y` bleibt gleich und `Q += Q_equal`. Andernfalls wird diagonal gegangen: `y++` und `Q += Q_step`. Für `(0,0) → (4,3)` ergeben sich `Q_init=2`, `Q_equal=6` und `Q_step=-2`.
 
-## 2. Problem: Raster / Pixel
+## Verallgemeinerung auf alle Oktanten
 
-Auf einem Bildschirm oder Raster können wir **nur Pixel mit ganzzahligen Koordinaten setzen**.  
+Der Code aus der Übung setzt `x1 ≤ x2` und eine Steigung zwischen 0 und 1 voraus. Beim Vertauschen der Endpunkte erfüllt er diese Voraussetzung nicht mehr. Die Referenzlösung im Shader verwendet deshalb die symmetrische Bresenham-Form:
 
-- Wir müssen entscheiden, **welches Pixel in jeder Spalte gesetzt wird**, um der Linie möglichst genau zu folgen.  
-- Einfaches Runden der Gleitkommawerte ist möglich, aber **langsam**, weil es Multiplikationen und Rundungen benötigt.  
+- `dx = abs(x1-x0)` und `dy = -abs(y1-y0)` speichern die Beträge.
+- `sx` und `sy` speichern die Laufrichtung.
+- Zwei unabhängige Entscheidungen erlauben Schritte in x-, y- oder beide Richtungen.
 
----
-
-## 3. Schrittweise Annäherung
-
-Betrachte die Linie Schritt für Schritt von $x_0$ nach $x_1$:  
-
-- Aktuelles Pixel: $(x, y)$  
-- Ideale Linie: $y_\text{ideal} = m \cdot x + b$  
-- Wir müssen entscheiden: **y bleibt gleich oder y wird um 1 erhöht?**
-
----
-
-## 4. Differenzen definieren
-
-Wir berechnen die Differenzen:
-
-$$
-\Delta x = x_1 - x_0, \quad \Delta y = y_1 - y_0
-$$
-
-- $\Delta x$ = horizontale Länge  
-- $\Delta y$ = vertikale Länge  
-
-Die Steigung der Linie ist $m = \frac{\Delta y}{\Delta x}$.  
-
----
-
-## 5. Fehlerbegriff
-
-Wir definieren einen **Fehler**:
-
-$$
-\text{Fehler} = y_\text{ideal} - y_\text{aktuell}
-$$
-
-- Wenn Fehler > 0 → die Linie liegt **über** der Pixelmitte → y muss erhöht werden.  
-- Wenn Fehler ≤ 0 → die Linie liegt **unterhalb** oder auf der Pixelmitte → y bleibt gleich.
-
-### 5.1. Problem: Gleitkomma vermeiden
-
-- Um nur mit **Ganzzahlen** zu rechnen, multiplizieren wir alles mit $\Delta x$, um den Bruch $\Delta y / \Delta x$ zu eliminieren:  
-
-$$
-\Delta x \cdot \text{Fehler} = \Delta x \cdot (y_\text{ideal} - y_\text{aktuell}) 
-= (\Delta y \cdot (x - x_0) + \Delta x \cdot y_0) - \Delta x \cdot y
-$$
-
-- Definiere den **entscheidenden Ganzzahl-Fehlerterm**:
-
-$$
-D = 2 \Delta y - \Delta x
-$$
-
-> Durch geschicktes Multiplizieren mit $2 \Delta y$ und $\Delta x$ können wir **nur Ganzzahlen verwenden**, ohne Gleitkomma.
-
----
-
-## 6. Iteration mit dem Fehlerterm
-
-Für jede Spalte $x$ (von $x_0$ bis $x_1$):
-
-1. Zeichne Pixel $(x, y)$  
-2. Prüfe den Fehlerterm $D$:  
-   - Wenn $D > 0$: Pixel in **y-Richtung erhöhen**, und Fehler anpassen: $D = D - 2 \Delta x$  
-   - Immer: Fehler erhöhen: $D = D + 2 \Delta y$  
-3. $x$ wird immer um 1 erhöht (oder $y$ bei steilen Linien)
-
----
-
-## 7. Steile Linien
-
-- Wenn $|\Delta y| > |\Delta x|$ → Linie steiler als 45°  
-- Lösung: **x und y tauschen**, Algorithmus unverändert  
-- Vorzeichen berücksichtigen:
-
-$$
-s_x = \text{sign}(x_1 - x_0), \quad s_y = \text{sign}(y_1 - y_0)
-$$
-
-- Damit funktioniert der Algorithmus in allen vier Richtungen.
-
----
-
-## 8. Zusammenfassung
-
-- Fehlerterm $D$ misst **Abweichung der idealen Linie vom aktuellen Pixel**  
-- Entscheidung: **Pixel in y-Richtung erhöhen oder nicht**  
-- Nur Ganzzahlen → sehr effizient  
-- Ergebnis: **pixelgenaue Linie**, die der idealen Linie sehr nahekommt
+Beide Schreibweisen treffen dieselbe Mittelpunktentscheidung und benötigen in der Schleife weder Division noch Gleitkommaarithmetik.
 
 # Starter Vertex Shader
 ```glsl

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { useSidebar } from "$lib/components/ui/sidebar/index.js";
-  import { PanelLeft } from "lucide-svelte";
+  import PanelLeft from "phosphor-svelte/lib/SidebarSimpleIcon";
   import { asset, base } from "$app/paths";
   import { IsMobile } from '$lib/hooks/is-mobile.svelte';
   import { goto } from "$app/navigation";
@@ -32,7 +32,7 @@
     <button 
       onclick={toggleSidebar}
       class="absolute left-4 p-2 rounded-md hover:bg-muted/50 transition"
-      aria-label="Toggle sidebar"
+      aria-label="Seitenleiste umschalten"
     >
       <PanelLeft class="w-5 h-5 text-foreground" />
     </button>

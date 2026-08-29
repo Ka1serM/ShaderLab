@@ -35,7 +35,7 @@
 
   {#if definition.presets?.length}
     <div class="teaching-presets">
-      <p class="teaching-presets-title">Presets</p>
+      <p class="teaching-presets-title">Voreinstellungen</p>
       <div class="teaching-presets-list">
         {#each definition.presets as preset}
           <button class="teaching-preset" onclick={() => teachingStore.applyPreset(preset.values)}>{preset.name}</button>

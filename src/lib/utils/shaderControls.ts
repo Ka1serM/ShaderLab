@@ -8,12 +8,17 @@ export interface TeachingControl {
 	max?: number;
 	step?: number;
 	readOnly?: boolean;
+	visualization?: 'vector' | 'point';
+	visualizationOrigin?: [number, number, number];
 	default: TeachingValue;
 	uniform?: string;
+	readback?: string;
 }
 
 const ANNOTATION = /^\s*\/\/\s*@control\s+(\S+)\s+(\S+)(.*)$/;
+const READBACK_ANNOTATION = /^\s*\/\/\s*@readback\s+(\S+)\s+(\S+)(.*)$/;
 const UNIFORM = /\buniform\s+\w+\s+(\w+)\s*;/;
+const MATRIX_DECLARATION = /\bmat4\s+(\w+)\b/;
 const ATTRIBUTE = /(\w+)=(["'])(.*?)\2|(\w+)=([^\s]+)/g;
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -44,18 +49,37 @@ function parseDefault(type: TeachingControl['type'], raw: string | undefined): T
 	return Number.isNaN(Number(raw)) ? raw : Number(raw);
 }
 
+function parseVector3(raw: string | undefined): [number, number, number] | undefined {
+	if (!raw) return undefined;
+	const value = raw.split(',').map(Number);
+	return value.length === 3 && value.every(Number.isFinite)
+		? value as [number, number, number]
+		: undefined;
+}
+
+function parseVisualization(type: TeachingControl['type'], raw: string | undefined) {
+	if (type !== 'vector3') return undefined;
+	if (raw === 'point') return 'point' as const;
+	if (raw === 'true' || raw === 'vector' || raw === 'arrow') return 'vector' as const;
+	return undefined;
+}
+
 /**
- * Reads `// @control <id> <type> label="…" min=… max=… step=… default=…` annotations and binds each
- * to the next `uniform` declaration below it. Parsing the live shader source is what lets the
- * teaching panel grow a control the moment an annotated uniform is typed into the editor.
+ * `@control` binds an editable input to the next uniform. `@readback` binds a read-only display to
+ * the next local mat4 declaration, whose value is captured from the GPU by transform feedback.
  */
 export function parseShaderControls(source: string): TeachingControl[] {
 	const controls: TeachingControl[] = [];
 	const lines = source.split(/\r?\n/);
 	for (let index = 0; index < lines.length; index += 1) {
-		const annotation = lines[index].match(ANNOTATION);
+		const controlAnnotation = lines[index].match(ANNOTATION);
+		const readbackAnnotation = lines[index].match(READBACK_ANNOTATION);
+		const annotation = controlAnnotation ?? readbackAnnotation;
 		if (!annotation) continue;
-		const uniform = lines.slice(index + 1).find(line => UNIFORM.test(line));
+		const isReadback = Boolean(readbackAnnotation);
+		const followingLines = lines.slice(index + 1);
+		const uniform = isReadback ? undefined : followingLines.find(line => UNIFORM.test(line));
+		const readback = isReadback ? followingLines.join('\n').match(MATRIX_DECLARATION)?.[1] : undefined;
 		const attributes: Record<string, string> = {};
 		for (const match of annotation[3].matchAll(ATTRIBUTE)) {
 			attributes[match[1] ?? match[4]] = match[3] ?? match[5];
@@ -72,9 +96,12 @@ export function parseShaderControls(source: string): TeachingControl[] {
 			min: attributes.min === undefined ? undefined : Number(attributes.min),
 			max: attributes.max === undefined ? undefined : Number(attributes.max),
 			step: attributes.step === undefined ? undefined : Number(attributes.step),
-			readOnly: attributes.readonly === 'true',
+			readOnly: isReadback || attributes.readonly === 'true',
+			visualization: parseVisualization(type, attributes.visualize),
+			visualizationOrigin: type === 'vector3' ? parseVector3(attributes.origin) : undefined,
 			default: parseDefault(type, attributes.default),
-			uniform: uniform?.match(UNIFORM)?.[1]
+			uniform: uniform?.match(UNIFORM)?.[1],
+			readback
 		});
 	}
 	return controls;

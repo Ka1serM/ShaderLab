@@ -38,7 +38,7 @@ uniform vec3 uKd;
 uniform vec3 uKs;
 // @control shininess slider label="Shininess n" min=1 max=256 step=1 default=32
 uniform float uShininess;
-// @control lightDir vec3 label="Light Direction" default="1,1,1"
+// @control lightDir vec3 label="Light Direction" default="1,1,1" visualize=vector
 uniform vec3 uLightDir;
 uniform vec3 cameraPosition;
 
@@ -66,8 +66,10 @@ void main() {
 
 # Overview
 
-Change the Phong parameters live and observe how diffuse brightness, specular intensity, and highlight size change.
+Verändere die Materialparameter des Phong-Beleuchtungsmodells und beobachte diffusen Anteil, Spiegelstärke und Glanzlichtgröße.
 
 # Explanation
 
-`Kd` scales the diffuse component, `Ks` scales the specular component, and `n` controls the concentration of the highlight.
+Das lokale Phong-Beleuchtungsmodell addiert ambienten, diffusen und spekularen Anteil. Für jede Lichtquelle gilt sinngemäß `I = Ia·ka + Ip·[kd·max(N·L,0) + ks·max(V·R,0)^n]`. Farben und Koeffizienten werden kanalweise als RGB-Werte verrechnet.
+
+`kd` bestimmt die diffuse Reflexion, `ks` die spiegelnde Reflexion und der Exponent `n` die Konzentration des Glanzlichts. Alle Richtungsvektoren müssen normiert sein. Das Phong-Beleuchtungsmodell beschreibt die Reflexion und ist nicht dasselbe wie Phong Shading: Beim Phong Shading werden Normalen interpoliert und die Beleuchtung pro Fragment ausgewertet—genau das geschieht in diesem Shader.

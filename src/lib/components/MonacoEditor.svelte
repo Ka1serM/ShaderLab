@@ -10,6 +10,7 @@
   import MaximizeButton from './MaximizeButton.svelte';
   import ResetButton from './ResetButton.svelte';
   import { maximizedPanel } from '$lib/stores/panelStore';
+  import { maximizable } from '$lib/actions/maximizable';
 
   type ShaderSource = 'vertex' | 'fragment';
   export let sources: Partial<Record<ShaderSource, string>> = {};
@@ -90,6 +91,11 @@
   }
 
   $: if (editor && monaco && model) {
+    // Keep diagnostics as an explicit dependency of this reactive block. Svelte
+    // cannot see values read inside applyDiagnostics(), so updates delivered by
+    // the teaching viewport otherwise remain invisible until another editor
+    // dependency changes (for example after a page reload).
+    diagnostics;
     synchronizingModels = true;
     try {
       const value = sources[activeSource] ?? '';
@@ -109,12 +115,17 @@
   onDestroy(() => { destroyed = true; modelListener?.dispose(); editor?.dispose(); model?.dispose(); decoration?.clear(); observer?.disconnect(); });
 </script>
 
-<Tabs.Root data-tutorial="editor" value={activeSource} onValueChange={(value) => handleSourceChange(value as ShaderSource)} class="app-editor flex h-full flex-col overflow-hidden rounded-xl bg-background pt-2">
-  <div class="flex shrink-0 items-center justify-between"><Tabs.List class="h-10 justify-start gap-0 bg-muted/25 p-0">{#each visibleSources as source}<Tabs.Trigger value={source} class="h-10 border-none px-4 transition-colors hover:bg-muted/50 data-[state=active]:bg-background">{source}.glsl</Tabs.Trigger>{/each}</Tabs.List><div class="mr-2 flex items-center gap-1"><MaximizeButton isMaximized={$maximizedPanel === editorId} onClick={() => $maximizedPanel = $maximizedPanel === editorId ? null : editorId} /><ResetButton description={`Reset the ${activeSource} shader to its default text?`} onReset={resetCurrentSource} /></div></div>
-  <div class="flex min-h-0 flex-1 flex-col overflow-hidden"><div bind:this={container} class="relative min-h-0 w-full flex-1 overflow-hidden rounded-t-xl"></div>{#if showErrorConsole}<div class="shrink-0 border-t border-red-800 bg-red-950 p-2 font-mono text-xs text-red-200"><div class="mb-1 flex items-center justify-between"><span class="font-semibold text-red-400">SHADER ERRORS ({errorList.length})</span><button class="text-red-400" onclick={() => showErrorConsole = false}>✕</button></div><div class="max-h-48 space-y-1 overflow-auto">{#each errorList as error}<button class="flex w-full gap-2 rounded px-1 text-left hover:bg-red-900" onclick={() => jumpToError(error)}><span class="text-red-400">[{error.type}:{error.line}]</span><span>{error.message}</span></button>{/each}</div></div>{/if}</div>
-</Tabs.Root>
+<div use:maximizable={{ active: $maximizedPanel === editorId }} class="workspace-panel">
+  <Tabs.Root data-tutorial="editor" value={activeSource} onValueChange={(value) => handleSourceChange(value as ShaderSource)} class="app-editor flex h-full flex-col overflow-hidden rounded-md bg-background">
+    <div class="flex shrink-0 items-center justify-between"><Tabs.List class="h-10 justify-start gap-0 bg-muted/25 p-0">{#each visibleSources as source}<Tabs.Trigger value={source} class="h-10 border-none px-4 transition-colors hover:bg-muted/50 data-[state=active]:bg-background">{source}.glsl</Tabs.Trigger>{/each}</Tabs.List><div class="flex items-center gap-1"><MaximizeButton isMaximized={$maximizedPanel === editorId} onClick={() => $maximizedPanel = $maximizedPanel === editorId ? null : editorId} /><ResetButton description={`${activeSource}.glsl auf den Ausgangscode zurücksetzen?`} onReset={resetCurrentSource} /></div></div>
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden"><div bind:this={container} class="relative min-h-0 w-full flex-1 overflow-hidden rounded-md"></div>{#if showErrorConsole}<div class="shader-error-console shrink-0 p-2 font-mono text-xs"><div class="mb-1 flex items-center justify-between"><span class="shader-error-title font-semibold">SHADER-FEHLER ({errorList.length})</span><button class="shader-error-close" onclick={() => showErrorConsole = false}>✕</button></div><div class="max-h-48 space-y-1 overflow-auto">{#each errorList as error}<button class="shader-error-entry flex w-full gap-2 rounded px-1 text-left" onclick={() => jumpToError(error)}><span class="shader-error-location">[{error.type}:{error.line}]</span><span>{error.message}</span></button>{/each}</div></div>{/if}</div>
+  </Tabs.Root>
+</div>
 
 <style>
-  :global(.shader-error-line) { background: rgba(255, 0, 0, 0.08); }
-  :global(.shader-error-glyph) { background: #ff4d4f; width: 3px !important; margin-left: 3px; }
+  :global(.shader-error-line) { background: rgb(191 39 50 / 8%); }
+  :global(.shader-error-glyph) { background: #bf2732; width: 3px !important; margin-left: 3px; }
+  .shader-error-console { border-top: 1px solid #bf2732; background: rgb(191 39 50 / 12%); color: var(--foreground); }
+  .shader-error-title, .shader-error-close, .shader-error-location { color: #bf2732; }
+  .shader-error-entry:hover { background: rgb(191 39 50 / 14%); }
 </style>

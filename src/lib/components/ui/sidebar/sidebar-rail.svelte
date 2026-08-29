@@ -17,7 +17,7 @@
 	bind:this={ref}
 	data-sidebar="rail"
 	data-slot="sidebar-rail"
-	aria-label="Toggle Sidebar"
+	aria-label="Seitenleiste umschalten"
 	tabIndex={-1}
 	onclick={sidebar.toggle}
 	title="Toggle Sidebar"

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Maximize, Minimize } from 'lucide-svelte';
+  import Minimize from 'phosphor-svelte/lib/ArrowsInIcon';
+  import Maximize from 'phosphor-svelte/lib/ArrowsOutIcon';
 
   export let isMaximized = false;
   export let onClick: () => void = () => {};
@@ -7,7 +8,7 @@
 
 <button
   class="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
-  title={isMaximized ? 'Minimize' : 'Maximize'}
+  title={isMaximized ? 'Verkleinern' : 'Maximieren'}
   onclick={onClick}
 >
   {#if isMaximized}

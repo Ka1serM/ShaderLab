@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { ContextMenu as ContextMenuPrimitive } from "bits-ui";
-	import CheckIcon from "@lucide/svelte/icons/check";
+	import CheckIcon from "phosphor-svelte/lib/CheckIcon";
 	import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
 	import type { Snippet } from "svelte";
 

@@ -3,6 +3,7 @@
   import MaximizeButton from './MaximizeButton.svelte';
   import ResetButton from './ResetButton.svelte';
   import { maximizedPanel } from '$lib/stores/panelStore';
+  import { maximizable } from '$lib/actions/maximizable';
   import { teachingStore, type TeachingControl, type TeachingDefinition, type TeachingValue } from '$lib/stores/teachingStore';
 
   export let definition: TeachingDefinition;
@@ -16,15 +17,21 @@
   }
 </script>
 
-<div class="app-panel h-full flex flex-col overflow-hidden" data-tutorial="instructions">
+<div class="workspace-panel">
+<div use:maximizable={{ active: $maximizedPanel === panelId }} class="app-panel h-full flex flex-col overflow-hidden" data-tutorial="instructions">
   <div class="app-panel-header flex items-center justify-between shrink-0">
     <h1 class="app-panel-title text-2xl font-bold text-foreground">{definition.title}</h1>
     <div class="flex items-center gap-1">
       <MaximizeButton isMaximized={$maximizedPanel === panelId} onClick={toggleMaximize} />
-      <ResetButton description="Reset all parameters to their default values?" onReset={teachingStore.resetValues} />
+      <ResetButton description="Alle Parameter auf ihre Ausgangswerte zurücksetzen?" onReset={teachingStore.resetValues} />
     </div>
   </div>
-  <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-5">
+  <div class="flex-1 min-h-0 overflow-y-auto p-4">
+    <div class="mb-6 space-y-3 text-sm leading-6 text-foreground">
+      <div class="prose prose-sm prose-neutral max-w-none dark:prose-invert">{@html definition.overview}</div>
+      <div class="prose prose-sm prose-neutral max-w-none text-muted-foreground dark:prose-invert">{@html definition.explanation}</div>
+    </div>
     <TeachingControls {definition} {controls} {values} />
   </div>
+</div>
 </div>

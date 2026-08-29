@@ -3,17 +3,16 @@
   import { useSidebar } from "$lib/components/ui/sidebar/index.js";
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
   import { slugify } from '$lib/utils/slugify';
-  import { Moon, Sun } from "lucide-svelte";
+  import Moon from "phosphor-svelte/lib/MoonIcon";
+  import Sun from "phosphor-svelte/lib/SunIcon";
   import { toggleMode } from "mode-watcher";
 
-  import { 
-    House, 
-    BookOpen, 
-    Presentation,
-    ChevronDown,
-    PanelLeftClose,
-    PanelLeft
-  } from "lucide-svelte";
+  import House from "phosphor-svelte/lib/HouseIcon";
+  import BookOpen from "phosphor-svelte/lib/BookOpenIcon";
+  import Presentation from "phosphor-svelte/lib/PresentationIcon";
+  import ChevronDown from "phosphor-svelte/lib/CaretDownIcon";
+  import PanelLeftClose from "phosphor-svelte/lib/SidebarSimpleIcon";
+  import PanelLeft from "phosphor-svelte/lib/SidebarIcon";
 
   import tasks from "$lib/data/tasks.json";
   import teaching from "$lib/data/teaching.json";
@@ -88,8 +87,8 @@
       <button
         onclick={handleToggle}
         class="rounded hover:bg-sidebar-accent transition-colors p-1 ml-auto"
-        title={isOpen ? "Collapse sidebar" : "Expand sidebar"}
-        aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
+        title={isOpen ? "Seitenleiste einklappen" : "Seitenleiste ausklappen"}
+        aria-label={isOpen ? "Seitenleiste einklappen" : "Seitenleiste ausklappen"}
       >
         {#if isOpen}
           <PanelLeftClose class="w-4 h-4" />
@@ -115,7 +114,7 @@
             {#snippet child({ props })}
               <a href={resolve('/')} {...props}>
                 <House class="w-4 h-4" />
-                <span>Home</span>
+                <span>Startseite</span>
               </a>
             {/snippet}
           </Sidebar.MenuButton>
@@ -130,7 +129,7 @@
             {#snippet child({ props })}
               <a href={resolve('/tasks')} {...props}>
                 <BookOpen class="w-4 h-4" />
-                <span>Tasks</span>
+                <span>Aufgaben</span>
               </a>
             {/snippet}
           </Sidebar.MenuButton>
@@ -144,7 +143,7 @@
             {#snippet child({ props })}
               <a href={resolve('/teach')} {...props}>
                 <Presentation class="w-4 h-4" />
-                <span>Teaching</span>
+                <span>Lehr-Demos</span>
               </a>
             {/snippet}
           </Sidebar.MenuButton>
@@ -202,7 +201,7 @@
         <Sidebar.GroupLabel>
           {#snippet child({ props })}
             <Collapsible.Trigger {...props}>
-              <div class="flex items-center gap-2"><Presentation class="w-4 h-4" /><span>Teaching demos</span></div>
+              <div class="flex items-center gap-2"><Presentation class="w-4 h-4" /><span>Lehr-Demos</span></div>
               <ChevronDown class="ml-auto w-4 h-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
             </Collapsible.Trigger>
           {/snippet}
@@ -234,8 +233,8 @@
         <Sidebar.MenuButton onclick={toggleMode} class="w-full justify-start gap-2">
           <Sun class="block dark:hidden h-4 w-4" />
           <Moon class="hidden dark:block h-4 w-4" />
-          <span class="block dark:hidden">Dark Mode</span>
-          <span class="hidden dark:block">Light Mode</span>
+          <span class="block dark:hidden">Dunkler Modus</span>
+          <span class="hidden dark:block">Heller Modus</span>
         </Sidebar.MenuButton>
       </Sidebar.MenuItem>
     </Sidebar.Menu>

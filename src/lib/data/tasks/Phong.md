@@ -12,10 +12,12 @@ modelPath: models/HeadDavid.glb
 ---
 
 # Task
-Erstelle ein Programm, das **Phong-Beleuchtung** basierend auf einer Richtungslichtquelle implementiert.  
+Implementiere das lokale **Phong-Beleuchtungsmodell** für eine Richtungslichtquelle.
 
-- erster Stichpunkt
-- zweiter Stichpunkt
+- Berechne den ambienten Term `Ia · ka`.
+- Berechne den diffusen Term `Ip · kd · max(N · L, 0)`.
+- Spiegle den einfallenden Lichtvektor an `N` und berechne den spekularen Term `Ip · ks · max(V · R, 0)^n`.
+- Addiere die drei RGB-Beiträge. Der diffuse und spekulare Anteil darf nur auf der der Lichtquelle zugewandten Seite entstehen.
 
 # Hints
 
@@ -23,22 +25,24 @@ Erstelle ein Programm, das **Phong-Beleuchtung** basierend auf einer Richtungsli
 Transformiere die Normalen korrekt mit der `normalMatrix` für eine richtige Beleuchtung.
 
 ## Hint
-Berechne die diffuse Komponente mit `dot(normal, lightDir)` und clamp sie mit `max()`.
+Berechne den diffusen Anteil mit `dot(normal, lightDir)` und begrenze ihn mit `max()` auf nichtnegative Werte.
 
 ## Hint
-Berechne die specular Komponente mit `pow(max(dot(reflectDir, viewDir), 0.0), shininess)`.
+Berechne den spekularen Anteil mit `pow(max(dot(reflectDir, viewDir), 0.0), shininess)`.
 
 ## Hint
-Addiere ambient, diffuse und specular Komponente, um die endgültige Beleuchtung zu erhalten.
+Addiere ambienten, diffusen und spekularen Anteil zur endgültigen Beleuchtung.
 
 # Theory
-Phong-Beleuchtung ist ein Modell für diffuse und spiegelnde Beleuchtung. Die Helligkeit einer Oberfläche hängt von drei Komponenten ab:
+Das lokale Phong-Beleuchtungsmodell approximiert die Reflexion mit drei Komponenten:
 
 1. **Ambient**: Grundhelligkeit der Szene
 2. **Diffuse**: Helligkeit basierend auf dem Winkel zwischen Normalen und Lichtquelle
-3. **Specular**: Glanzlichter basierend auf dem Winkel zwischen reflektiertem Licht und Blickrichtung
+3. **Spekular**: Glanzlicht aus dem Winkel zwischen Reflexionsvektor `R` und Blickvektor `V`
 
-In **GLSL** werden die Normalen der Vertices über `out`-Variablen an den Fragment-Shader weitergegeben. Diffuse und specular werden berechnet und dann mit der Basisfarbe kombiniert.
+Für eine Lichtquelle lautet es `I = Ia·ka + Ip·[kd·max(N·L,0) + ks·max(V·R,0)^n]`. Die Rechnung erfolgt kanalweise für Rot, Grün und Blau; `n` ist der spekulare Exponent. Ein größeres `n` erzeugt ein kleineres, konzentrierteres Glanzlicht.
+
+**Phong-Beleuchtung und Phong Shading sind verschiedene Begriffe.** Das Beleuchtungsmodell definiert die Reflexionsrechnung. Beim Phong Shading werden Vertexnormalen über das Polygon interpoliert, pro Fragment normalisiert und erst dann für die Beleuchtung verwendet. Dieser Fragment-Shader kombiniert beides.
 
 # Starter Vertex Shader
 ```glsl
@@ -122,7 +126,9 @@ void main() {
 
     // Specular component
     vec3 reflectDir = reflect(-lightDir, vNormal);
-    float specular = pow(max(dot(reflectDir, viewDir), 0.0), 32.0);
+    float specular = diffuse > 0.0
+        ? pow(max(dot(reflectDir, viewDir), 0.0), 32.0)
+        : 0.0;
 
     // Ambient component
     vec3 ambient = vec3(0.1);

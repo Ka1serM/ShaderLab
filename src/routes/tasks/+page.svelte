@@ -1,7 +1,8 @@
 <script lang="ts">
 import * as Card from "$lib/components/ui/card/index.js";
 import { Input } from "$lib/components/ui/input/index.js";
-import { BookOpen, Search } from "lucide-svelte";
+import BookOpen from "phosphor-svelte/lib/BookOpenIcon";
+import Search from "phosphor-svelte/lib/MagnifyingGlassIcon";
 import { goto } from "$app/navigation";
 import { resolve } from "$app/paths"; // <-- use resolve
 import tasks from "$lib/data/tasks.json";
@@ -76,7 +77,7 @@ function getPreview(html: string, maxLength: number = 90): string {
         {/each}
       {:else}
         <p class="text-center text-muted-foreground col-span-full">
-          No tasks found.
+          Keine Aufgaben gefunden.
         </p>
       {/if}
     </div>
