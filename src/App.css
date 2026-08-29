@@ -473,7 +473,7 @@ body {
 .teaching-readonly {
   border-radius: .3rem;
   background: var(--muted);
-  color: #ffffff;
+  color: var(--foreground);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: .68rem;
   line-height: 1;
@@ -481,7 +481,7 @@ body {
 }
 
 .teaching-readonly {
-  color: #ffffff;
+  color: var(--foreground);
   text-transform: uppercase;
   letter-spacing: .08em;
 }
@@ -545,7 +545,7 @@ body {
 }
 
 .teaching-color-rgb {
-  color: #ffffff;
+  color: var(--foreground);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: .68rem;
 }
@@ -591,14 +591,14 @@ body {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #ffffff;
+  color: var(--foreground);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: .75rem;
 }
 
 .teaching-vector-field input:focus,
 .teaching-matrix-input:focus {
-  color: #ffffff;
+  color: var(--foreground);
 }
 
 .teaching-checkbox-control {
@@ -622,7 +622,7 @@ body {
 }
 
 .teaching-checkbox-status {
-  color: #ffffff;
+  color: var(--foreground);
   font-size: .68rem;
   text-transform: uppercase;
   letter-spacing: .08em;
@@ -644,7 +644,7 @@ body {
 
 .teaching-matrix-input:read-only {
   background: var(--muted);
-  color: #ffffff;
+  color: var(--foreground);
 }
 
 .teaching-presets {
@@ -679,9 +679,9 @@ body {
 }
 
 .teaching-preset:hover {
-  border-color: #ffffff;
+  border-color: var(--foreground);
   background: var(--secondary);
-  color: #ffffff;
+  color: var(--foreground);
 }
 
 .teaching-empty {
@@ -695,7 +695,7 @@ body {
 }
 
 .teaching-empty code {
-  color: #ffffff;
+  color: var(--foreground);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: .72rem;
 }

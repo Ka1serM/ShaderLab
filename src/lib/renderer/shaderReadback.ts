@@ -23,14 +23,14 @@ function instrument(source: string, requests: ShaderReadbackRequest[]) {
 	if (targets.some(target => target.end < 0)) return undefined;
 
 	const declarations = targets.flatMap(({ requestIndex }) =>
-		[0, 1, 2, 3].map(column => `out vec4 __shaderlab_readback_${requestIndex}_${column};`)
+		[0, 1, 2, 3].map(column => `out vec4 shaderlabReadback_${requestIndex}_${column};`)
 	).join('\n');
 	let result = `${source.slice(0, main)}${declarations}\n${source.slice(main)}`;
 	const declarationOffset = declarations.length + 1;
 	for (const target of [...targets].sort((a, b) => b.end - a.end)) {
 		const end = target.end + (target.end > main ? declarationOffset : 0);
 		const assignment = [0, 1, 2, 3]
-			.map(column => `__shaderlab_readback_${target.requestIndex}_${column} = ${target.request.variable}[${column}];`)
+			.map(column => `shaderlabReadback_${target.requestIndex}_${column} = ${target.request.variable}[${column}];`)
 			.join('\n');
 		result = `${result.slice(0, end)}\n${assignment}${result.slice(end)}`;
 	}
@@ -91,7 +91,7 @@ export function readShaderMatrices(
 	gl.attachShader(program, vertex);
 	gl.attachShader(program, fragment);
 	const varyings = requests.flatMap((_, requestIndex) =>
-		[0, 1, 2, 3].map(column => `__shaderlab_readback_${requestIndex}_${column}`)
+		[0, 1, 2, 3].map(column => `shaderlabReadback_${requestIndex}_${column}`)
 	);
 	gl.transformFeedbackVaryings(program, varyings, gl.INTERLEAVED_ATTRIBS);
 	gl.linkProgram(program);

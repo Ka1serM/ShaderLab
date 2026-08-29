@@ -80,14 +80,14 @@
 {#if visible}
   <div class="pointer-events-none fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
     {#if targetRect}
-      <div class="tutorial-spotlight pointer-events-none fixed rounded-xl ring-4 ring-white transition-all duration-200" style={`left:${Math.max(8, targetRect.left - 4)}px;top:${Math.max(8, targetRect.top - 4)}px;width:${Math.min(innerWidth - 16, targetRect.width + 8)}px;height:${Math.min(innerHeight - 16, targetRect.height + 8)}px`}></div>
+      <div class="tutorial-spotlight pointer-events-none fixed ring-2 ring-[#bf2732] transition-all duration-200" style={`left:${Math.max(8, targetRect.left - 4)}px;top:${Math.max(8, targetRect.top - 4)}px;width:${Math.min(innerWidth - 16, targetRect.width + 8)}px;height:${Math.min(innerHeight - 16, targetRect.height + 8)}px`}></div>
     {:else}
       <div class="tutorial-dim absolute inset-0"></div>
     {/if}
 
     {#if isCameraStep && targetRect}
       <div
-        class="pointer-events-none fixed z-10 flex items-center justify-center overflow-hidden rounded-xl"
+        class="tutorial-gesture-frame pointer-events-none fixed z-10 flex items-center justify-center overflow-hidden"
         style={`left:${targetRect.left}px;top:${targetRect.top}px;width:${targetRect.width}px;height:${targetRect.height}px`}
         aria-hidden="true"
       >
@@ -105,9 +105,9 @@
     {/if}
 
     <div class="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
-      <section class="pointer-events-auto w-full max-w-md rounded-2xl border bg-background p-5 text-foreground shadow-2xl sm:p-6">
+      <section class="tutorial-card pointer-events-auto w-full max-w-md border bg-background text-foreground shadow-lg">
         <div class="flex items-start gap-4">
-          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"><svelte:component this={steps[current].icon} class="h-5 w-5" /></div>
+          <div class="tutorial-icon flex h-10 w-10 shrink-0 items-center justify-center bg-primary text-primary-foreground"><svelte:component this={steps[current].icon} class="h-5 w-5" /></div>
           <div class="min-w-0 flex-1">
             <div class="mb-1 flex items-center justify-between gap-3"><span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">Schritt {current + 1} von {steps.length}</span><button class="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Tutorial schließen" onclick={finish}><X class="h-4 w-4" /></button></div>
             <h2 id="tutorial-title" class="text-xl font-semibold">{steps[current].title}</h2>
@@ -128,6 +128,9 @@
      dims both the light canvas and the already-dark canvas. */
   .tutorial-spotlight { box-shadow: 0 0 0 9999px rgb(0 0 0 / 72%); }
   .tutorial-dim { background: rgb(0 0 0 / 72%); }
+  .tutorial-spotlight, .tutorial-gesture-frame, .tutorial-card { border-radius: .5rem; }
+  .tutorial-card { padding: clamp(1.25rem, 3vw, 1.5rem); }
+  .tutorial-icon { border-radius: .4rem; }
 
   .gesture-mouse { animation: drag-mouse 2.4s ease-in-out infinite; }
   .gesture-click { animation: click-mouse 2.4s ease-in-out infinite; }

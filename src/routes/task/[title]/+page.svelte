@@ -79,6 +79,7 @@
                   activeSource={$taskStore.activeTab}
                   diagnostics={$taskStore.shaderErrors}
                   editorId="task-desktop"
+                  workspaceKey={data.slug}
                   onSourceChange={(source, value) => source === 'vertex' ? taskStore.setVertexShader(value) : taskStore.setFragmentShader(value)}
                   onActiveSourceChange={(source) => taskStore.setActiveTab(source)}
                 />
@@ -125,7 +126,7 @@
           <TaskPanel />
         </div>
         <div class="min-h-[400px]">
-          <MonacoEditor sources={{ vertex: $taskStore.vertexShader, fragment: $taskStore.fragmentShader }} defaultSources={{ vertex: $taskStore.task.starterVertexShader, fragment: $taskStore.task.starterFragmentShader }} visibleSources={getTaskShaderStages($taskStore.task)} activeSource={$taskStore.activeTab} diagnostics={$taskStore.shaderErrors} editorId="task-mobile" onSourceChange={(source, value) => source === 'vertex' ? taskStore.setVertexShader(value) : taskStore.setFragmentShader(value)} onActiveSourceChange={(source) => taskStore.setActiveTab(source)} />
+          <MonacoEditor sources={{ vertex: $taskStore.vertexShader, fragment: $taskStore.fragmentShader }} defaultSources={{ vertex: $taskStore.task.starterVertexShader, fragment: $taskStore.task.starterFragmentShader }} visibleSources={getTaskShaderStages($taskStore.task)} activeSource={$taskStore.activeTab} diagnostics={$taskStore.shaderErrors} editorId="task-mobile" workspaceKey={data.slug} onSourceChange={(source, value) => source === 'vertex' ? taskStore.setVertexShader(value) : taskStore.setFragmentShader(value)} onActiveSourceChange={(source) => taskStore.setActiveTab(source)} />
         </div>
         <div class="min-h-[400px]">
           <Viewport

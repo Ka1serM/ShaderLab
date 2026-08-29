@@ -36,25 +36,6 @@ export function assembleStudentShader(source: string, template?: ShaderTemplate)
 	return [template.prefix, source, template.suffix].filter(Boolean).join('\n');
 }
 
-export function extractStudentShader(source: string) {
-	const marker = /^\s*\/\/\s*@student-hidden\s*$/gm;
-	const markers = [...source.matchAll(marker)];
-	if (markers.length === 0 || markers.length % 2 !== 0 || markers.length > 4) return source;
-	const ranges = markers.reduce<{ start: number; end: number }[]>((result, current, index) => {
-		if (index % 2 === 0) result.push({ start: current.index ?? 0, end: 0 });
-		else result[result.length - 1].end = (current.index ?? 0) + current[0].length;
-		return result;
-	}, []);
-	if (ranges.length === 1) {
-		const before = source.slice(0, ranges[0].start).trim();
-		const after = source.slice(ranges[0].end).trim();
-		return before && !after ? before : !before ? after : source;
-	}
-	return !source.slice(0, ranges[0].start).trim() && !source.slice(ranges[1].end).trim()
-		? source.slice(ranges[0].end, ranges[1].start).trim()
-		: source;
-}
-
 export interface GLSLError {
 	type: 'error' | 'warning';
 	line: number;
@@ -140,10 +121,6 @@ export function getTaskShaderStages(task: Task): ShaderStage[] {
 	return task.shaderStages ?? (task.type === '3D' ? ['vertex', 'fragment'] : ['fragment']);
 }
 
-function normalizeHiddenMarkers(shader: string) {
-	return shader.replace(/^\s*\/\/\s*@student-hidden:(?:start|end)\s*$/gm, '// @student-hidden');
-}
-
 function emptyState(): TaskState {
 	return {
 		task: null,
@@ -176,21 +153,6 @@ function createPersistence() {
 		autoSaveTimeout = setTimeout(flush, 300);
 	}
 
-	function loadLegacy(taskTitle: string) {
-		if (!browser) return null;
-		try {
-			const key = (field: string) => `shader-${taskTitle.replace(/\s+/g, '_')}-${field}`;
-			const vertex = localStorage.getItem(key('vertex'));
-			const fragment = localStorage.getItem(key('fragment'));
-			const tab = localStorage.getItem(key('tab')) as 'vertex' | 'fragment' | null;
-			if (vertex === null && fragment === null && tab === null) return null;
-			return { vertex, fragment, tab };
-		} catch (error) {
-			console.error('Failed to load legacy workspace:', error);
-			return null;
-		}
-	}
-
 	if (browser) {
 		try {
 			const raw = localStorage.getItem(STORAGE_KEY);
@@ -204,7 +166,6 @@ function createPersistence() {
 
 	return {
 		get: (slug: string) => isTaskWorkspace(workspaces[slug], slug) ? workspaces[slug] : null,
-		loadLegacy,
 		scheduleSave
 	};
 }
@@ -253,16 +214,13 @@ function createTaskStore() {
 			});
 			currentTaskTitle = task.title;
 			const saved = persistence.get(normalizedSlug);
-			const legacy = saved ? null : persistence.loadLegacy(task.title);
 			store.set({
 				task,
-				vertexShader: extractStudentShader(normalizeHiddenMarkers(saved?.vertexShader ?? legacy?.vertex ?? task.starterVertexShader)),
-				fragmentShader: extractStudentShader(normalizeHiddenMarkers(saved?.fragmentShader ?? legacy?.fragment ?? task.starterFragmentShader)),
+				vertexShader: saved?.vertexShader ?? task.starterVertexShader,
+				fragmentShader: saved?.fragmentShader ?? task.starterFragmentShader,
 				activeTab: saved?.activeTab && getTaskShaderStages(task).includes(saved.activeTab)
 					? saved.activeTab
-					: legacy?.tab && getTaskShaderStages(task).includes(legacy.tab)
-						? legacy.tab
-						: getTaskShaderStages(task)[0],
+					: getTaskShaderStages(task)[0],
 				shaderErrors: saved?.shaderErrors ?? { vertex: [], fragment: [] },
 				cameraPose: saved?.cameraPose ?? taskCameraPose(task),
 				_version: Date.now()
