@@ -14,7 +14,8 @@
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@internationalized/date": "^3.10.0",
@@ -32,7 +33,9 @@
     "tailwind-merge": "^3.3.1",
     "tailwind-variants": "^3.1.1",
     "typescript": "^5.9.2",
-    "vite": "^7.1.11"
+    "vite": "^7.1.11",
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.15",
@@ -42,12 +45,12 @@
     "formsnap": "^2.0.1",
     "gray-matter": "^4.0.3",
     "katex": "^0.16.25",
-    "layerchart": "^2.0.0-next.27",
     "marked": "^16.4.1",
     "mode-watcher": "^1.1.0",
-    "monaco-editor": "^0.54.0",
+    "monaco-editor": "^0.56.0",
     "paneforge": "^1.0.2",
     "phosphor-svelte": "^3.1.0",
+    "sanitize-html": "^2.17.7",
     "svelte-splitpanes": "^8.0.9",
     "tailwindcss": "^4.1.15",
     "three": "^0.180.0",

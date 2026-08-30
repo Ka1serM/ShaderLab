@@ -21,13 +21,13 @@
   <div class="relative w-full h-full">
     {#if activeMaximizedPanel === 'reference'}
       {#if $taskStore.task}
-        <Viewport task={$taskStore.task} vertexShader={referenceVertex} fragmentShader={referenceFragment} cameraPose={$taskStore.cameraPose} overlays={$taskStore.task.overlays} reportErrors={false} {uniformValues} />
+        <Viewport task={$taskStore.task} vertexShader={referenceVertex} fragmentShader={referenceFragment} cameraPose={$taskStore.cameraPose} cameraPoseSaved={$taskStore.cameraPoseSaved} overlays={$taskStore.task.overlays} reportErrors={false} {uniformValues} />
       {:else}
         <div class="flex items-center justify-center h-full text-muted-foreground">loading reference...</div>
       {/if}
     {:else}
       {#if $taskStore.task}
-        <Viewport task={$taskStore.task} vertexShader={$taskStore.vertexShader} fragmentShader={$taskStore.fragmentShader} cameraPose={$taskStore.cameraPose} overlays={$taskStore.task.overlays} reportErrors={true} useStudentTemplates={true} {uniformValues} />
+        <Viewport task={$taskStore.task} vertexShader={$taskStore.vertexShader} fragmentShader={$taskStore.fragmentShader} cameraPose={$taskStore.cameraPose} cameraPoseSaved={$taskStore.cameraPoseSaved} overlays={$taskStore.task.overlays} reportErrors={true} useStudentTemplates={true} {uniformValues} />
       {:else}
         <div class="flex items-center justify-center h-full text-muted-foreground">loading output...</div>
       {/if}
@@ -43,7 +43,7 @@
         </div>
         <div class="relative flex-1">
           {#if $taskStore.task}
-            <Viewport task={$taskStore.task} vertexShader={referenceVertex} fragmentShader={referenceFragment} cameraPose={$taskStore.cameraPose} overlays={$taskStore.task.overlays} reportErrors={false} {uniformValues} />
+            <Viewport task={$taskStore.task} vertexShader={referenceVertex} fragmentShader={referenceFragment} cameraPose={$taskStore.cameraPose} cameraPoseSaved={$taskStore.cameraPoseSaved} overlays={$taskStore.task.overlays} reportErrors={false} {uniformValues} />
           {:else}
             <div class="flex items-center justify-center h-full text-muted-foreground">loading reference...</div>
           {/if}
@@ -57,7 +57,7 @@
         </div>
         <div class="relative flex-1">
           {#if $taskStore.task}
-            <Viewport task={$taskStore.task} vertexShader={$taskStore.vertexShader} fragmentShader={$taskStore.fragmentShader} cameraPose={$taskStore.cameraPose} overlays={$taskStore.task.overlays} reportErrors={true} useStudentTemplates={true} {uniformValues} />
+            <Viewport task={$taskStore.task} vertexShader={$taskStore.vertexShader} fragmentShader={$taskStore.fragmentShader} cameraPose={$taskStore.cameraPose} cameraPoseSaved={$taskStore.cameraPoseSaved} overlays={$taskStore.task.overlays} reportErrors={true} useStudentTemplates={true} {uniformValues} />
           {:else}
             <div class="flex items-center justify-center h-full text-muted-foreground">loading output...</div>
           {/if}

@@ -118,12 +118,6 @@ vec4 sample = SampleVolume(coord, direction);
 ## Hint
 Implementiere zuerst die Ray-Erzeugung und prüfe die Zwischenfarbe im Viewport.
 
-## Hint
-Verwende `textureSize`, um die Schrittweite für die Gradientenberechnung zu bestimmen.
-
-## Hint
-Nutze `mix`, um zwischen den Transfer-Function-Stützstellen zu interpolieren.
-
 # Theory
 
 ## 1. Strahlgenerierung (Orthographisch)

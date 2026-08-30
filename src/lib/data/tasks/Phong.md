@@ -12,26 +12,14 @@ modelPath: models/HeadDavid.glb
 ---
 
 # Task
-Implementiere das lokale **Phong-Beleuchtungsmodell** für eine Richtungslichtquelle.
+Implementiere im Fragment-Shader die Beleuchtung nach dem **Phong-Beleuchtungsmodell**. Die Position und Normale eines Fragments werden aus dem Vertex-Shader übergeben; nutze sie, um die Lichtanteile für die Szene zu bestimmen.
 
-- Berechne den ambienten Term `Ia · ka`.
-- Berechne den diffusen Term `Ip · kd · max(N · L, 0)`.
-- Spiegle den einfallenden Lichtvektor an `N` und berechne den spekularen Term `Ip · ks · max(V · R, 0)^n`.
-- Addiere die drei RGB-Beiträge. Der diffuse und spekulare Anteil darf nur auf der der Lichtquelle zugewandten Seite entstehen.
+1. **Ambenter Lichtanteil:** Berechne den ambienten Anteil und lege einen Reflexionskoeffizienten für das Material fest. Beurteile das Bildergebnis und korrigiere mögliche Fehler.
+2. **Diffuser Lichtanteil:** Ergänze für die vorhandene Lichtquelle den diffusen Anteil. Lege einen diffusen Reflexionskoeffizienten fest und prüfe das Ergebnis in der Vorschau.
+3. **Spekularer Lichtanteil:** Ergänze den spekularen Anteil. Lege dafür einen spekularen Reflexionskoeffizienten sowie die benötigte Shininess fest.
+4. **Weitere Punktlichter:** Ergänze mindestens zwei weitere Punktlichter und passe die Berechnung so an, dass eine beliebige Anzahl von Punktlichtern berücksichtigt werden kann. Erzeuge eine visuell ansprechende Lichtstimmung.
 
-# Hints
-
-## Hint
-Transformiere die Normalen korrekt mit der `normalMatrix` für eine richtige Beleuchtung.
-
-## Hint
-Berechne den diffusen Anteil mit `dot(normal, lightDir)` und begrenze ihn mit `max()` auf nichtnegative Werte.
-
-## Hint
-Berechne den spekularen Anteil mit `pow(max(dot(reflectDir, viewDir), 0.0), shininess)`.
-
-## Hint
-Addiere ambienten, diffusen und spekularen Anteil zur endgültigen Beleuchtung.
+Der diffuse und spekulare Anteil darf nur auf der der jeweiligen Lichtquelle zugewandten Seite entstehen. Beurteile das Bildergebnis nach jedem Schritt und behebe auftretende Fehler.
 
 # Theory
 Das lokale Phong-Beleuchtungsmodell approximiert die Reflexion mit drei Komponenten:
@@ -70,12 +58,16 @@ void main() {
 ```glsl
 // @prefix
 precision highp float;
+// @prefix
 
+// Interpolierte Weltkoordinaten und Oberflächennormale aus dem Vertex-Shader.
 in vec3 vNormal;
 in vec3 vPosition;
 
 out vec4 fragColor;
-// @prefix
+
+// Wird von ShaderLab mit der aktuellen Kameraposition befüllt.
+uniform vec3 cameraPosition;
 
 void main() {
     fragColor = vec4(0.18, 0.18, 0.18, 1.0);

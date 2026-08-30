@@ -18,8 +18,9 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 	// this.fragmentShader
 	// this.uniforms
 	
-	private textures: THREE.Texture[] = [];
-	private pendingTextureLoads: Map<string, Promise<void>> = new Map();
+	private textures = new Set<THREE.Texture>();
+	private pendingTextureLoads = new Map<string, { path: string; revision: number; controller: AbortController; promise: Promise<void> }>();
+	private inputRevisions = new Map<string, number>();
 	private disposed = false;
 	private loadGeneration = 0;
 	private shaderRevision = 0;
@@ -87,9 +88,8 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 				if (input.init) {
 					initPath = this.resolvePath(input.init);
 					
-					// Check if we need to load or if we already have this texture
+					// Check if we need to load or if we already have this texture.
 					if (existingEntry && existingEntry.initPath === initPath && existingEntry.value !== null) {
-						// Path hasn't changed, and texture is already loaded/loading. Skip loading.
 						return; 
 					}
 
@@ -115,6 +115,21 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 			this.inputsMap[name] = { value, type: input.type, initPath };
 			this.uniforms[name] = { value };
 		}
+	}
+
+	/** Removes an input and cancels/disposes resources owned by it. */
+	removeInput(name: string) {
+		const pending = this.pendingTextureLoads.get(name);
+		pending?.controller.abort();
+		this.pendingTextureLoads.delete(name);
+		this.inputRevisions.set(name, (this.inputRevisions.get(name) ?? 0) + 1);
+		const value = this.inputsMap[name]?.value;
+		if (value instanceof THREE.Texture) {
+			value.dispose();
+			this.textures.delete(value);
+		}
+		delete this.inputsMap[name];
+		delete this.uniforms[name];
 	}
 
 	/** Initialize vectors, matrices, or arrays of them */
@@ -166,11 +181,12 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 	) {
 		const name = input.name;
 		const generation = this.loadGeneration;
-
-		if (this.pendingTextureLoads.has(name)) {
-			console.warn(`Texture load for "${name}" already in progress. Ignoring new request.`);
-			return;
-		}
+		const previous = this.pendingTextureLoads.get(name);
+		if (previous?.path === resolvedPath) return;
+		previous?.controller.abort();
+		const controller = new AbortController();
+		const revision = (this.inputRevisions.get(name) ?? 0) + 1;
+		this.inputRevisions.set(name, revision);
 
 		const loadPromise = (async () => {
 			try {
@@ -181,7 +197,7 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 
 				if (resolvedPath.toLowerCase().endsWith('.raw')) {
 					// Raw file: fetch and parse
-					const response = await fetch(resolvedPath);
+					const response = await fetch(resolvedPath, { signal: controller.signal });
 					if (!response.ok) throw new Error(`HTTP ${response.status} while loading ${resolvedPath}`);
 					const buffer = await response.arrayBuffer();
 					if (buffer.byteLength < 16) throw new Error('Raw texture file is missing its 16-byte header');
@@ -190,6 +206,13 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 					height = view.getUint32(4, true);
 					depth = view.getUint32(8, true);
 					const dataFormat = view.getUint32(12, true);
+					if (!width || !height || !depth) throw new Error('Raw texture dimensions must be non-zero');
+					const bytesPerValue = dataFormat === 1 ? 2 : dataFormat === 2 ? 4 : 0;
+					const expectedBytes = width * height * depth * bytesPerValue;
+					if (!bytesPerValue || !Number.isSafeInteger(expectedBytes) || expectedBytes > 512 * 1024 * 1024) {
+						throw new Error('Raw texture dimensions or format are invalid');
+					}
+					if (buffer.byteLength !== 16 + expectedBytes) throw new Error(`Raw texture payload has ${buffer.byteLength - 16} bytes; expected ${expectedBytes}`);
 					const parsed = this.parseRawData(buffer, dataFormat);
 					arrayData = parsed.data;
 					dataType = parsed.dataType;
@@ -238,27 +261,36 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 				tex.unpackAlignment = 1; // 1 byte per component (RedFormat)
 				tex.needsUpdate = true;
 
-				if (this.disposed || generation !== this.loadGeneration) return;
+				if (this.disposed || generation !== this.loadGeneration || revision !== this.inputRevisions.get(name)) {
+					tex.dispose();
+					return;
+				}
 
 				// Store texture for eventual disposal
-				this.textures.push(tex);
+				const oldTexture = this.inputsMap[name]?.value;
+				if (oldTexture instanceof THREE.Texture && oldTexture !== tex) {
+					oldTexture.dispose();
+					this.textures.delete(oldTexture);
+				}
+				this.textures.add(tex);
 
 				// Update uniforms and internal map
 				this.inputsMap[name].value = tex;
 				if (this.uniforms[name]) this.uniforms[name].value = tex;
 				
 			} catch (err) {
+				if (controller.signal.aborted) return;
 				console.error(`Failed to load texture ${resolvedPath}:`, err);
-				if (!this.disposed && generation === this.loadGeneration) {
+				if (!this.disposed && generation === this.loadGeneration && revision === this.inputRevisions.get(name)) {
 					if (this.inputsMap[name]) this.inputsMap[name].value = null;
 					if (this.uniforms[name]) this.uniforms[name].value = null;
 				}
 			} finally {
-				this.pendingTextureLoads.delete(name);
+				if (this.pendingTextureLoads.get(name)?.revision === revision) this.pendingTextureLoads.delete(name);
 			}
 		})();
 
-		this.pendingTextureLoads.set(name, loadPromise);
+		this.pendingTextureLoads.set(name, { path: resolvedPath, revision, controller, promise: loadPromise });
 	}
 
 	/**
@@ -407,8 +439,9 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 		this.disposed = true;
 		this.loadGeneration += 1;
 		// Dispose of dynamically created textures
+		this.pendingTextureLoads.forEach(load => load.controller.abort());
 		this.textures.forEach(tex => tex.dispose());
-		this.textures = [];
+		this.textures.clear();
 		this.pendingTextureLoads.clear();
 		
 		// Call parent dispose method

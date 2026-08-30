@@ -13,16 +13,16 @@
   type Step = { title: string; text: string; selector?: string; icon: typeof Sparkles };
 
   $: steps = mode === 'task' ? [
-    { title: 'Willkommen bei ShaderLab', text: 'Hier siehst du, wie aus GLSL-Code eine Darstellung entsteht. Wir zeigen dir kurz die wichtigsten Bereiche.', icon: Sparkles },
+    { title: 'Willkommen bei ShaderLab', text: 'Du löst hier eine Shader-Aufgabe: Anforderungen lesen, GLSL-Code bearbeiten und deine Ausgabe mit der Referenz vergleichen. Diese Tour zeigt dir die dafür relevanten Bereiche.', icon: Sparkles },
     { title: 'Aufgabe und Theorie', text: 'Unter „Aufgabe“ findest du die Anforderungen, unter „Theorie“ die passenden Grundlagen. Wenn du feststeckst, kannst du die Hinweise öffnen.', selector: '[data-tutorial="instructions"]', icon: BookOpen },
     { title: 'Der Shader-Editor', text: 'Im Editor bearbeitest du den GLSL-Code. Wenn beide Shader vorhanden sind, wechselst du oben zwischen Vertex- und Fragment-Shader. Fehlermeldungen erscheinen unter dem Editor und an der betroffenen Zeile.', selector: '[data-tutorial="editor"]', icon: Code2 },
-    { title: 'Ergebnis vergleichen', text: 'Die Referenz zeigt eine mögliche Lösung. Unter „Ausgabe“ siehst du das Ergebnis deines Codes; Änderungen werden direkt übernommen.', selector: '[data-tutorial="viewports"]', icon: PanelTopOpen },
+    { title: 'Ergebnis vergleichen', text: '„Referenz“ rendert den vorgegebenen Lösungsshader. „Ausgabe“ rendert deinen aktuellen Shader auf derselben Szene; Codeänderungen erscheinen dort direkt.', selector: '[data-tutorial="viewports"]', icon: PanelTopOpen },
     { title: 'Ansicht erkunden', text: 'Mit der linken Maustaste drehst du die Kamera, mit dem Mausrad zoomst du. Ziehe mit der rechten Maustaste, um die Ansicht zu verschieben. Über „Maximieren“ vergrößerst du den jeweiligen Bereich.', selector: '[data-tutorial="output"]', icon: MousePointer2 }
   ] : [
-    { title: 'Willkommen bei ShaderLab', text: 'Auf dieser Seite kannst du Shadercode ausprobieren und seine Wirkung direkt sehen. Dazu stehen dir Erklärungen und Steuerelemente zur Verfügung.', icon: Sparkles },
-    { title: 'Erklärung und Steuerelemente', text: 'Hier findest du die Erklärung und die zugehörigen Steuerelemente. Änderungen werden direkt an den Shader weitergegeben.', selector: '[data-tutorial="instructions"]', icon: BookOpen },
-    { title: 'Der Shader-Editor', text: 'Hier wird GLSL ausgeführt. Ändere den Code und beobachte das Ergebnis direkt in der Vorschau. Mit „Zurücksetzen“ stellst du den Ausgangscode wieder her.', selector: '[data-tutorial="editor"]', icon: Code2 },
-    { title: 'Das Live-Ergebnis', text: 'Die Vorschau wird aktualisiert, sobald du den Code oder die Einstellungen änderst. Je nach Demo stehen dir zusätzlich Werkzeuge zum Verschieben, Rotieren und Skalieren zur Verfügung.', selector: '[data-tutorial="output"]', icon: PanelTopOpen },
+    { title: 'Willkommen bei ShaderLab', text: 'Diese Demo erklärt einen konkreten Shader-Effekt. Du kannst den zugehörigen GLSL-Code und die freigegebenen Parameter verändern und das Ergebnis in der Szene prüfen.', icon: Sparkles },
+    { title: 'Erklärung und Steuerelemente', text: 'Dieser Bereich enthält die Erklärung zur Demo und ihre Parameter. Jede Änderung eines Reglers oder Eingabefelds setzt den zugehörigen Uniform-Wert im Shader.', selector: '[data-tutorial="instructions"]', icon: BookOpen },
+    { title: 'Der Shader-Editor', text: 'Hier bearbeitest du den Shader der Demo. Nach einer Codeänderung wird die Vorschau neu gerendert; „Zurücksetzen“ stellt den Ausgangscode wieder her.', selector: '[data-tutorial="editor"]', icon: Code2 },
+    { title: 'Das Live-Ergebnis', text: 'Die Vorschau rendert die Szene mit deinem aktuellen Shader und den eingestellten Parametern. Demos mit Transformationswerkzeug erlauben zusätzlich Verschieben, Rotieren und Skalieren.', selector: '[data-tutorial="output"]', icon: PanelTopOpen },
     { title: 'Kamera bewegen', text: 'Mit der linken Maustaste drehst du die Kamera, mit dem Mausrad zoomst du. Ziehe mit der rechten Maustaste, um die Ansicht zu verschieben. Über „Maximieren“ vergrößerst du den jeweiligen Bereich.', selector: '[data-tutorial="output"]', icon: MousePointer2 }
   ];
 

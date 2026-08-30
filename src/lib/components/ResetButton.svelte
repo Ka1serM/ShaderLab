@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { toast } from 'svelte-sonner';
+
   export let description = 'Auf die Ausgangswerte zurücksetzen?';
   export let onReset: () => void = () => {};
 
@@ -6,6 +8,7 @@
 
   function reset() {
     onReset();
+    toast.success('Auf Ausgangswerte zurückgesetzt');
     confirmReset = false;
   }
 </script>

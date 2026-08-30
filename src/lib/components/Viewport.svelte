@@ -7,12 +7,13 @@
   import MaximizeButton from './MaximizeButton.svelte';
   import { maximizedPanel } from '$lib/stores/panelStore';
   import { maximizable } from '$lib/actions/maximizable';
-  import * as Tabs from '$lib/components/ui/tabs';
+  import * as ToggleGroup from '$lib/components/ui/toggle-group';
 
   export let task: Task;
   export let vertexShader: string;
   export let fragmentShader: string;
   export let cameraPose: CameraPose;
+  export let cameraPoseSaved = false;
   export let reportErrors = false;
   export let errorLineOffsets: { vertex: number; fragment: number } | undefined = undefined;
   export let onShaderErrors: ((errors: { vertex: GLSLError[]; fragment: GLSLError[] }) => void) | undefined = undefined;
@@ -25,11 +26,14 @@
   export let transformMatrix: number[] | undefined = undefined;
   export let vectorVisualizations: ViewportVector[] = [];
   export let onTransformChange: (transform: ViewportTransform) => void = () => {};
+  export let onCameraChange: ((pose: CameraPose) => void) | undefined = undefined;
   export let title = '';
   export let panelId = '';
 
   let transformMode: 'translate' | 'rotate' | 'scale' = 'translate';
+  let transformSpace: 'local' | 'world' = 'local';
   const transformModes = ['translate', 'rotate', 'scale'] as const;
+  const transformSpaces = ['local', 'world'] as const;
   const transformModeLabels = {
     translate: 'Verschieben',
     rotate: 'Rotieren',
@@ -40,9 +44,9 @@
   let viewport: Renderer;
   let mounted = false;
   let previousTaskKey = '';
-  let previousSceneKey = '';
   let previousVertexShader = '';
   let previousFragmentShader = '';
+  let shaderUpdateTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Applied to every shader that reaches the GPU (reference and student alike), so mat4/mat3
   // literals can be authored in ordinary row-major reading order everywhere in this course.
@@ -81,8 +85,13 @@
     return scene ?? taskScene(value);
   }
 
-  function currentSceneKey(value: Task) {
-    return JSON.stringify(resolvedScene(value));
+  function currentTaskKey(value: Task) {
+    return JSON.stringify({
+      title: value.title,
+      scene: resolvedScene(value),
+      inputs: value.inputs ?? [],
+      overlays: overlays ?? {}
+    });
   }
 
   function reportShaderErrors(errors: { vertex: GLSLError[]; fragment: GLSLError[] }) {
@@ -96,14 +105,35 @@
     else onShaderErrors?.(empty);
   }
 
+  function scheduleShaderUpdate() {
+    clearTimeout(shaderUpdateTimer);
+    shaderUpdateTimer = setTimeout(() => {
+      if (!viewport) return;
+      viewport.updateShaders(compiledVertexShader(), compiledFragmentShader());
+    }, 120);
+  }
+
+  function replaceTaskState() {
+    clearTimeout(shaderUpdateTimer);
+    void viewport.replaceTaskState({
+      inputs: task.inputs,
+      uniformValues,
+      overlays,
+      shaderLineOffsets: shaderLineOffsets(),
+      vertexShader: compiledVertexShader(),
+      fragmentShader: compiledFragmentShader(),
+      scene: resolvedScene(task)
+    });
+  }
+
   onMount(() => {
     viewport = new Renderer({
-      container, vertexShader: compiledVertexShader(), fragmentShader: compiledFragmentShader(), inputs: task.inputs, uniformValues, cameraPose,
+      container, vertexShader: compiledVertexShader(), fragmentShader: compiledFragmentShader(), inputs: task.inputs, uniformValues, cameraPose, cameraPoseSaved,
       overlays,
       onTransformChange,
       shaderLineOffsets: shaderLineOffsets(),
       reportErrors,
-      onCameraChange: pose => taskStore.setCameraPose(pose),
+      onCameraChange: pose => (onCameraChange ?? taskStore.setCameraPose)(pose),
       onShaderErrors: reportShaderErrors,
       shaderReadbacks,
       onShaderReadbacks
@@ -113,75 +143,82 @@
     // later reactive run can leave its material in an incomplete state until
     // an unrelated camera-store update occurs.
     viewport.setUniformValues(uniformValues);
-    viewport.setCameraPose(cameraPose);
-    viewport.setOverlays(overlays);
+    viewport.setCameraPose(cameraPose, cameraPoseSaved);
     viewport.setTransformOverlayMatrix(transformMatrix);
     viewport.setVectorVisualizations(vectorVisualizations);
     viewport.setShaderReadbacks(shaderReadbacks);
     mounted = true;
-    previousTaskKey = task.title;
-    previousSceneKey = currentSceneKey(task);
+    previousTaskKey = currentTaskKey(task);
     previousVertexShader = vertexShader;
     previousFragmentShader = fragmentShader;
-    void viewport.setScene(resolvedScene(task));
+    replaceTaskState();
   });
 
   $: if (mounted && viewport) {
     viewport.setUniformValues(uniformValues);
-    viewport.setCameraPose(cameraPose);
-    viewport.setOverlays(overlays);
+    viewport.setCameraPose(cameraPose, cameraPoseSaved);
     viewport.setTransformOverlayMatrix(transformMatrix);
     viewport.setVectorVisualizations(vectorVisualizations);
     viewport.setShaderReadbacks(shaderReadbacks);
-    viewport.setShaderLineOffsets(shaderLineOffsets());
   }
 
-  $: if (mounted && viewport && task && (task.title !== previousTaskKey || currentSceneKey(task) !== previousSceneKey)) {
-    previousTaskKey = task.title;
-    previousSceneKey = currentSceneKey(task);
+  $: if (mounted && viewport && task && currentTaskKey(task) !== previousTaskKey) {
+    previousTaskKey = currentTaskKey(task);
     previousVertexShader = vertexShader;
     previousFragmentShader = fragmentShader;
-    viewport.setInputs(task.inputs);
-    viewport.setShaderLineOffsets(shaderLineOffsets());
-    void viewport.setScene(resolvedScene(task));
-    viewport.updateShaders(compiledVertexShader(), compiledFragmentShader());
+    replaceTaskState();
   } else if (mounted && viewport && (vertexShader !== previousVertexShader || fragmentShader !== previousFragmentShader)) {
     clearShaderErrors();
-    viewport.updateShaders(compiledVertexShader(), compiledFragmentShader());
+    scheduleShaderUpdate();
     previousVertexShader = vertexShader;
     previousFragmentShader = fragmentShader;
   }
 
-  onDestroy(() => viewport?.dispose());
+  onDestroy(() => {
+    clearTimeout(shaderUpdateTimer);
+    viewport?.dispose();
+  });
 </script>
 
 <div use:maximizable={{ active: $maximizedPanel === panelId }} class="workspace-panel">
   <div class="app-viewport h-full flex flex-col overflow-hidden" data-tutorial={panelId || 'viewport'}>
     {#if title}
-      <div class="app-panel-header flex items-center justify-between shrink-0">
+      <div class="viewport-panel-header app-panel-header flex items-center justify-between shrink-0">
         <h3 class="app-panel-title text-xl font-medium text-foreground">{title}</h3>
         {#if panelId}
           <MaximizeButton isMaximized={$maximizedPanel === panelId} onClick={() => $maximizedPanel = $maximizedPanel === panelId ? null : panelId} />
         {/if}
       </div>
     {/if}
-    <div class="relative flex-1 min-h-0">
+    <div class="relative flex min-h-0 flex-1 items-start gap-2 p-3">
       <div bind:this={container} class="absolute inset-0 h-full w-full overflow-hidden rounded-md bg-background"></div>
       {#if overlays?.transformControls}
-        <Tabs.Root
+        <ToggleGroup.Root
+          type="single"
           bind:value={transformMode}
-          class="absolute left-3 top-3 z-10 flex-none gap-0"
+          class="relative z-10 flex-none gap-0 bg-muted p-0"
           onValueChange={mode => viewport?.setTransformMode(mode as typeof transformMode)}
         >
-          <Tabs.List class="h-10 justify-start bg-muted p-0 gap-0">
-            {#each transformModes as mode}
-              <Tabs.Trigger
-                value={mode}
-                class="h-10 px-4 border-none capitalize data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
-              >{transformModeLabels[mode]}</Tabs.Trigger>
-            {/each}
-          </Tabs.List>
-        </Tabs.Root>
+          {#each transformModes as mode}
+            <ToggleGroup.Item
+              value={mode}
+              class="h-10 px-4 data-[state=on]:bg-background"
+            >{transformModeLabels[mode]}</ToggleGroup.Item>
+          {/each}
+        </ToggleGroup.Root>
+        <ToggleGroup.Root
+          type="single"
+          bind:value={transformSpace}
+          class="relative z-10 flex-none gap-0 bg-muted p-0"
+          onValueChange={space => viewport?.setTransformSpace(space as typeof transformSpace)}
+        >
+          {#each transformSpaces as space}
+            <ToggleGroup.Item
+              value={space}
+              class="h-10 px-4 data-[state=on]:bg-background"
+            >{space === 'local' ? 'Lokal' : 'Global'}</ToggleGroup.Item>
+          {/each}
+        </ToggleGroup.Root>
       {/if}
     </div>
   </div>

@@ -14,27 +14,22 @@ overlays:
 ---
 
 # Task
-Implementiere den Bresenham-Linienalgorithmus ausschließlich mit Ganzzahlarithmetik. Beginne mit dem Fall aus der Übung, einer Linie von `(0,0)` nach `(4,3)`, und verallgemeinere die Entscheidung anschließend für alle Oktanten.
+Implementiere in `bresenhamLine(...)` den Bresenham-Linienalgorithmus. Die Vorschau zeichnet die von dir berechneten Rasterzellen als dünne helle Linie; sie muss für jeden möglichen Anfangs- und Endpunkt korrekt sein. Bewege den Mauszeiger über die Vorschau, um eine Linie vom Rastermittelpunkt zur Mausposition zu zeichnen.
 
-# Hints
+1. **Erster Oktant:** Implementiere zunächst Linien mit einer positiven Steigung zwischen 0 und 1. Verwende ausschließlich Ganzzahlarithmetik und zeichne die einzelnen Zellen über `drawPixel(...)`.
+2. **Oktanten 4, 5 und 8:** Erweitere die Entscheidung für negative Laufrichtungen. Kommentiere im Shader, welche grundlegende Änderung für den jeweiligen Oktanten nötig ist.
+3. **Oktanten 2, 3, 6 und 7:** Ergänze die steilen Linien. Am Ende muss `bresenhamLine(...)` alle acht Oktanten abdecken.
 
-## Hint
-Für den Übungsfall gelten `a = Δy`, `b = -Δx`, `Q_init = 2a+b`, `Q_equal = 2a` und `Q_step = 2(a+b)`.
-
-## Hint
-Setze zuerst das aktuelle Pixel. Bei `Q < 0` bleibt `y` gleich; andernfalls wird `y` erhöht.
-
-## Hint
-Für alle Oktanten brauchst du die Beträge von `Δx` und `Δy` sowie die Schrittvorzeichen `sx` und `sy`. Bei einer steilen Linie übernimmt `y` die Rolle der Hauptlaufrichtung.
+Nutze die Symmetrie-Eigenschaften des Algorithmus: Eine Kette aus acht getrennten Sonderfällen gilt nicht als vollständige Lösung. Beachte außerdem, dass die y-Achse in der Bildschirmdarstellung nach unten zeigt.
 
 # Theory
-## Entscheidungsvariable der Übung
+## Entscheidungsvariable
 
 Für den ersten Oktanten gilt `0 ≤ Δy ≤ Δx` und `x` wird in jedem Schritt erhöht. Mit
 
 `a = y2-y1 = Δy` und `b = -(x2-x1) = -Δx`
 
-verwendet die Übung folgende ganzzahlige Größen:
+verwenden wir folgende ganzzahlige Größen:
 
 - `Q_init = 2a+b = 2Δy-Δx`
 - `Q_equal = 2a = 2Δy`
@@ -44,7 +39,7 @@ Ist `Q < 0`, liegt die ideale Linie näher am horizontal benachbarten Pixel: `y`
 
 ## Verallgemeinerung auf alle Oktanten
 
-Der Code aus der Übung setzt `x1 ≤ x2` und eine Steigung zwischen 0 und 1 voraus. Beim Vertauschen der Endpunkte erfüllt er diese Voraussetzung nicht mehr. Die Referenzlösung im Shader verwendet deshalb die symmetrische Bresenham-Form:
+Der zunächst betrachtete Code setzt `x1 ≤ x2` und eine Steigung zwischen 0 und 1 voraus. Beim Vertauschen der Endpunkte erfüllt er diese Voraussetzung nicht mehr. Die Referenzlösung im Shader verwendet deshalb die symmetrische Bresenham-Form:
 
 - `dx = abs(x1-x0)` und `dy = -abs(y1-y0)` speichern die Beträge.
 - `sx` und `sy` speichern die Laufrichtung.
@@ -83,31 +78,33 @@ in vec2 vUV;
 out vec4 fragColor;
 
 uniform vec2 iResolution;
+// x/y are framebuffer pixels from the top-left; z is 1 while the pointer is in the viewport.
+uniform vec3 iMouse;
 
 const int GRID_SIZE = 32;
 
-// Convert from UV (0–1) to aspect-corrected space (-1–1)
-vec2 aspectCorrectUV(vec2 uv) {
-    vec2 p = uv * 2.0 - 1.0;
-    p.x *= iResolution.x / iResolution.y;
-    return p;
+// Convert UV coordinates to framebuffer pixels.
+vec2 viewportPixel(vec2 uv) {
+    return uv * iResolution;
 }
 
-// Convert pixel grid coordinate to aspect-corrected UV space (-1..1)
-vec2 gridToUV(int x, int y) {
-    vec2 p = (vec2(float(x), float(y)) / float(GRID_SIZE)) * 2.0 - 1.0;
-    p.x *= iResolution.x / iResolution.y;
-    return p;
+// The short viewport side contains GRID_SIZE cells. The longer side receives
+// additional cells of the same physical size, so no cell is stretched.
+float gridCellSize() {
+    return min(iResolution.x, iResolution.y) / float(GRID_SIZE);
+}
+
+// Convert a grid coordinate to framebuffer pixels.
+vec2 gridToViewportPixel(int x, int y) {
+    return vec2(float(x), float(y)) * gridCellSize();
 }
 
 // Determine if the fragment lies inside a grid pixel (square)
 bool isInsidePixel(vec2 uv, int x, int y) {
-    // Compute bounds in aspect-corrected space
-    vec2 minP = gridToUV(x, y);
-    vec2 maxP = gridToUV(x + 1, y + 1);
-
-    // Compute fragment position
-    vec2 f = aspectCorrectUV(uv);
+    float cellSize = gridCellSize();
+    vec2 minP = gridToViewportPixel(x, y);
+    vec2 maxP = minP + vec2(cellSize);
+    vec2 f = viewportPixel(uv);
 
     return all(greaterThanEqual(f, minP)) && all(lessThan(f, maxP));
 }
@@ -130,16 +127,29 @@ void main() {
     vec3 color = vec3(0.12); // dark gray background
 
     // Optional grid lines (1px thin)
-    vec2 uv = vUV * float(GRID_SIZE);
-    vec2 gridLine = smoothstep(0.98, 1.0, abs(fract(uv) - 0.5) * 2.0);
+    float cellSize = gridCellSize();
+    vec2 gridPosition = viewportPixel(vUV) / cellSize;
+    vec2 gridLine = smoothstep(0.98, 1.0, abs(fract(gridPosition) - 0.5) * 2.0);
     float gridMask = min(gridLine.x, gridLine.y);
     color = mix(vec3(0.15), color, gridMask);
 
-    // Define line endpoints in grid coordinates
-    int x0 = int(0.05 * float(GRID_SIZE));
-    int y0 = int(0.25 * float(GRID_SIZE));
-    int x1 = int(0.95 * float(GRID_SIZE));
-    int y1 = int(0.85 * float(GRID_SIZE));
+    int gridWidth = int(ceil(iResolution.x / cellSize));
+    int gridHeight = int(ceil(iResolution.y / cellSize));
+
+    // Default: a first-octant example line spanning the viewport width.
+    int x0 = 0;
+    int y0 = 0;
+    int x1 = gridWidth - 1;
+    int y1 = min(gridHeight - 1, int(0.75 * float(gridWidth)));
+    if (iMouse.z > 0.5) {
+        // The pointer uses top-left origin while the raster uses bottom-left origin.
+        x0 = gridWidth / 2;
+        y0 = gridHeight / 2;
+        vec2 mousePixel = vec2(iMouse.x, iResolution.y - iMouse.y);
+        vec2 mouseGrid = mousePixel / cellSize;
+        x1 = max(0, min(gridWidth - 1, int(floor(mouseGrid.x))));
+        y1 = max(0, min(gridHeight - 1, int(floor(mouseGrid.y))));
+    }
 
     // Draw Bresenham line
     bresenhamLine(x0, y0, x1, y1, color);
@@ -180,28 +190,31 @@ uniform vec2 iResolution;
 
 const int GRID_SIZE = 64;
 
-// Convert from UV (0–1) to aspect-corrected space (-1–1)
-vec2 aspectCorrectUV(vec2 uv) {
-    vec2 p = uv * 2.0 - 1.0;
-    p.x *= iResolution.x / iResolution.y;
-    return p;
+// x/y are framebuffer pixels from the top-left; z is 1 while the pointer is in the viewport.
+uniform vec3 iMouse;
+
+// Convert UV coordinates to framebuffer pixels.
+vec2 viewportPixel(vec2 uv) {
+    return uv * iResolution;
 }
 
-// Convert pixel grid coordinate to aspect-corrected UV space (-1..1)
-vec2 gridToUV(int x, int y) {
-    vec2 p = (vec2(float(x), float(y)) / float(GRID_SIZE)) * 2.0 - 1.0;
-    p.x *= iResolution.x / iResolution.y;
-    return p;
+// The short viewport side contains GRID_SIZE cells. The longer side receives
+// additional cells of the same physical size, so no cell is stretched.
+float gridCellSize() {
+    return min(iResolution.x, iResolution.y) / float(GRID_SIZE);
+}
+
+// Convert a grid coordinate to framebuffer pixels.
+vec2 gridToViewportPixel(int x, int y) {
+    return vec2(float(x), float(y)) * gridCellSize();
 }
 
 // Determine if the fragment lies inside a grid pixel (square)
 bool isInsidePixel(vec2 uv, int x, int y) {
-    // Compute bounds in aspect-corrected space
-    vec2 minP = gridToUV(x, y);
-    vec2 maxP = gridToUV(x + 1, y + 1);
-
-    // Compute fragment position
-    vec2 f = aspectCorrectUV(uv);
+    float cellSize = gridCellSize();
+    vec2 minP = gridToViewportPixel(x, y);
+    vec2 maxP = minP + vec2(cellSize);
+    vec2 f = viewportPixel(uv);
 
     return all(greaterThanEqual(f, minP)) && all(lessThan(f, maxP));
 }
@@ -239,11 +252,24 @@ void bresenhamLine(int x0, int y0, int x1, int y1, inout vec3 color) {
 void main() {
     vec3 color = vec3(0.12); // dark gray background
 
-    // Define line endpoints in grid coordinates
-    int x0 = int(0.05 * float(GRID_SIZE));
-    int y0 = int(0.25 * float(GRID_SIZE));
-    int x1 = int(0.95 * float(GRID_SIZE));
-    int y1 = int(0.85 * float(GRID_SIZE));
+    float cellSize = gridCellSize();
+    int gridWidth = int(ceil(iResolution.x / cellSize));
+    int gridHeight = int(ceil(iResolution.y / cellSize));
+
+    // Default: a first-octant example line spanning the viewport width.
+    int x0 = 0;
+    int y0 = 0;
+    int x1 = gridWidth - 1;
+    int y1 = min(gridHeight - 1, int(0.75 * float(gridWidth)));
+    if (iMouse.z > 0.5) {
+        // The pointer uses top-left origin while the raster uses bottom-left origin.
+        x0 = gridWidth / 2;
+        y0 = gridHeight / 2;
+        vec2 mousePixel = vec2(iMouse.x, iResolution.y - iMouse.y);
+        vec2 mouseGrid = mousePixel / cellSize;
+        x1 = max(0, min(gridWidth - 1, int(floor(mouseGrid.x))));
+        y1 = max(0, min(gridHeight - 1, int(floor(mouseGrid.y))));
+    }
 
     // Draw Bresenham line
     bresenhamLine(x0, y0, x1, y1, color);

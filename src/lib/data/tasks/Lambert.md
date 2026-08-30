@@ -12,32 +12,14 @@ modelPath: models/HeadDavid.glb
 ---
 
 # Task
-Implementiere den diffusen Anteil des lokalen Beleuchtungsmodells für eine Richtungslichtquelle.
-
-- Normalisiere Oberflächennormale `N` und Lichtvektor `L`.
-- Berechne `max(dot(N, L), 0.0)`, damit rückseitige Flächen keinen negativen Lichtbeitrag erhalten.
-- Multipliziere den Faktor kanalweise mit Lichtintensität, Materialkoeffizient `kd` und Grundfarbe.
-
-# Hints
-
-## Hint
-Transformiere die Normalen korrekt mit der `normalMatrix` für eine richtige Beleuchtung.
-
-## Hint
-Berechne den Diffusfaktor mit `dot(normal, lightDir)`.
-
-## Hint
-Klippe den Diffuswert mit `max()`, um negative Beleuchtung zu vermeiden.
-
-## Hint
-Multipliziere die Basisfarbe mit dem Diffusfaktor, um die endgültige Beleuchtung zu erhalten.
+Implementiere im Fragment-Shader eine Lambert-Beleuchtung. Beurteile dein Ergebnis in der Vorschau.
 
 # Theory
-Ein Lambert-Reflektor streut einfallendes Licht ideal diffus. Seine Helligkeit hängt vom Winkel zwischen der normierten Oberflächennormalen `N` und dem normierten Vektor `L` zur Lichtquelle ab:
+Ein Lambert-Reflektor streut einfallendes Licht ideal diffus. Seine Helligkeit hängt vom Winkel zwischen der Oberflächennormalen `N` und dem Vektor `L` zur Lichtquelle ab. Für normierte Vektoren gilt:
 
 `Id = Ip · kd · max(N · L, 0)`
 
-Das Skalarprodukt entspricht dem Kosinus des Winkels. Es ist maximal, wenn die Fläche zur Lichtquelle zeigt, wird bei 90° null und wird für abgewandte Flächen auf null begrenzt. `Ip` ist die RGB-Intensität der Lichtquelle, `kd` der diffuse RGB-Reflexionskoeffizient des Materials. Im Shader wird die Normale vom Vertex- zum Fragment-Shader interpoliert und vor der Rechnung erneut normalisiert.
+Das Skalarprodukt entspricht dem Kosinus des Winkels. Es ist maximal, wenn die Fläche zur Lichtquelle zeigt, wird bei 90° null und wird für abgewandte Flächen auf null begrenzt. `Ip` ist die RGB-Intensität der Lichtquelle, `kd` der diffuse RGB-Reflexionskoeffizient des Materials.
 
 # Starter Vertex Shader
 ```glsl
@@ -64,10 +46,10 @@ void main() {
 ```glsl
 // @prefix
 precision highp float;
+// @prefix
 
 in vec3 vNormal;
 out vec4 fragColor;
-// @prefix
 
 void main() {
   fragColor = vec4(0.18, 0.18, 0.18, 1.0);

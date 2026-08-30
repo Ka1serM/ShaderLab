@@ -9,6 +9,9 @@ import { InfiniteGrid } from './InfiniteGrid';
 import { validateShaderProgram, type ShaderDiagnostic, type ShaderDiagnostics } from './shaderValidation';
 import { readShaderMatrices, type ShaderReadbackRequest } from './shaderReadback';
 
+// Reuse downloaded model payloads between the reference and student viewports.
+THREE.Cache.enabled = true;
+
 // TransformControls normally occupy a fixed fraction of the canvas height.
 // Use the size they have in a typical 600px-high viewport as our fixed visual size.
 const TRANSFORM_CONTROLS_REFERENCE_HEIGHT = 600;
@@ -25,7 +28,12 @@ export type ViewportShaderError = ShaderDiagnostic;
 export type Object = {
   id: string;
   source:
-    | { type: 'primitive'; geometry: 'plane' | 'sphere' | 'box' | 'box-wireframe' }
+    | {
+      type: 'primitive';
+      geometry: 'plane' | 'sphere' | 'box' | 'box-wireframe';
+      /** Optional segment count for a sphere; useful when its facets are part of the lesson. */
+      segments?: [number, number];
+    }
     | { type: 'model'; path: string };
   position?: [number, number, number];
   rotation?: [number, number, number];
@@ -71,6 +79,7 @@ export type RendererOptions = {
   uniformValues?: Record<string, number | number[] | boolean>;
   shaderLineOffsets?: { vertex: number; fragment: number };
   cameraPose: ViewportCameraPose;
+  cameraPoseSaved?: boolean;
   overlays?: ViewportOverlays;
   reportErrors?: boolean;
   onCameraChange?: (pose: ViewportCameraPose) => void;
@@ -78,6 +87,17 @@ export type RendererOptions = {
   onShaderErrors?: (errors: ShaderDiagnostics) => void;
   shaderReadbacks?: ShaderReadbackRequest[];
   onShaderReadbacks?: (values: Record<string, number[]>) => void;
+};
+
+/** All task-owned renderer state is replaced together during navigation. */
+export type RendererTaskState = {
+  inputs?: ShaderInput[];
+  uniformValues?: Record<string, number | number[] | boolean>;
+  overlays?: ViewportOverlays;
+  shaderLineOffsets: { vertex: number; fragment: number };
+  vertexShader: string;
+  fragmentShader: string;
+  scene: Scene;
 };
 
 type Drawable = THREE.Mesh | THREE.InstancedMesh | THREE.LineSegments;
@@ -105,6 +125,8 @@ export class Renderer {
   private readonly onShaderErrors?: RendererOptions['onShaderErrors'];
   private readonly reportErrors: boolean;
   private resizeObserver: ResizeObserver;
+  private visibilityObserver: IntersectionObserver;
+  private visible = true;
   private animationFrame = 0;
   private resizeFrame = 0;
   private renderedWidth = 0;
@@ -112,12 +134,14 @@ export class Renderer {
   private disposed = false;
   private applyingCamera = false;
   private cameraKey = '';
+  private cameraPoseSaved: boolean;
   private transformDragging = false;
   private sceneGeneration = 0;
   private drawables: Drawable[] = [];
   private objectGroups: THREE.Group[] = [];
-  private loadedRoots: THREE.Object3D[] = [];
   private uniformValues: Record<string, number | number[] | boolean>;
+  private taskInputNames = new Set<string>();
+  private uniformValueNames = new Set<string>();
   private shaderLineOffsets: { vertex: number; fragment: number };
   private overlays: ViewportOverlays | undefined;
   private overlaysKey = '';
@@ -138,9 +162,16 @@ export class Renderer {
   private vertexShader: string;
   private shaderReadbacks: ShaderReadbackRequest[];
   private readonly onShaderReadbacks?: RendererOptions['onShaderReadbacks'];
+  private readonly cameraDirection = new THREE.Vector3();
+  private readonly cameraPositionArray = [0, 0, 0];
+  private readonly cameraDirectionArray = [0, 0, -1];
+  // Framebuffer-pixel coordinates, measured from the viewport's top-left.
+  // The third component is 1 only while the pointer is inside the viewport.
+  private readonly mousePositionArray = [0, 0, 0];
 
   constructor(options: RendererOptions) {
     this.container = options.container;
+    this.cameraPoseSaved = options.cameraPoseSaved ?? false;
     this.onCameraChange = options.onCameraChange;
     this.onTransformChange = options.onTransformChange;
     this.onShaderErrors = options.onShaderErrors;
@@ -157,7 +188,9 @@ export class Renderer {
     const verticalFov = 2 * Math.atan(Math.tan(this.horizontalFov * Math.PI / 360) / (width / height)) * 180 / Math.PI;
     this.camera = new THREE.PerspectiveCamera(verticalFov, width / height, 0.01, 10_000);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+    // Unbounded DPR makes two side-by-side teaching viewports prohibitively
+    // expensive on modern mobile/retina displays without a visible benefit.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(width, height, false);
     this.renderer.domElement.style.cssText = 'width: 100%; height: 100%; display: block;';
     // Candidate programs are validated before Three.js sees them. Its debug
@@ -177,16 +210,22 @@ export class Renderer {
       inputs: [
         { type: 'float', name: 'time', init: 0 },
         { type: 'vec2', name: 'iResolution', init: [width * window.devicePixelRatio, height * window.devicePixelRatio] },
+        { type: 'vec3', name: 'iMouse', init: this.mousePositionArray },
         { type: 'float', name: 'cameraFov', init: this.horizontalFov * Math.PI / 180 },
         { type: 'vec3', name: 'cameraPosition', init: [0, 0, 1] },
         { type: 'vec3', name: 'cameraDirection', init: [0, 0, -1] },
         ...(options.inputs ?? [])
       ]
     });
+    this.taskInputNames = new Set((options.inputs ?? []).map(input => input.name));
     // Teaching shaders supply their control uniforms at construction time.
     // Apply them before the first draw; otherwise WebGL uses zero-valued
     // uniforms until a later reactive update or interaction occurs.
     this.setUniformValues(this.uniformValues);
+
+    this.renderer.domElement.addEventListener('pointerenter', this.handleMouseMove);
+    this.renderer.domElement.addEventListener('pointermove', this.handleMouseMove);
+    this.renderer.domElement.addEventListener('pointerleave', this.handleMouseLeave);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
@@ -196,21 +235,26 @@ export class Renderer {
     this.controls.maxPolarAngle = Math.PI;
     this.controls.addEventListener('change', () => this.saveCamera());
     this.applyCameraPose(options.cameraPose);
-    if (options.overlays?.infiniteGrid !== false) {
-      this.infiniteGrid = new InfiniteGrid();
-      this.gridScene.add(this.infiniteGrid);
-    }
     this.setOverlays(options.overlays);
 
     this.resizeObserver = new ResizeObserver(() => this.scheduleResize());
     this.resizeObserver.observe(this.container);
+    this.visibilityObserver = new IntersectionObserver(entries => {
+      this.visible = entries[0]?.isIntersecting ?? true;
+    });
+    this.visibilityObserver.observe(this.container);
     this.resize();
     this.animate();
   }
 
   setUniformValues(values: Record<string, number | number[] | boolean>) {
+    const nextNames = new Set(Object.keys(values));
+    for (const name of this.uniformValueNames) {
+      if (!nextNames.has(name) && !this.taskInputNames.has(name)) this.material.removeInput(name);
+    }
     this.uniformValues = values;
     Object.entries(values).forEach(([name, value]) => this.material.setInput(name, value));
+    this.uniformValueNames = nextNames;
     this.updateShaderReadbacks();
   }
 
@@ -220,10 +264,16 @@ export class Renderer {
   }
 
   setInputs(inputs: ShaderInput[] = []) {
+    const nextNames = new Set(inputs.map(input => input.name));
+    for (const name of this.taskInputNames) {
+      if (!nextNames.has(name)) this.material.removeInput(name);
+    }
     inputs.forEach(input => this.material.addInput(input));
+    this.taskInputNames = nextNames;
   }
 
-  setCameraPose(pose: ViewportCameraPose) {
+  setCameraPose(pose: ViewportCameraPose, saved = this.cameraPoseSaved) {
+    this.cameraPoseSaved = saved;
     this.applyCameraPose(pose);
   }
 
@@ -244,6 +294,20 @@ export class Renderer {
     this.updateShaderReadbacks();
   }
 
+  /**
+   * Replaces every task-owned value before beginning the (possibly async)
+   * scene load. This is the only transition path used for task navigation,
+   * so no overlay, input, or shader can leak from the previous task.
+   */
+  async replaceTaskState(state: RendererTaskState) {
+    this.setInputs(state.inputs);
+    this.setUniformValues(state.uniformValues ?? {});
+    this.setOverlays(state.overlays);
+    this.setShaderLineOffsets(state.shaderLineOffsets);
+    this.updateShaders(state.vertexShader, state.fragmentShader);
+    await this.setScene(state.scene);
+  }
+
   private updateShaderReadbacks() {
     if (!this.shaderRenderable || !this.shaderReadbacks.length) return;
     const values = readShaderMatrices(
@@ -261,6 +325,7 @@ export class Renderer {
   }
 
   setOverlays(overlays: ViewportOverlays | undefined) {
+    this.syncInfiniteGrid(overlays?.infiniteGrid !== false);
     const key = JSON.stringify(overlays ?? {});
     if (key === this.overlaysKey) return;
     this.disposeOverlays();
@@ -283,6 +348,7 @@ export class Renderer {
       this.transformProxy = new THREE.Object3D();
       this.scene.add(this.transformProxy);
       this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
+      this.transformControls.setSpace('local');
       this.transformControls.setMode(overlays.transformControls.mode ?? 'translate');
       this.updateTransformControlsSize();
       this.transformControls.addEventListener('mouseDown', () => {
@@ -307,13 +373,31 @@ export class Renderer {
     }
   }
 
+  private syncInfiniteGrid(enabled: boolean) {
+    if (enabled && !this.infiniteGrid) {
+      this.infiniteGrid = new InfiniteGrid();
+      this.gridScene.add(this.infiniteGrid);
+      return;
+    }
+    if (!enabled && this.infiniteGrid) {
+      this.gridScene.remove(this.infiniteGrid);
+      this.infiniteGrid.geometry.dispose();
+      this.infiniteGrid.material.dispose();
+      this.infiniteGrid = undefined;
+    }
+  }
+
   setTransformMode(mode: 'translate' | 'rotate' | 'scale') {
     this.transformControls?.setMode(mode);
   }
 
+  setTransformSpace(space: 'local' | 'world') {
+    this.transformControls?.setSpace(space);
+  }
+
   setTransformOverlayMatrix(matrix: number[] | undefined) {
-    if (!this.transformProxy || !matrix || matrix.length !== 16) return;
-    const m = new THREE.Matrix4().fromArray(matrix);
+    if (!this.transformProxy) return;
+    const m = matrix && matrix.length === 16 ? new THREE.Matrix4().fromArray(matrix) : new THREE.Matrix4();
     this.transformOverlayMatrix.copy(m);
     const p = new THREE.Vector3();
     const q = new THREE.Quaternion();
@@ -334,6 +418,20 @@ export class Renderer {
 
   private handleSelectionPointerDown = (event: PointerEvent) => {
     this.selectionPointerStart = new THREE.Vector2(event.clientX, event.clientY);
+  };
+
+  private handleMouseMove = (event: PointerEvent) => {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    this.mousePositionArray[0] = Math.min(this.renderer.domElement.width, Math.max(0, (event.clientX - rect.left) * this.renderer.domElement.width / rect.width));
+    this.mousePositionArray[1] = Math.min(this.renderer.domElement.height, Math.max(0, (event.clientY - rect.top) * this.renderer.domElement.height / rect.height));
+    this.mousePositionArray[2] = 1;
+    this.material.setInput('iMouse', this.mousePositionArray);
+  };
+
+  private handleMouseLeave = () => {
+    this.mousePositionArray[2] = 0;
+    this.material.setInput('iMouse', this.mousePositionArray);
   };
 
   private handleSelectionPointerUp = (event: PointerEvent) => {
@@ -437,7 +535,38 @@ export class Renderer {
       this.scene.add(group);
       geometries.forEach((loaded, index) => this.addDrawable(object, group, loaded, `${object.id}-${index}`));
     }
+    if (!this.cameraPoseSaved) this.fitCameraToScene();
     this.renderScene();
+  }
+
+  private fitCameraToScene() {
+    if (!this.drawables.length) return;
+
+    const bounds = new THREE.Box3().makeEmpty();
+    for (const drawable of this.drawables) {
+      if (drawable instanceof THREE.InstancedMesh) drawable.computeBoundingBox();
+      bounds.expandByObject(drawable);
+    }
+    if (bounds.isEmpty()) return;
+
+    const center = bounds.getCenter(new THREE.Vector3());
+    const size = bounds.getSize(new THREE.Vector3());
+    const radius = Math.max(size.length() * 0.5, 0.05);
+    const viewDirection = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
+    if (viewDirection.lengthSq() < Number.EPSILON) viewDirection.set(1, 1, 1);
+    viewDirection.normalize();
+
+    const verticalFov = THREE.MathUtils.degToRad(this.camera.fov);
+    const horizontalFov = 2 * Math.atan(Math.tan(verticalFov * 0.5) * Math.max(this.camera.aspect, Number.EPSILON));
+    const limitingFov = Math.min(verticalFov, horizontalFov);
+    const distance = radius / Math.sin(limitingFov * 0.5) * 1.15;
+
+    this.camera.position.copy(center).addScaledVector(viewDirection, distance);
+    this.camera.lookAt(center);
+    this.controls.target.copy(center);
+    this.controls.update();
+    this.cameraKey = '';
+    this.saveCamera();
   }
 
   private async loadGeometries(object: Object): Promise<Geometry[]> {
@@ -458,7 +587,7 @@ export class Renderer {
       const geometry = object.source.geometry === 'plane'
         ? new THREE.PlaneGeometry(2, 2)
         : object.source.geometry === 'sphere'
-          ? new THREE.SphereGeometry(1, 48, 32)
+          ? new THREE.SphereGeometry(1, object.source.segments?.[0] ?? 48, object.source.segments?.[1] ?? 32)
           : new THREE.BoxGeometry(1, 1, 1);
       return [{ geometry, position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: new THREE.Vector3(1, 1, 1) }];
     }
@@ -466,7 +595,6 @@ export class Renderer {
     try {
       const gltf = await this.loader.loadAsync(this.resolvePath(object.source.path));
       gltf.scene.updateMatrixWorld(true);
-      this.loadedRoots.push(gltf.scene);
       const geometries: Geometry[] = [];
       gltf.scene.traverse(child => {
         if ((child as THREE.Mesh).isMesh) {
@@ -482,6 +610,15 @@ export class Renderer {
             geometries[geometries.length - 1].scale
           );
         }
+      });
+      // Drawables use cloned geometry, so the loader-owned graph can be released
+      // immediately instead of surviving until the next scene transition.
+      gltf.scene.traverse(child => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.geometry.dispose();
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.forEach(material => material.dispose());
       });
       if (geometries.length) return geometries;
       return [{ geometry: new THREE.BoxGeometry(1, 1, 1), position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: new THREE.Vector3(1, 1, 1) }];
@@ -535,14 +672,6 @@ export class Renderer {
     this.drawables = [];
     this.objectGroups.forEach(group => this.scene.remove(group));
     this.objectGroups = [];
-    this.loadedRoots.forEach(root => root.traverse(child => {
-      const mesh = child as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      mesh.geometry.dispose();
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      materials.forEach(material => material.dispose());
-    }));
-    this.loadedRoots = [];
   }
 
   private resolvePath(path: string) {
@@ -566,6 +695,7 @@ export class Renderer {
 
   private saveCamera() {
     if (this.applyingCamera) return;
+    this.cameraPoseSaved = true;
     const pose: ViewportCameraPose = {
       position: this.camera.position.toArray() as ViewportCameraPose['position'],
       quaternion: this.camera.quaternion.toArray() as ViewportCameraPose['quaternion'],
@@ -682,6 +812,7 @@ export class Renderer {
     if (this.disposed) return;
     this.animationFrame = requestAnimationFrame(this.animate);
     const delta = this.clock.getDelta();
+    if (!this.visible || document.hidden) return;
     this.controls.enabled = !this.transformDragging && !this.viewHelper?.animating;
     this.controls.update();
     if (this.viewHelper?.animating) {
@@ -689,10 +820,11 @@ export class Renderer {
       if (!this.viewHelper.animating) this.saveCamera();
     }
     this.material.setInput('time', this.clock.elapsedTime);
-    this.material.setInput('cameraPosition', this.camera.position.toArray());
-    this.material.setInput('cameraDirection', this.camera.getWorldDirection(new THREE.Vector3()).toArray());
+    this.camera.position.toArray(this.cameraPositionArray);
+    this.camera.getWorldDirection(this.cameraDirection).toArray(this.cameraDirectionArray);
+    this.material.setInput('cameraPosition', this.cameraPositionArray);
+    this.material.setInput('cameraDirection', this.cameraDirectionArray);
     this.material.setInput('cameraFov', this.horizontalFov * Math.PI / 180);
-    Object.entries(this.uniformValues).forEach(([name, value]) => this.material.setInput(name, value));
     this.renderScene();
     if (this.viewHelper) {
       // ViewHelper performs its own renderer.render() call. Prevent that
@@ -724,18 +856,17 @@ export class Renderer {
     cancelAnimationFrame(this.resizeFrame);
     this.sceneGeneration++;
     this.resizeObserver.disconnect();
+    this.visibilityObserver.disconnect();
+    this.renderer.domElement.removeEventListener('pointerenter', this.handleMouseMove);
+    this.renderer.domElement.removeEventListener('pointermove', this.handleMouseMove);
+    this.renderer.domElement.removeEventListener('pointerleave', this.handleMouseLeave);
     this.controls.dispose();
     this.disposeOverlays();
     this.vectorHelpers.forEach(helper => this.disposeVectorHelper(helper));
     this.vectorHelpers.clear();
     this.pointHelpers.forEach(helper => this.disposePointHelper(helper));
     this.pointHelpers.clear();
-    if (this.infiniteGrid) {
-      this.gridScene.remove(this.infiniteGrid);
-      this.infiniteGrid.geometry.dispose();
-      this.infiniteGrid.material.dispose();
-      this.infiniteGrid = undefined;
-    }
+    this.syncInfiniteGrid(false);
     this.clearObjects();
     this.material.dispose();
     this.renderer.dispose();

@@ -51,7 +51,8 @@
         uTime: { value: 0 },
         uPointer: { value: new THREE.Vector2() },
         uAspect: { value: 1 },
-        uPointerActive: { value: 0 }
+        uPointerActive: { value: 0 },
+        uLightMode: { value: document.documentElement.classList.contains('dark') ? 0 : 1 }
       },
       vertexShader: `
         uniform float uTime;
@@ -137,6 +138,7 @@
       fragmentShader: `
         varying float vVisibility;
         varying vec3 vViewNormal;
+        uniform float uLightMode;
 
         void main() {
           vec2 centered = gl_PointCoord * 2.0 - 1.0;
@@ -145,15 +147,21 @@
 
           float alpha = 1.0 - smoothstep(0.72, 0.9, distanceToCenter);
           vec3 normalColor = normalize(vViewNormal) * 0.5 + 0.5;
-          vec3 red = vec3(0.52, 0.035, 0.055);
-          vec3 neutral = vec3(0.12, 0.13, 0.16);
+          vec3 red = mix(vec3(0.52, 0.035, 0.055), vec3(0.78, 0.09, 0.12), uLightMode);
+          vec3 neutral = mix(vec3(0.12, 0.13, 0.16), vec3(0.48, 0.50, 0.55), uLightMode);
           vec3 color = mix(neutral, red, 0.15 + vVisibility * 0.55);
           color += normalColor * 0.018;
 
-          gl_FragColor = vec4(color, alpha * (0.35 + vVisibility * 0.65));
+          float lightModeAlpha = mix(1.0, 0.72, uLightMode);
+          gl_FragColor = vec4(color, alpha * (0.35 + vVisibility * 0.65) * lightModeAlpha);
         }
       `
     });
+
+    const themeObserver = new MutationObserver(() => {
+      material.uniforms.uLightMode.value = document.documentElement.classList.contains('dark') ? 0 : 1;
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
     const particles = new THREE.Points(geometry, material);
     scene.add(particles);
@@ -264,6 +272,7 @@
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
+      themeObserver.disconnect();
       container.removeEventListener('pointermove', handlePointerMove);
       container.removeEventListener('pointerleave', handlePointerLeave);
       geometry.dispose();
@@ -293,7 +302,7 @@
     position: absolute;
     inset: 0;
     overflow: hidden;
-    background: radial-gradient(circle at 50% 45%, rgba(191, 39, 50, .12), transparent 42%);
+    background: transparent;
   }
 
   .home-viewport :global(canvas) {

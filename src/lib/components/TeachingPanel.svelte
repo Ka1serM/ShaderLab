@@ -17,20 +17,16 @@
   }
 </script>
 
-<div class="workspace-panel">
-<div use:maximizable={{ active: $maximizedPanel === panelId }} class="app-panel h-full flex flex-col overflow-hidden" data-tutorial="instructions">
-  <div class="app-panel-header flex items-center justify-between shrink-0">
+<div use:maximizable={{ active: $maximizedPanel === panelId }} class="workspace-panel">
+<div class="app-panel h-full flex flex-col overflow-hidden" data-tutorial="instructions">
+  <div class="teaching-panel-header app-panel-header flex items-center justify-between shrink-0">
     <h1 class="app-panel-title text-2xl font-bold text-foreground">{definition.title}</h1>
     <div class="flex items-center gap-1">
       <MaximizeButton isMaximized={$maximizedPanel === panelId} onClick={toggleMaximize} />
       <ResetButton description="Alle Parameter auf ihre Ausgangswerte zurücksetzen?" onReset={teachingStore.resetValues} />
     </div>
   </div>
-  <div class="flex-1 min-h-0 overflow-y-auto p-4">
-    <div class="mb-6 space-y-3 text-sm leading-6 text-foreground">
-      <div class="prose prose-sm prose-neutral max-w-none dark:prose-invert">{@html definition.overview}</div>
-      <div class="prose prose-sm prose-neutral max-w-none text-muted-foreground dark:prose-invert">{@html definition.explanation}</div>
-    </div>
+  <div class="flex-1 min-h-0 overflow-y-auto p-0">
     <TeachingControls {definition} {controls} {values} />
   </div>
 </div>

@@ -1,12 +1,10 @@
 <script lang="ts">
-import * as Card from "$lib/components/ui/card/index.js";
 import { Input } from "$lib/components/ui/input/index.js";
-import BookOpen from "phosphor-svelte/lib/BookOpenIcon";
 import Search from "phosphor-svelte/lib/MagnifyingGlassIcon";
-import { goto } from "$app/navigation";
 import { resolve } from "$app/paths"; // <-- use resolve
 import tasks from "$lib/data/tasks.json";
 import { slugify } from '$lib/utils/slugify';
+import LibraryCard from '$lib/components/LibraryCard.svelte';
 
 let query = $state("");
 
@@ -19,10 +17,6 @@ const filteredTasks = $derived(
       task.theory.toLowerCase().includes(query.toLowerCase())
   )
 );
-
-function navigateToTask(title: string) {
-  goto(resolve(`/task/${slugify(title)}`));
-}
 
 function getPreview(html: string, maxLength: number = 90): string {
   const text = html.replace(/<[^>]+>/g, "");
@@ -52,28 +46,13 @@ function getPreview(html: string, maxLength: number = 90): string {
     <div class="library-grid">
       {#if filteredTasks.length > 0}
         {#each filteredTasks as task, index (task.title)}
-          <Card.Root
-            class="library-card cursor-pointer pointer-events-auto"
-            onclick={() => navigateToTask(task.title)}
-            role="button"
-            tabindex={0}
-            onkeydown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                navigateToTask(task.title);
-              }
-            }}
-          >
-            <Card.Header>
-              <div class="mb-2 flex items-center gap-2 text-primary"><BookOpen class="h-4 w-4" /><span class="text-xs uppercase tracking-wide">{task.category}</span></div>
-              <Card.Title class="library-card-title font-semibold">
-                {task.title}
-              </Card.Title>
-            </Card.Header>
-            <Card.Content class="text-sm text-muted-foreground line-clamp-3">
-              {getPreview(task.task)}
-            </Card.Content>
-          </Card.Root>
+          <LibraryCard
+            href={resolve(`/task/${slugify(task.title)}`)}
+            category={task.category}
+            title={task.title}
+            description={getPreview(task.task)}
+            kind="task"
+          />
         {/each}
       {:else}
         <p class="text-center text-muted-foreground col-span-full">

@@ -3,8 +3,7 @@
   import { get } from 'svelte/store';
   import tasks from '$lib/data/tasks.json';
   import { teachingStore } from '$lib/stores/teachingStore';
-  import { assembleStudentShader, taskStore, type GLSLError, type Task } from '$lib/stores/taskStore';
-  import { slugify } from '$lib/utils/slugify';
+  import { assembleStudentShader, taskCameraPose, type CameraPose, type GLSLError, type Task } from '$lib/stores/taskStore';
   import { controlValues, parseShaderControls, type TeachingControl, type TeachingValue } from '$lib/utils/shaderControls';
   import TeachingPanel from '$lib/components/TeachingPanel.svelte';
   import MonacoEditor from '$lib/components/MonacoEditor.svelte';
@@ -14,12 +13,11 @@
   import * as THREE from 'three';
   import type { ViewportTransform, ViewportVector } from '$lib/renderer/Renderer';
   import type { PageData } from './$types';
-  import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+  import { isMobile } from '$lib/hooks/is-mobile.svelte';
   import AppTutorial from '$lib/components/AppTutorial.svelte';
   import { loadSplitterSizes, saveSplitterSizes, type SplitterSizes } from '$lib/utils/splitPaneStorage';
 
-  const mobileQuery = new IsMobile();
-  const defaultSplitterSizes: SplitterSizes = { outer: 35, inner: 60, viewports: 50 };
+  const defaultSplitterSizes: SplitterSizes = { outer: 35, inner: 34, viewports: 50 };
   type TeachingShaderSource = 'vertex' | 'fragment';
 
   export let data: PageData;
@@ -35,6 +33,8 @@
   let shaderDiagnostics: { vertex: GLSLError[]; fragment: GLSLError[] } = { vertex: [], fragment: [] };
   let splitterSizes: SplitterSizes = { ...defaultSplitterSizes };
   let loadedSplitterKey = '';
+  let teachingCameraPose: CameraPose = { position: [0, 0, 1], quaternion: [0, 0, 0, 1], target: [0, 0, 0], fov: 30 };
+  let teachingCameraPoseSaved = false;
 
   function splitterStorageKey() {
     return `shaderlab:splitters:teaching:${data.title}`;
@@ -63,24 +63,28 @@
   }
   $: definition = $teachingStore.definition;
   $: task = definition?.task ? (tasks as Task[]).find(item => item.title === definition.task) ?? null : null;
-  $: teachingSource = definition?.vertexShader ? 'vertex' : 'fragment';
-  $: editorSources = teachingSource === 'vertex' ? { vertex: $teachingStore.code } : { fragment: $teachingStore.code };
-  $: defaultEditorSources = teachingSource === 'vertex' ? { vertex: definition?.vertexShader ?? '' } : { fragment: definition?.fragmentShader ?? '' };
+  $: visibleSources = (['vertex', 'fragment'] as const).filter(source => Boolean(definition?.[`${source}Shader`]));
+  $: if (!visibleSources.includes(teachingSource)) teachingSource = visibleSources[0] ?? 'fragment';
+  $: editorSources = {
+    vertex: $teachingStore.codes.vertex ?? definition?.vertexShader ?? '',
+    fragment: $teachingStore.codes.fragment ?? definition?.fragmentShader ?? ''
+  };
+  $: defaultEditorSources = { vertex: definition?.vertexShader ?? '', fragment: definition?.fragmentShader ?? '' };
   $: scene = definition?.scene;
-  // The editor only shows the student portion; the hidden @prefix/@suffix are re-attached for the renderer.
-  $: shaderTemplate = teachingSource === 'vertex' ? definition?.vertexShaderTemplate : definition?.fragmentShaderTemplate;
-  $: compiledCode = assembleStudentShader($teachingStore.code, shaderTemplate);
+  // The editors only show the student portions; hidden @prefix/@suffix blocks are re-attached for rendering.
+  $: compiledVertexCode = assembleStudentShader(editorSources.vertex ?? '', definition?.vertexShaderTemplate);
+  $: compiledFragmentCode = assembleStudentShader(editorSources.fragment ?? '', definition?.fragmentShaderTemplate);
   $: errorLineOffsets = {
-    vertex: teachingSource === 'vertex' && shaderTemplate?.prefix ? shaderTemplate.prefix.split('\n').length : 0,
-    fragment: teachingSource === 'fragment' && shaderTemplate?.prefix ? shaderTemplate.prefix.split('\n').length : 0
+    vertex: definition?.vertexShaderTemplate?.prefix ? definition.vertexShaderTemplate.prefix.split('\n').length : 0,
+    fragment: definition?.fragmentShaderTemplate?.prefix ? definition.fragmentShaderTemplate.prefix.split('\n').length : 0
   };
   // The matching task is already available from the static task catalogue. Do not
   // source the other shader stage from taskStore here: the store is populated in
   // onMount and can briefly still be empty while the viewport is being created.
-  $: viewportVertexShader = teachingSource === 'vertex' ? compiledCode : task?.referenceVertexShader ?? '';
-  $: viewportFragmentShader = teachingSource === 'fragment' ? compiledCode : definition?.fragmentShader ?? task?.referenceFragmentShader ?? '';
+  $: viewportVertexShader = definition?.vertexShader ? compiledVertexCode : task?.referenceVertexShader ?? '';
+  $: viewportFragmentShader = definition?.fragmentShader ? compiledFragmentCode : task?.referenceFragmentShader ?? '';
   // Controls come from the live editor source, so a new annotated uniform shows up as you type it.
-  $: controls = parseShaderControls(compiledCode);
+  $: controls = parseShaderControls(`${compiledVertexCode}\n${compiledFragmentCode}`);
   $: values = controlValues(controls, $teachingStore.values);
   $: shaderReadbacks = controls
     .filter(control => control.type === 'matrix4' && control.readback)
@@ -100,7 +104,8 @@
     }));
   $: if (mounted && task && task.title !== loadedTaskTitle) {
     loadedTaskTitle = task.title;
-    taskStore.loadTask(slugify(task.title));
+    teachingCameraPose = taskCameraPose(task);
+    teachingCameraPoseSaved = false;
   }
   function colorToVec3(value: string | number[]): number[] {
     if (Array.isArray(value)) return value;
@@ -124,11 +129,11 @@
     return typeof value === 'string' ? undefined : value;
   }
 
-  function updateTeachingCode(value: string) {
+  function updateTeachingCode(source: TeachingShaderSource, value: string) {
     shaderDiagnostics = { vertex: [], fragment: [] };
     readbackValues = {};
     readbackValuesKey = '';
-    teachingStore.setCode(value);
+    teachingStore.setCode(source, value);
   }
 
   function applyShaderReadbacks(values: Record<string, number[]>) {
@@ -154,16 +159,17 @@
   });
 
   onDestroy(() => {
-    window.removeEventListener('keydown', handleKeydown);
+    if (typeof window !== 'undefined') window.removeEventListener('keydown', handleKeydown);
   });
 </script>
 
 <svelte:head><title>{$teachingStore.definition?.title ?? 'Lehr-Demo'} · ShaderLab</title></svelte:head>
 
+{#key data.title}
 {#if definition}
   {#if definition.type === 'shader-controls'}
     <div class="h-full w-full relative">
-      {#if !mobileQuery.current}
+      {#if !$isMobile}
         <!-- Desktop layout -->
         <div class="workspace-layout h-full w-full">
           <Splitpanes class="splitpanes-root" theme="my-theme" on:resized={(event) => handleSplitterResize('outer', event)}>
@@ -173,7 +179,7 @@
             <Pane size={100 - splitterSizes.outer}>
               <Splitpanes horizontal class="splitpanes-nested" theme="my-theme" on:resized={(event) => handleSplitterResize('inner', event)}>
                 <Pane size={splitterSizes.inner}>
-                  <MonacoEditor editorId={`${definition.id}-desktop`} sources={editorSources} defaultSources={defaultEditorSources} visibleSources={[teachingSource]} activeSource={teachingSource} diagnostics={shaderDiagnostics} onSourceChange={(_, value) => updateTeachingCode(value)} />
+                  <MonacoEditor editorId={`${definition.id}-desktop`} workspaceKey={definition.id} sources={editorSources} defaultSources={defaultEditorSources} {visibleSources} activeSource={teachingSource} diagnostics={shaderDiagnostics} onActiveSourceChange={(source) => teachingSource = source} onSourceChange={(source, value) => updateTeachingCode(source, value)} />
                 </Pane>
                 <Pane size={100 - splitterSizes.inner}>
                   {#if task}
@@ -182,7 +188,9 @@
                       {scene}
                       vertexShader={viewportVertexShader}
                       fragmentShader={viewportFragmentShader}
-                      cameraPose={$taskStore.cameraPose}
+                      cameraPose={teachingCameraPose}
+                      cameraPoseSaved={teachingCameraPoseSaved}
+                      onCameraChange={(pose) => { teachingCameraPose = pose; teachingCameraPoseSaved = true; }}
                       {uniformValues}
                       {shaderReadbacks}
                       onShaderReadbacks={applyShaderReadbacks}
@@ -209,7 +217,7 @@
             <TeachingPanel {definition} {controls} values={displayedValues} />
           </div>
           <div class="min-h-[400px]">
-            <MonacoEditor editorId={`${definition.id}-mobile`} sources={editorSources} defaultSources={defaultEditorSources} visibleSources={[teachingSource]} activeSource={teachingSource} diagnostics={shaderDiagnostics} onSourceChange={(_, value) => updateTeachingCode(value)} />
+            <MonacoEditor editorId={`${definition.id}-mobile`} workspaceKey={definition.id} sources={editorSources} defaultSources={defaultEditorSources} {visibleSources} activeSource={teachingSource} diagnostics={shaderDiagnostics} onActiveSourceChange={(source) => teachingSource = source} onSourceChange={(source, value) => updateTeachingCode(source, value)} />
           </div>
           {#if task}
             <div class="min-h-[400px]">
@@ -218,7 +226,9 @@
                 {scene}
                 vertexShader={viewportVertexShader}
                 fragmentShader={viewportFragmentShader}
-                cameraPose={$taskStore.cameraPose}
+                cameraPose={teachingCameraPose}
+                cameraPoseSaved={teachingCameraPoseSaved}
+                onCameraChange={(pose) => { teachingCameraPose = pose; teachingCameraPoseSaved = true; }}
                 {uniformValues}
                 {shaderReadbacks}
                 onShaderReadbacks={applyShaderReadbacks}
@@ -245,3 +255,4 @@
 {:else}
   <div class="flex h-full items-center justify-center text-muted-foreground">Lehr-Demo nicht gefunden.</div>
 {/if}
+{/key}

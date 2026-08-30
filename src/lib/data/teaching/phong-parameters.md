@@ -1,7 +1,7 @@
 ---
 id: phong
-title: Phong
-category: Lighting
+title: Illumination
+category: Illumination
 task: Phong
 type: shader-controls
 scene:

@@ -26,10 +26,10 @@
   }
 </script>
 
-<div class="workspace-panel">
-<div use:maximizable={{ active: $maximizedPanel === panelId }} class="app-panel h-full flex flex-col overflow-hidden" data-tutorial="instructions">
+<div use:maximizable={{ active: $maximizedPanel === panelId }} class="workspace-panel">
+<div class="app-panel h-full flex flex-col overflow-hidden" data-tutorial="instructions">
   <!-- Header -->
-  <div class="app-panel-header flex items-center justify-between shrink-0">
+  <div class="task-panel-header app-panel-header flex items-center justify-between shrink-0">
     {#if $taskStore?.task}
       <h1 class="app-panel-title text-2xl font-bold text-foreground">
         {$taskStore.task.title}
@@ -68,7 +68,7 @@
       <!-- Task Tab -->
       <Tabs.Content
         value="task"
-        class="flex-1 h-0 overflow-y-auto overflow-x-hidden p-4 mt-0 space-y-4 data-[state=inactive]:hidden"
+        class="flex-1 h-0 overflow-y-auto overflow-x-hidden p-0 mt-0 space-y-4 data-[state=inactive]:hidden"
       >
         <div class="prose prose-neutral dark:prose-invert max-w-none text-foreground">
           {@html $taskStore.task.task}
@@ -109,7 +109,7 @@
       <!-- Theory Tab -->
       <Tabs.Content
         value="theory"
-        class="flex-1 h-0 overflow-y-auto overflow-x-hidden p-4 mt-0 space-y-4 data-[state=inactive]:hidden"
+        class="flex-1 h-0 overflow-y-auto overflow-x-hidden p-0 mt-0 space-y-4 data-[state=inactive]:hidden"
       >
         <div class="prose prose-neutral dark:prose-invert max-w-none text-foreground">
           {@html $taskStore.task.theory}

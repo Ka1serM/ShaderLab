@@ -3,12 +3,16 @@ import path from 'path';
 import matter from 'gray-matter';
 import { marked } from 'marked';
 import { splitStudentShader } from './shaderTemplate.js';
+import sanitizeHtml from 'sanitize-html';
 
 const teachingFolder = path.join(process.cwd(), 'src/lib/data/teaching');
 const outputFile = path.join(process.cwd(), 'src/lib/data/teaching.json');
 
 function markdownToHtml(value) {
-  return value?.trim() ? marked.parse(value.trim()) : '';
+  return value?.trim() ? sanitizeHtml(marked.parse(value.trim()), {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img']),
+    allowedAttributes: { ...sanitizeHtml.defaults.allowedAttributes, '*': ['class'] }
+  }) : '';
 }
 
 function stripCodeFences(code) {
@@ -36,7 +40,7 @@ function parseSections(content) {
   return sections;
 }
 
-const files = fs.readdirSync(teachingFolder).filter(file => file.endsWith('.md'));
+const files = fs.readdirSync(teachingFolder).filter(file => file.endsWith('.md')).sort((a, b) => a.localeCompare(b));
 const definitions = files.map(file => {
   const raw = fs.readFileSync(path.join(teachingFolder, file), 'utf8');
   const { data, content } = matter(raw);
@@ -53,8 +57,15 @@ const definitions = files.map(file => {
     result[stage] = split.source;
     if (split.template) result[`${stage}Template`] = split.template;
   }
+  for (const field of ['id', 'title', 'type']) {
+    if (typeof result[field] !== 'string' || !result[field].trim()) throw new Error(`${file}: missing required string field "${field}"`);
+  }
+  if (!result.vertexShader && !result.fragmentShader) throw new Error(`${file}: one shader stage is required`);
   return result;
 });
+
+const duplicateId = definitions.find((definition, index) => definitions.findIndex(candidate => candidate.id === definition.id) !== index)?.id;
+if (duplicateId) throw new Error(`Duplicate teaching id: ${duplicateId}`);
 
 fs.writeFileSync(outputFile, JSON.stringify(definitions, null, 2) + '\n');
 console.log(`Generated ${definitions.length} teaching definitions at ${outputFile}`);

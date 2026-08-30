@@ -19,26 +19,20 @@ scene:
 ---
 
 # Task
-Erstelle ein animiertes System aus **Sonne**, **Merkur**, **Venus**, **Erde**, **Mond** und **Mars**. Alle sechs Kugeln werden als Instanzen desselben Meshes gerendert.
+Erstelle einen Szenengraphen samt Transformationen für ein animiertes Planetensystem. Die Vorschau enthält Sonne, Merkur, Venus, Erde, Mond und Mars.
 
-Implementiere für jedes Objekt eine Funktion. `main` berechnet die Transformationen einmal pro Vertex. Die gemeinsamen Matrizen bilden dabei die wiederverwendbare Hierarchie.
+1. **Szenengraph planen:** Skizziere die Konstellation des Planetensystems mit den zugehörigen Transformationen. Berücksichtige dabei auch den Root-Knoten.
+2. **Erde auf Umlaufbahn:** Erstelle in `animateEarth(...)` die Transformationen, damit die Erde sich in der richtigen Größe um die eigene Achse dreht und auf ihrer Umlaufbahn um die Sonne bewegt. Die Sonne muss die Erde sichtbar beleuchten.
+3. **Hierarchische Transformation:** Bilde die geplante Hierarchie über die Punkt- und Normalenmatrizen ab. Jeder Transformationsschritt soll als eigene Hilfsfunktion formuliert werden; verwende diese Funktionen in den Animationsfunktionen.
+4. **Mond auf Umlaufbahn:** Ergänze `animateMoon(...)`, sodass der Mond korrekt um die Erde kreist. Die Transformationen von Kindknoten dürfen sich nicht gegenseitig beeinflussen.
+5. **Verbleibende Planeten und Monde:** Ergänze Merkur, Venus und Mars mit den passenden Größen, Eigenrotationen und Umlaufbahnen.
+
+Berechne zu jeder Punktmatrix die passende Normalenmatrix, damit die Beleuchtung auch nach Skalierungen korrekt bleibt. Zusätzliche Erweiterungen sind Bahnneigungen, Achsneigungen und Jahreszeiten.
 
 # Hints
 
 ## Hint
 Die `pointMatrix` beschreibt die vollständige Transformation eines Objekts. Die rechte Matrix wird zuerst angewendet.
-
-## Hint
-Schreibe dir eigene Hilfsfunktionen wie `mat4 translationMatrix(vec3)`, `mat4 scalingMatrix(vec3)` und `mat4 rotationYMatrix(float)`. Als Vorlage für die Schreibweise dient die ausgeschriebene Matrix in `animateSun`.
-
-## Hint
-Jeder Planet braucht eine Drehung um die Sonne und anschließend eine Translation entlang seiner Umlaufbahn: `rotationYMatrix(...) * translationMatrix(...)`.
-
-## Hint
-Der Mond ist von der Erde abhängig: `animateMoon` verwendet die bereits berechnete `earthPointMatrix` und multipliziert sie mit seiner lokalen Transformation.
-
-## Hint
-Für korrekt beleuchtete, skalierte Objekte gilt: `normalMatrix = mat3(transpose(inverse(pointMatrix)))`.
 
 # Theory
 Wie im Transformationspraktikum wird pro Objekt eine **Punktmatrix** und daraus eine **Normalenmatrix** bestimmt. Die Punktmatrix transformiert Positionen. Die Normalenmatrix stellt sicher, dass Oberflächennormalen auch bei Skalierung korrekt für die Beleuchtung verwendet werden.
@@ -66,7 +60,7 @@ void animateVenus(float time);
 void animateEarth(float time);
 void animateMoon(float time);
 void animateMars(float time);
-void renderCurrentInstance();
+void render();
 // @prefix
 
 mat4 sunPointMatrix;
@@ -89,7 +83,7 @@ void main() {
     animateEarth(time);
     animateMoon(time);
     animateMars(time);
-    renderCurrentInstance();
+    render();
 }
 
 void animateSun(float time) {
@@ -137,7 +131,7 @@ void animateMars(float time) {
 }
 
 // @suffix
-void renderCurrentInstance() {
+void render() {
     mat4 pointMatrix;
     mat3 normalMatrix;
 
@@ -209,7 +203,7 @@ void animateVenus(float time);
 void animateEarth(float time);
 void animateMoon(float time);
 void animateMars(float time);
-void renderCurrentInstance();
+void render();
 
 mat4 sunPointMatrix;
 mat4 mercuryPointMatrix;
@@ -231,7 +225,7 @@ void main() {
     animateEarth(time);
     animateMoon(time);
     animateMars(time);
-    renderCurrentInstance();
+    render();
 }
 
 mat4 translationMatrix(vec3 translationVector) {
@@ -301,7 +295,7 @@ void animateMars(float time) {
     marsNormalMatrix = mat3(transpose(inverse(marsPointMatrix)));
 }
 
-void renderCurrentInstance() {
+void render() {
     mat4 pointMatrix;
     mat3 normalMatrix;
     if (gl_InstanceID == 0) {

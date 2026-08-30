@@ -77,9 +77,17 @@ export function parseShaderControls(source: string): TeachingControl[] {
 		const annotation = controlAnnotation ?? readbackAnnotation;
 		if (!annotation) continue;
 		const isReadback = Boolean(readbackAnnotation);
-		const followingLines = lines.slice(index + 1);
-		const uniform = isReadback ? undefined : followingLines.find(line => UNIFORM.test(line));
-		const readback = isReadback ? followingLines.join('\n').match(MATRIX_DECLARATION)?.[1] : undefined;
+		let declaration: string | undefined;
+		for (let following = index + 1; following < lines.length; following += 1) {
+			if (ANNOTATION.test(lines[following]) || READBACK_ANNOTATION.test(lines[following])) break;
+			const matcher = isReadback ? MATRIX_DECLARATION : UNIFORM;
+			if (matcher.test(lines[following])) {
+				declaration = lines[following];
+				break;
+			}
+		}
+		const uniform = isReadback ? undefined : declaration;
+		const readback = isReadback ? declaration?.match(MATRIX_DECLARATION)?.[1] : undefined;
 		const attributes: Record<string, string> = {};
 		for (const match of annotation[3].matchAll(ATTRIBUTE)) {
 			attributes[match[1] ?? match[4]] = match[3] ?? match[5];
@@ -89,13 +97,18 @@ export function parseShaderControls(source: string): TeachingControl[] {
 		if (!type) continue;
 		// A duplicated id would fight over one value, and would crash a keyed {#each}.
 		if (controls.some(control => control.id === annotation[1])) continue;
+		const finiteAttribute = (name: string) => {
+			if (attributes[name] === undefined) return undefined;
+			const value = Number(attributes[name]);
+			return Number.isFinite(value) ? value : undefined;
+		};
 		controls.push({
 			id: annotation[1],
 			type,
 			label: attributes.label ?? annotation[1],
-			min: attributes.min === undefined ? undefined : Number(attributes.min),
-			max: attributes.max === undefined ? undefined : Number(attributes.max),
-			step: attributes.step === undefined ? undefined : Number(attributes.step),
+				min: finiteAttribute('min'),
+				max: finiteAttribute('max'),
+				step: finiteAttribute('step'),
 			readOnly: isReadback || attributes.readonly === 'true',
 			visualization: parseVisualization(type, attributes.visualize),
 			visualizationOrigin: type === 'vector3' ? parseVector3(attributes.origin) : undefined,

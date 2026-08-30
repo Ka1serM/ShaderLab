@@ -41,10 +41,6 @@
   color: #bf2732;
 }
 
-.shaderlab-gizmo {
-  filter: brightness(0) saturate(100%) invert(22%) sepia(42%) saturate(2890%) hue-rotate(327deg) brightness(88%) contrast(91%);
-}
-
 @font-face {
   font-family: 'Inter';
   src: url('/fonts/inter/Inter-Medium.woff2') format('woff2');
@@ -200,12 +196,70 @@
 
 html,
 body {
+  width: 100%;
+  height: 100vh;
   min-height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
   font-family: 'Inter', Arial, Helvetica, sans-serif;
   background: var(--background);
+}
+
+.app-shell {
+  height: 100vh;
+}
+
+.app-main {
+  margin-top: calc(3.5rem + env(safe-area-inset-top));
+}
+
+.offline-cache-status {
+  position: fixed;
+  z-index: 60;
+  bottom: 1rem;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  max-width: calc(100vw - 2rem);
+  transform: translateX(-50%);
+  border: 1px solid var(--app-line);
+  border-radius: 999px;
+  background: var(--background);
+  box-shadow: 0 .5rem 1.25rem rgb(0 0 0 / 16%);
+  padding: .6rem .85rem;
+  color: var(--foreground);
+  font-size: .8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.offline-cache-spinner {
+  width: .85rem;
+  height: .85rem;
+  flex: none;
+  border: 2px solid color-mix(in srgb, var(--app-red) 25%, transparent);
+  border-top-color: var(--app-red);
+  border-radius: 50%;
+  animation: offline-cache-spin .8s linear infinite;
+}
+
+@keyframes offline-cache-spin {
+  to { transform: rotate(1turn); }
+}
+
+@media (max-width: 36rem) {
+  .app-main {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+
+  .offline-cache-status {
+    bottom: calc(4.75rem + env(safe-area-inset-bottom));
+  }
 }
 
 /* Shared split-pane layout and resize handles. */
@@ -217,16 +271,32 @@ body {
 }
 
 /* One spacing rule for every workspace edge and panel gutter. */
+:root {
+  --workspace-gap: .5rem;
+}
+
 .workspace-layout {
   box-sizing: border-box;
-  padding: .5rem;
+  padding: var(--workspace-gap);
 }
 
 .workspace-panel {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  padding: .5rem;
+  padding: var(--workspace-gap);
+}
+
+@media (max-width: 36rem) {
+  /* The mobile workspace already provides the outer gutter. */
+  .workspace-panel {
+    padding: 0;
+  }
+
+  /* A maximized panel owns the full workspace and therefore needs its gutter. */
+  .workspace-panel[data-maximized='true'] {
+    padding: var(--workspace-gap);
+  }
 }
 
 .pane-content,
@@ -410,6 +480,16 @@ body {
   transform: translateY(-3px);
 }
 
+@media (max-width: 36rem) {
+  .library-toolbar {
+    padding: 1.5rem var(--workspace-gap) 1rem;
+  }
+
+  .library-content {
+    padding: var(--workspace-gap);
+  }
+}
+
 .library-card-title {
   font-family: 'HSDSans', Arial, Helvetica, sans-serif;
   font-size: 1.25rem;
@@ -425,6 +505,15 @@ body {
 
 .app-panel-header {
   padding: 1rem;
+}
+
+.task-panel-header,
+.teaching-panel-header {
+  padding: 0;
+}
+
+.viewport-panel-header {
+  padding-inline: 0;
 }
 
 .app-panel-title {

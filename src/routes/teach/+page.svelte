@@ -1,11 +1,9 @@
 <script lang="ts">
-  import * as Card from '$lib/components/ui/card/index.js';
   import { Input } from '$lib/components/ui/input/index.js';
   import Search from 'phosphor-svelte/lib/MagnifyingGlassIcon';
-  import Presentation from 'phosphor-svelte/lib/PresentationIcon';
-  import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import teaching from '$lib/data/teaching.json';
+  import LibraryCard from '$lib/components/LibraryCard.svelte';
 
   let query = $state('');
   const filteredTeaching = $derived(teaching.filter(demo =>
@@ -38,15 +36,13 @@
     <div class="library-grid">
       {#if filteredTeaching.length}
         {#each filteredTeaching as demo (demo.id)}
-          <Card.Root class="library-card cursor-pointer" role="button" tabindex={0}
-            onclick={() => goto(resolve(`/teach/${demo.id}`))}
-            onkeydown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); goto(resolve(`/teach/${demo.id}`)); } }}>
-            <Card.Header>
-              <div class="mb-2 flex items-center gap-2 text-primary"><Presentation class="h-4 w-4" /><span class="text-xs uppercase tracking-wide">{demo.category}</span></div>
-              <Card.Title class="library-card-title font-semibold">{demo.title}</Card.Title>
-            </Card.Header>
-            <Card.Content class="line-clamp-3 text-sm text-muted-foreground">{preview(demo.overview)}</Card.Content>
-          </Card.Root>
+          <LibraryCard
+            href={resolve(`/teach/${demo.id}`)}
+            category={demo.category}
+            title={demo.title}
+            description={preview(demo.overview)}
+            kind="teaching"
+          />
         {/each}
       {:else}
         <p class="col-span-full text-center text-muted-foreground">Keine Lehr-Demos gefunden.</p>

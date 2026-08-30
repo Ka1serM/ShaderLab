@@ -1,8 +1,8 @@
 [
   {
     "id": "phong",
-    "title": "Phong",
-    "category": "Lighting",
+    "title": "Illumination",
+    "category": "Illumination",
     "task": "Phong",
     "type": "shader-controls",
     "scene": {
@@ -68,14 +68,99 @@
         }
       ]
     },
-    "vertexShader": "// @control near slider label=\"Near n\" min=-2 max=-0.1 step=0.05 default=-1\nuniform float uNear;\n// @control far slider label=\"Far f\" min=-10 max=-2.5 step=0.1 default=-6\nuniform float uFar;\n// @control left slider label=\"Left l\" min=-3 max=-0.1 step=0.05 default=-1\nuniform float uLeft;\n// @control right slider label=\"Right r\" min=0.1 max=3 step=0.05 default=1\nuniform float uRight;\n// @control bottom slider label=\"Bottom b\" min=-3 max=-0.1 step=0.05 default=-0.75\nuniform float uBottom;\n// @control top slider label=\"Top t\" min=0.1 max=3 step=0.05 default=0.75\nuniform float uTop;\n\nvoid main() {\n    // Exakt die für die Papieraufgabe angegebene Matrix. ShaderLab lässt\n    // Matrixliterale zeilenweise notieren und konvertiert sie für GLSL.\n    // @readback projectionMatrix matrix label=\"Projektionsmatrix P\" default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\n    mat4 teachingProjectionMatrix = mat4(\n        2.0 * uNear / (uRight - uLeft), 0.0,\n        (uRight + uLeft) / (uRight - uLeft), 0.0,\n        0.0, 2.0 * uNear / (uTop - uBottom),\n        (uBottom + uTop) / (uTop - uBottom), 0.0,\n        0.0, 0.0, -(uFar + uNear) / (uFar - uNear),\n        (2.0 * uFar * uNear) / (uFar - uNear),\n        0.0, 0.0, 1.0, 0.0\n    );\n\n    // A box spans [-0.5, 0.5]. Map it to the NDC cube [-1, 1], then apply\n    // P^-1 and divide by w. Its eight corners become the frustum corners.\n    vec4 frustumPosition = inverse(teachingProjectionMatrix) * vec4(position * 2.0, 1.0);\n    frustumPosition /= frustumPosition.w;\n    vLocalPosition = position;\n\n    // The viewport's own camera lets us inspect the constructed frustum.\n    gl_Position = projectionMatrix * modelViewMatrix * vec4(frustumPosition.xyz, 1.0);\n}",
-    "fragmentShader": "precision highp float;\n\nin vec3 vLocalPosition;\nout vec4 fragColor;\n\nvoid main() {\n    vec3 nearColor = vec3(0.75, 0.15, 0.2);\n    vec3 farColor = vec3(1.0, 0.65, 0.25);\n    float depth = vLocalPosition.z + 0.5;\n    fragColor = vec4(mix(nearColor, farColor, depth), 1.0);\n}",
+    "vertexShader": "// @control near slider label=\"Near n\" min=-2 max=-0.1 step=0.05 default=-1\nuniform float uNear;\n// @control far slider label=\"Far f\" min=-10 max=-2.5 step=0.1 default=-6\nuniform float uFar;\n// @control left slider label=\"Left l\" min=-3 max=-0.1 step=0.05 default=-1\nuniform float uLeft;\n// @control right slider label=\"Right r\" min=0.1 max=3 step=0.05 default=1\nuniform float uRight;\n// @control bottom slider label=\"Bottom b\" min=-3 max=-0.1 step=0.05 default=-0.75\nuniform float uBottom;\n// @control top slider label=\"Top t\" min=0.1 max=3 step=0.05 default=0.75\nuniform float uTop;\n\nvoid main() {\n    // Exakt die für die Papieraufgabe angegebene Matrix. ShaderLab lässt\n    // Matrixliterale zeilenweise notieren und konvertiert sie für GLSL.\n    // @readback projectionMatrix matrix label=\"Projektionsmatrix P\" default=\"1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\"\n    mat4 teachingProjectionMatrix = mat4(\n        2.0 * uNear / (uRight - uLeft), 0.0,\n        -(uRight + uLeft) / (uRight - uLeft), 0.0,\n        0.0, 2.0 * uNear / (uTop - uBottom),\n        -(uBottom + uTop) / (uTop - uBottom), 0.0,\n        0.0, 0.0, -(uFar + uNear) / (uFar - uNear),\n        (2.0 * uFar * uNear) / (uFar - uNear),\n        0.0, 0.0, 1.0, 0.0\n    );\n\n    // A box spans [-0.5, 0.5]. Map it to the NDC cube [-1, 1], then apply\n    // P^-1 and divide by w. Its eight corners become the frustum corners.\n    vec4 frustumPosition = inverse(teachingProjectionMatrix) * vec4(position * 2.0, 1.0);\n    frustumPosition /= frustumPosition.w;\n    vLocalPosition = position;\n\n    // The viewport's own camera lets us inspect the constructed frustum.\n    gl_Position = projectionMatrix * modelViewMatrix * vec4(frustumPosition.xyz, 1.0);\n}",
     "overview": "<p>Verändere die sechs Grenzen <code>l</code>, <code>r</code>, <code>b</code>, <code>t</code>, <code>n</code> und <code>f</code> des Sichtvolumens. Der Einheitswürfel wird zum zugehörigen Sichtfrustum; die Matrixanzeige zeigt parallel dazu dieselbe Projektionsmatrix wie der Shader.</p>\n",
-    "explanation": "<p>Die Ausgangswerte entsprechen exakt der Projektionsübung: <code>n = -1</code>, <code>f = -6</code>, <code>l = -1</code>, <code>r = 1</code>, <code>b = -0,75</code> und <code>t = 0,75</code>. Damit besitzt die Nearplane das Seitenverhältnis <code>4:3</code>; in der Draufsicht ergibt sich ein Öffnungswinkel von <code>90°</code>.</p>\n<p>Wie auf dem Übungsblatt sind <code>n</code> und <code>f</code> hier die vorzeichenbehafteten z-Koordinaten der beiden Ebenen. Außerdem wird absichtlich die dort angegebene, gegenüber der Vorlesung abgewandelte Papiermatrix verwendet. Nach der Matrixmultiplikation gilt deshalb <code>w = z</code>.</p>\n<p>Erst die anschließende Division durch <code>w</code> erzeugt die perspektivische Verkürzung. Genau wie in Aufgabe 1 werden die Frustumecken zunächst mit <code>P</code> multipliziert und danach homogenisiert. Für die Visualisierung wird dieser Weg umgekehrt: <code>P⁻¹</code> transformiert den Einheitswürfel zurück in das Sichtfrustum.</p>\n",
+    "explanation": "<p>Die Ausgangswerte sind <code>n = -1</code>, <code>f = -6</code>, <code>l = -1</code>, <code>r = 1</code>, <code>b = -0,75</code> und <code>t = 0,75</code>. Damit besitzt die Nearplane das Seitenverhältnis <code>4:3</code>; in der Draufsicht ergibt sich ein Öffnungswinkel von <code>90°</code>.</p>\n<p>Hier sind <code>n</code> und <code>f</code> die vorzeichenbehafteten z-Koordinaten der beiden Ebenen. Die verwendete Matrix ist gegenüber der Vorlesungskonvention abgewandelt; nach der Matrixmultiplikation gilt deshalb <code>w = z</code>.</p>\n<p>Erst die anschließende Division durch <code>w</code> erzeugt die perspektivische Verkürzung. Genau wie in Aufgabe 1 werden die Frustumecken zunächst mit <code>P</code> multipliziert und danach homogenisiert. Für die Visualisierung wird dieser Weg umgekehrt: <code>P⁻¹</code> transformiert den Einheitswürfel zurück in das Sichtfrustum.</p>\n",
     "vertexShaderTemplate": {
       "prefix": "precision highp float;\n\nin vec3 position;\n\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\n\nout vec3 vLocalPosition;",
       "suffix": ""
     }
+  },
+  {
+    "id": "shading-methods",
+    "title": "Shading",
+    "category": "Shading",
+    "task": "Phong",
+    "type": "shader-controls",
+    "scene": {
+      "objects": [
+        {
+          "id": "shadingSpheres",
+          "selectable": false,
+          "source": {
+            "type": "primitive",
+            "geometry": "sphere",
+            "segments": [
+              16,
+              12
+            ]
+          },
+          "instances": {
+            "count": 3,
+            "matrices": [
+              [
+                1,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                -2.2,
+                0,
+                0,
+                1
+              ],
+              [
+                1,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                1
+              ],
+              [
+                1,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                2.2,
+                0,
+                0,
+                1
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "vertexShader": "precision highp float;\n\nin vec3 position;\nin vec3 normal;\nin mat4 instanceMatrix;\n\nuniform mat4 modelMatrix;\nuniform mat4 modelViewMatrix;\nuniform mat4 projectionMatrix;\n\n// @control lightDir vec3 label=\"Lichtrichtung\" default=\"1,1,1\" visualize=vector\nuniform vec3 uLightDir;\n// @control shininess slider label=\"Shininess\" min=1 max=128 step=1 default=32\nuniform float uShininess;\n// Wird vom Renderer bereitgestellt und enthält die Weltposition der Kamera.\nuniform vec3 cameraPosition;\n\nflat out int vShadingMode;\nout vec3 vWorldPosition;\nout vec3 vWorldNormal;\nout vec3 vGouraudColor;\n\nvec3 shadeGouraud(vec3 worldPosition, vec3 worldNormal) {\n    vec3 n = normalize(worldNormal);\n    vec3 l = normalize(uLightDir);\n    vec3 v = normalize(cameraPosition - worldPosition);\n    float diffuse = max(dot(n, l), 0.0);\n    float specular = diffuse > 0.0\n        ? pow(max(dot(reflect(-l, n), v), 0.0), uShininess)\n        : 0.0;\n    return vec3(0.08) + vec3(0.72, 0.38, 0.16) * diffuse + vec3(0.9) * specular;\n}\n\nvoid main() {\n    // Die drei Kugeln desselben InstancedMesh erhalten die Modi 0, 1 und 2.\n    vShadingMode = gl_InstanceID;\n\n    mat4 instanceModelMatrix = modelMatrix * instanceMatrix;\n    vec4 worldPosition = instanceModelMatrix * vec4(position, 1.0);\n    vWorldPosition = worldPosition.xyz;\n    vWorldNormal = normalize(mat3(transpose(inverse(instanceModelMatrix))) * normal);\n\n    // Gouraud: Beleuchtung genau einmal je Vertex auswerten.\n    vGouraudColor = shadeGouraud(vWorldPosition, vWorldNormal);\n\n    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);\n}",
+    "fragmentShader": "precision highp float;\n\nflat in int vShadingMode;\nin vec3 vWorldPosition;\nin vec3 vWorldNormal;\nin vec3 vGouraudColor;\n\nuniform vec3 cameraPosition;\nuniform vec3 uLightDir;\nuniform float uShininess;\n\nout vec4 fragColor;\n\nvec3 shadeIllumination(vec3 worldPosition, vec3 worldNormal) {\n    vec3 n = normalize(worldNormal);\n    vec3 l = normalize(uLightDir);\n    vec3 v = normalize(cameraPosition - worldPosition);\n    float diffuse = max(dot(n, l), 0.0);\n    float specular = diffuse > 0.0\n        ? pow(max(dot(reflect(-l, n), v), 0.0), uShininess)\n        : 0.0;\n    return vec3(0.08) + vec3(0.72, 0.38, 0.16) * diffuse + vec3(0.9) * specular;\n}\n\nvec3 shadeFlat() {\n    // Ableitungen der Fragmentposition liefern die geometrische Face-Normale.\n    vec3 faceNormal = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));\n    if (!gl_FrontFacing) faceNormal = -faceNormal;\n    return shadeIllumination(vWorldPosition, faceNormal);\n}\n\nvoid main() {\n    if (vShadingMode == 0) {\n        fragColor = vec4(shadeFlat(), 1.0);\n    } else if (vShadingMode == 1) {\n        // Bereits am Vertex berechnet; der Rasterizer interpoliert nur die Farbe.\n        fragColor = vec4(vGouraudColor, 1.0);\n    } else {\n        // Normalen und Positionen interpolieren, Beleuchtung pro Fragment berechnen.\n        fragColor = vec4(shadeIllumination(vWorldPosition, vWorldNormal), 1.0);\n    }\n}",
+    "overview": "<p>Von links nach rechts zeigen die drei Instanzen <strong>Flat</strong>, <strong>Gouraud</strong> und <strong>Illumination pro Fragment</strong>. Alle verwenden dieselbe Kugelgeometrie, Materialfarbe und Lichtquelle; nur der Zeitpunkt der Beleuchtungsberechnung ändert sich. Verändere Lichtrichtung und Shininess und achte besonders auf das Glanzlicht.</p>\n",
+    "explanation": "<p>Beim <strong>Flat Shading</strong> nutzt jedes Dreieck seine geometrische Face-Normale. Deshalb besitzt ein Dreieck einen einheitlichen Farbwert und die Facetten bleiben sichtbar.</p>\n<p>Beim <strong>Gouraud Shading</strong> wird die Beleuchtung im Vertex Shader berechnet. Die resultierenden Farben werden innerhalb des Dreiecks interpoliert. Das ist effizient, kann aber kleine oder zwischen den Vertices liegende Glanzlichter übersehen.</p>\n<p>Bei <strong>Illumination pro Fragment</strong> werden Normalen und Positionen interpoliert; erst im Fragment Shader wird beleuchtet. Dadurch bleiben Glanzlichter genauer und die Oberfläche wirkt glatter.</p>\n<p>Die drei Kugeln sind Instanzen eines einzigen Meshes. <code>gl_InstanceID</code> wählt dabei <code>0 = Flat</code>, <code>1 = Gouraud</code> und <code>2 = Illumination pro Fragment</code>.</p>\n"
   },
   {
     "id": "transformations",

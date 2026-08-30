@@ -7,12 +7,11 @@
   import { taskStore, getTaskShaderStages } from '$lib/stores/taskStore';
   import { maximizedPanel } from '$lib/stores/panelStore';
   import type { PageData } from './$types';
-  import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+  import { isMobile } from '$lib/hooks/is-mobile.svelte';
   import AppTutorial from '$lib/components/AppTutorial.svelte';
   import { loadSplitterSizes, saveSplitterSizes, type SplitterSizes } from '$lib/utils/splitPaneStorage';
 
-  const mobileQuery = new IsMobile();
-  const defaultSplitterSizes: SplitterSizes = { outer: 35, inner: 60, viewports: 50 };
+  const defaultSplitterSizes: SplitterSizes = { outer: 35, inner: 50, viewports: 50 };
   export let data: PageData;
 
   let mounted = false;
@@ -56,13 +55,14 @@
   });
 
   onDestroy(() => {
-    window.removeEventListener('keydown', handleKeydown);
+    if (typeof window !== 'undefined') window.removeEventListener('keydown', handleKeydown);
   });
 </script>
 
+{#key data.slug}
 {#if $taskStore.task}
   <div class="h-full w-full overflow-hidden relative">
-    {#if !mobileQuery.current}
+    {#if !$isMobile}
       <!-- Desktop layout -->
       <div class="workspace-layout h-full w-full">
         <Splitpanes class="splitpanes-root" theme="my-theme" on:resized={(event) => handleSplitterResize('outer', event)}>
@@ -93,6 +93,7 @@
                         vertexShader={$taskStore.task.referenceVertexShader}
                         fragmentShader={$taskStore.task.referenceFragmentShader}
                         cameraPose={$taskStore.cameraPose}
+                        cameraPoseSaved={$taskStore.cameraPoseSaved}
                         overlays={$taskStore.task.overlays}
                         reportErrors={false}
                         title="Referenz"
@@ -105,6 +106,7 @@
                         vertexShader={$taskStore.vertexShader}
                         fragmentShader={$taskStore.fragmentShader}
                         cameraPose={$taskStore.cameraPose}
+                        cameraPoseSaved={$taskStore.cameraPoseSaved}
                         overlays={$taskStore.task.overlays}
                         reportErrors={true}
                         useStudentTemplates={true}
@@ -134,6 +136,7 @@
             vertexShader={$taskStore.task.referenceVertexShader}
             fragmentShader={$taskStore.task.referenceFragmentShader}
             cameraPose={$taskStore.cameraPose}
+            cameraPoseSaved={$taskStore.cameraPoseSaved}
             overlays={$taskStore.task.overlays}
             reportErrors={false}
             title="Referenz"
@@ -146,6 +149,7 @@
             vertexShader={$taskStore.vertexShader}
             fragmentShader={$taskStore.fragmentShader}
             cameraPose={$taskStore.cameraPose}
+            cameraPoseSaved={$taskStore.cameraPoseSaved}
             overlays={$taskStore.task.overlays}
             reportErrors={true}
             useStudentTemplates={true}
@@ -165,3 +169,4 @@
     <p class="text-muted-foreground">Aufgabe wird geladen …</p>
   </div>
 {/if}
+{/key}

@@ -13,31 +13,23 @@ instanceCount: 3
 ---
 
 # Task
-Wie im Transformationspraktikum animierst du drei Zahnräder. Implementiere dafür die Funktionen `animateA(time)`, `animateB(time)` und `animateC(time)`.
+Implementiere zeitabhängige Transformationen für ein System aus drei Zahnrädern. In jedem Frame werden `animateA(time)`, `animateB(time)` und `animateC(time)` aufgerufen. Jede Funktion muss eine gültige Punkt- und Normalenmatrix für ihr Zahnrad erzeugen.
 
-Jede Funktion baut die globale `pointMatrix` und `normalMatrix` ihres Zahnrads auf. In `main()` werden alle drei Animationen vorbereitet; `renderCurrentInstance()` wählt anschließend anhand von `gl_InstanceID` die passende Matrix aus.
+1. **Zahnrad A animieren:** Drehe Zahnrad A um seine Achse, zum Beispiel mit einer zehntel Umdrehung pro Sekunde. Stelle sicher, dass die Beleuchtung korrekt berechnet wird.
+2. **Zahnrad B animieren:** Drehe Zahnrad B um seine Achse und positioniere es so, dass es korrekt in Zahnrad A greift. Stelle sicher, dass die Beleuchtung korrekt berechnet wird.
+3. **Zahnrad C animieren:** Drehe und positioniere Zahnrad C so, dass es korrekt in Zahnrad B greift und genauso dick ist wie die anderen Zahnräder. Stelle sicher, dass die Beleuchtung korrekt berechnet wird.
+
+`main()` bereitet alle drei Transformationen vor. Die Punktmatrix beschreibt die vollständige Transformation, und die Normalenmatrix muss dazu passend berechnet werden.
 
 # Hints
 
 ## Hint
-Beginne jede Funktion mit einer Identitätsmatrix: `mat4 pointMatrix = mat4(1.0);`.
-
-## Hint
-Schreibe dir eigene Hilfsfunktionen wie `mat4 translationMatrix(vec3)`, `mat4 scalingMatrix(vec3)` und `mat4 rotationXMatrix(float)`. Als Vorlage für die Schreibweise dient die ausgeschriebene Matrix in `animateA`.
-
-## Hint
-Zahnrad A wird zunächst zum Ursprung verschoben, um seine Achse gedreht und danach an seine endgültige Position gesetzt.
-
-## Hint
 Zahnrad B muss gegenläufig rotieren. Für ineinandergreifende Räder hängt die Winkelgeschwindigkeit vom Verhältnis ihrer Radien ab.
-
-## Hint
-Für die Normalen gilt dieselbe Regel wie im Praktikum: `normalMatrix = mat3(transpose(inverse(pointMatrix)))`.
 
 # Theory
 Eine `pointMatrix` beschreibt die Transformation von Punkten. Für Normalen wird die inverse Transponierte der Punktmatrix verwendet. Das ist besonders bei nicht-uniformer Skalierung wichtig.
 
-Die drei Zahnräder werden per Instancing gerendert. `gl_InstanceID` wählt aus, welche der drei Animationsfunktionen verwendet wird. Dadurch bleibt die Aufgabenstruktur wie im Praktikum erhalten, obwohl nur ein Draw Call notwendig ist.
+Die drei Zahnräder werden gemeinsam in der Vorschau gerendert. Jede Animationsfunktion bestimmt dabei ausschließlich die Transformation ihres eigenen Zahnrads.
 
 # Starter Vertex Shader
 ```glsl
@@ -57,7 +49,7 @@ out vec3 vColor;
 void animateA(float time);
 void animateB(float time);
 void animateC(float time);
-void renderCurrentInstance();
+void render();
 // @prefix
 
 mat4 gearAPointMatrix;
@@ -71,7 +63,7 @@ void main() {
     animateA(time);
     animateB(time);
     animateC(time);
-    renderCurrentInstance();
+    render();
 }
 
 void animateA(float time) {
@@ -102,7 +94,7 @@ void animateC(float time) {
 }
 
 // @suffix
-void renderCurrentInstance() {
+void render() {
     mat4 pointMatrix;
     mat3 normalMatrix;
     if (gl_InstanceID == 0) {

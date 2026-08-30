@@ -3,6 +3,7 @@ import path from "path";
 import matter from "gray-matter";
 import { marked } from "marked";
 import katex from "katex";
+import sanitizeHtml from "sanitize-html";
 import { splitStudentShader } from "./shaderTemplate.js";
 
 const tasksFolder = path.join(process.cwd(), "src/lib/data/tasks");
@@ -28,7 +29,10 @@ function markdownToHtml(md) {
       return _;
     }
   });
-  return marked.parse(md);
+  return sanitizeHtml(marked.parse(md), {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn', 'msup', 'mfrac']),
+    allowedAttributes: { ...sanitizeHtml.defaults.allowedAttributes, '*': ['class', 'aria-hidden'], span: ['class', 'style', 'aria-hidden'], annotation: ['encoding'] }
+  });
 }
 
 function markdownHints(md) {
@@ -51,7 +55,7 @@ function toCamelCase(str) {
     .replace(/^(.)/, (_, g1) => g1.toLowerCase());
 }
 
-const files = fs.readdirSync(tasksFolder).filter(f => f.endsWith(".md"));
+const files = fs.readdirSync(tasksFolder).filter(f => f.endsWith(".md")).sort((a, b) => a.localeCompare(b));
 
 const tasks = files.map(file => {
   const raw = fs.readFileSync(path.join(tasksFolder, file), "utf-8");
@@ -94,12 +98,22 @@ const tasks = files.map(file => {
     }
   });
 
-  return {
+  const task = {
     ...Object.fromEntries(Object.entries(data).map(([k, v]) => [toCamelCase(k), v])),
     ...contentSections,
     ...shaderSections
   };
+  const requiredFields = ['title', 'type', 'starterFragmentShader', 'referenceVertexShader', 'referenceFragmentShader'];
+  if (task.type === '3D') requiredFields.push('starterVertexShader');
+  for (const field of requiredFields) {
+    if (typeof task[field] !== 'string' || !task[field].trim()) throw new Error(`${file}: missing required string field "${field}"`);
+  }
+  if (!['2D', '3D'].includes(task.type)) throw new Error(`${file}: type must be 2D or 3D`);
+  return task;
 });
+
+const duplicateTitle = tasks.find((task, index) => tasks.findIndex(candidate => candidate.title === task.title) !== index)?.title;
+if (duplicateTitle) throw new Error(`Duplicate task title: ${duplicateTitle}`);
 
 fs.writeFileSync(outputFile, JSON.stringify(tasks, null, 2));
 console.log(`Generated ${tasks.length} tasks at ${outputFile}`);

@@ -39,6 +39,7 @@ export function maximizable(node: HTMLElement, options: MaximizableOptions) {
     originalParent.replaceChild(placeholder, node);
     originalStyle = node.style.cssText;
 
+    node.dataset.maximized = 'true';
     node.style.cssText += ';position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:auto;background:var(--background);';
     host.appendChild(node);
     animate(from, node.getBoundingClientRect());
@@ -50,6 +51,7 @@ export function maximizable(node: HTMLElement, options: MaximizableOptions) {
 
     const from = node.getBoundingClientRect();
     node.style.cssText = originalStyle;
+    delete node.dataset.maximized;
     originalParent.insertBefore(node, placeholder);
     placeholder.remove();
 
