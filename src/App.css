@@ -129,7 +129,6 @@
   }
 }
 
-/* Shared ShaderLab / HSD visual system */
 :root {
   --background: #e9e9e9;
   --foreground: #111111;
@@ -198,6 +197,7 @@ html,
 body {
   width: 100%;
   height: 100vh;
+  height: 100dvh;
   min-height: 100%;
   margin: 0;
   overflow: hidden;
@@ -211,6 +211,7 @@ body {
 
 .app-shell {
   height: 100vh;
+  height: 100dvh;
 }
 
 .app-main {
@@ -260,9 +261,23 @@ body {
   .offline-cache-status {
     bottom: calc(4.75rem + env(safe-area-inset-bottom));
   }
+
+  .viewport-overlay-controls {
+    flex-wrap: wrap;
+    align-content: flex-start;
+  }
+
+  .transform-controls-line-break {
+    flex-basis: 100%;
+    height: 0;
+  }
+
+  .transform-space-toggle {
+    flex-basis: auto;
+    width: fit-content;
+  }
 }
 
-/* Shared split-pane layout and resize handles. */
 .splitpanes-root,
 .splitpanes-nested {
   width: 100%;
@@ -270,9 +285,127 @@ body {
   overflow: hidden;
 }
 
-/* One spacing rule for every workspace edge and panel gutter. */
 :root {
   --workspace-gap: .5rem;
+  --motion-fast: 150ms;
+  --motion-base: 260ms;
+  --motion-slow: 420ms;
+  --motion-ease: cubic-bezier(.22, 1, .36, 1);
+  --motion-emphasized: cubic-bezier(.16, 1, .3, 1);
+}
+
+@keyframes motion-enter {
+  0% { opacity: 0; transform: translateY(1rem) scale(.98); }
+  45% { opacity: .72; transform: translateY(.22rem) scale(.996); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes motion-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.motion-enter {
+  animation: motion-enter var(--motion-slow) var(--motion-emphasized) both;
+  animation-delay: calc(var(--motion-index, 0) * 55ms);
+}
+
+.motion-fade { animation: motion-fade var(--motion-base) var(--motion-ease) both; }
+
+.motion-reveal {
+  opacity: var(--motion-opacity, 1);
+  transform: translate3d(0, var(--motion-shift, 0px), 0) scale(var(--motion-scale, 1));
+  transition: opacity var(--motion-slow) var(--motion-ease), transform var(--motion-slow) var(--motion-emphasized);
+  transition-delay: var(--motion-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-motion='on'] .motion-reveal:not(.is-revealed) {
+    --motion-opacity: 0;
+    --motion-shift: .85rem;
+    --motion-scale: .985;
+  }
+}
+
+.motion-tilt {
+  --tilt-rx: 0deg;
+  --tilt-ry: 0deg;
+  --tilt-lift: 0rem;
+  transform: perspective(var(--tilt-depth, 900px)) translate3d(0, calc(var(--motion-shift, 0px) + var(--tilt-lift)), 0) rotateX(var(--tilt-rx)) rotateY(var(--tilt-ry)) scale(var(--motion-scale, 1));
+  transition: transform var(--motion-base) var(--motion-emphasized), opacity var(--motion-slow) var(--motion-ease), box-shadow var(--motion-base) var(--motion-ease), border-color var(--motion-fast) ease, background-color var(--motion-fast) ease;
+  transition-delay: var(--motion-delay, 0ms);
+}
+
+.motion-tilt[data-tilting='true'] {
+  transition-duration: 90ms;
+  will-change: transform;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .motion-tilt:hover,
+  .motion-tilt:focus-visible { --tilt-lift: -.3rem; }
+}
+
+.motion-letter {
+  display: inline-block;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-motion='on'] .motion-letters:not(.is-revealed) { opacity: 0; }
+}
+
+.motion-letters.is-revealed .motion-letter {
+  animation: motion-letter-in var(--motion-letter-duration, 300ms) var(--motion-emphasized) both;
+  animation-delay: calc(var(--motion-letter-delay, 0ms) + var(--motion-letter-index, 0) * var(--motion-letter-step, 34ms));
+}
+
+@keyframes motion-letter-in {
+  from { opacity: 0; transform: translateY(.16em); }
+  to { opacity: 1; transform: none; }
+}
+
+.motion-card {
+  transition: transform var(--motion-base) var(--motion-ease), box-shadow var(--motion-base) var(--motion-ease), border-color var(--motion-fast) ease, background-color var(--motion-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .motion-card:hover { transform: translateY(-.25rem); }
+}
+
+.motion-press {
+  transition: scale var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease;
+}
+
+.motion-press:active { scale: .96; }
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-enter,
+  .motion-fade {
+    animation: none;
+  }
+
+  .motion-reveal,
+  .motion-tilt {
+    transform: none;
+    transition: none;
+  }
+
+  .motion-card,
+  .motion-press {
+    transition-duration: 1ms;
+  }
+
+  .motion-card:hover {
+    transform: none;
+  }
+
+  .motion-press:active {
+    scale: 1;
+  }
+
+  .motion-letters.is-revealed .motion-letter {
+    animation: none;
+  }
 }
 
 .workspace-layout {
@@ -285,15 +418,14 @@ body {
   width: 100%;
   height: 100%;
   padding: var(--workspace-gap);
+  animation: motion-enter var(--motion-base) var(--motion-emphasized) both;
 }
 
 @media (max-width: 36rem) {
-  /* The mobile workspace already provides the outer gutter. */
   .workspace-panel {
     padding: 0;
   }
 
-  /* A maximized panel owns the full workspace and therefore needs its gutter. */
   .workspace-panel[data-maximized='true'] {
     padding: var(--workspace-gap);
   }
@@ -435,7 +567,7 @@ body {
   max-width: 34rem;
   margin: .9rem 0 0;
   color: var(--muted-foreground);
-  font-size: .85rem;
+  font-size: 1rem;
   line-height: 1.5;
 }
 
@@ -470,14 +602,13 @@ body {
   border-radius: .45rem;
   background: var(--card);
   box-shadow: none;
-  transition: background .2s ease, transform .2s ease;
 }
 
-.library-card:hover {
+.library-card:hover,
+.library-card:focus-visible {
   z-index: 1;
   background: var(--secondary);
-  box-shadow: inset 0 0 0 2px var(--app-red);
-  transform: translateY(-3px);
+  box-shadow: inset 0 0 0 2px var(--app-red), 0 1.125rem 2.25rem rgb(0 0 0 / 16%);
 }
 
 @media (max-width: 36rem) {

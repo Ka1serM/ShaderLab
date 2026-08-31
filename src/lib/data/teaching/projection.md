@@ -1,9 +1,11 @@
 ---
 id: projection
 title: Projektion
-category: Transformationen
+category: Projektion
 task: Lambert
 type: shader-controls
+shader stages:
+  - vertex
 scene:
   objects:
     - id: viewFrustum
@@ -40,8 +42,6 @@ uniform float uBottom;
 uniform float uTop;
 
 void main() {
-    // Exakt die für die Papieraufgabe angegebene Matrix. ShaderLab lässt
-    // Matrixliterale zeilenweise notieren und konvertiert sie für GLSL.
     // @readback projectionMatrix matrix label="Projektionsmatrix P" default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
     mat4 teachingProjectionMatrix = mat4(
         2.0 * uNear / (uRight - uLeft), 0.0,
@@ -53,14 +53,23 @@ void main() {
         0.0, 0.0, 1.0, 0.0
     );
 
-    // A box spans [-0.5, 0.5]. Map it to the NDC cube [-1, 1], then apply
-    // P^-1 and divide by w. Its eight corners become the frustum corners.
     vec4 frustumPosition = inverse(teachingProjectionMatrix) * vec4(position * 2.0, 1.0);
     frustumPosition /= frustumPosition.w;
     vLocalPosition = position;
 
-    // The viewport's own camera lets us inspect the constructed frustum.
     gl_Position = projectionMatrix * modelViewMatrix * vec4(frustumPosition.xyz, 1.0);
+}
+```
+
+# Fragment Shader
+
+```glsl
+precision highp float;
+
+out vec4 fragColor;
+
+void main() {
+    fragColor = vec4(0.75, 0.12, 0.18, 1.0);
 }
 ```
 

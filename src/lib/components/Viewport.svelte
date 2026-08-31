@@ -190,7 +190,7 @@
         {/if}
       </div>
     {/if}
-    <div class="relative flex min-h-0 flex-1 items-start gap-2 p-3">
+    <div class="viewport-overlay-controls relative flex min-h-0 flex-1 items-start gap-2 p-3">
       <div bind:this={container} class="absolute inset-0 h-full w-full overflow-hidden rounded-md bg-background"></div>
       {#if overlays?.transformControls}
         <ToggleGroup.Root
@@ -206,10 +206,11 @@
             >{transformModeLabels[mode]}</ToggleGroup.Item>
           {/each}
         </ToggleGroup.Root>
+        <span class="transform-controls-line-break" aria-hidden="true"></span>
         <ToggleGroup.Root
           type="single"
           bind:value={transformSpace}
-          class="relative z-10 flex-none gap-0 bg-muted p-0"
+          class="transform-space-toggle relative z-10 flex-none gap-0 bg-muted p-0"
           onValueChange={space => viewport?.setTransformSpace(space as typeof transformSpace)}
         >
           {#each transformSpaces as space}

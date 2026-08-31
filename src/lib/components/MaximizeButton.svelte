@@ -7,7 +7,7 @@
 </script>
 
 <button
-  class="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+  class="motion-press h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground shrink-0"
   title={isMaximized ? 'Verkleinern' : 'Maximieren'}
   onclick={onClick}
 >

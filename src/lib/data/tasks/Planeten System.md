@@ -87,47 +87,36 @@ void main() {
 }
 
 void animateSun(float time) {
-    // Beispiel: So baust du eine Matrix von Hand auf. Schreib sie genau wie auf dem
-    // Papier, Zeile fuer Zeile -- ShaderLab dreht mat4(...)/mat3(...)-Literale mit
-    // allen 16 bzw. 9 Werten beim Kompilieren automatisch in die richtige Reihenfolge.
-    // Ausgeschrieben ist das hier die Identitätsmatrix mat4(1.0).
     sunPointMatrix = mat4(1.0, 0.0, 0.0, 0.0,
                           0.0, 1.0, 0.0, 0.0,
                           0.0, 0.0, 1.0, 0.0,
                           0.0, 0.0, 0.0, 1.0);
     sunNormalMatrix = mat3(1.0);
-    // TODO: Skaliere die Sonne. Schreibe dir dafür eine eigene Funktion
-    // mat4 scalingMatrix(vec3 scaleVector) nach dem Muster oben.
 }
 
 void animateMercury(float time) {
     mercuryPointMatrix = sunPointMatrix;
     mercuryNormalMatrix = mat3(1.0);
-    // TODO: Lasse Merkur die Sonne umkreisen und skaliere ihn.
 }
 
 void animateVenus(float time) {
     venusPointMatrix = sunPointMatrix;
     venusNormalMatrix = mat3(1.0);
-    // TODO: Lasse Venus die Sonne umkreisen und skaliere sie.
 }
 
 void animateEarth(float time) {
     earthPointMatrix = sunPointMatrix;
     earthNormalMatrix = mat3(1.0);
-    // TODO: Lasse die Erde die Sonne umkreisen und skaliere sie.
 }
 
 void animateMoon(float time) {
     moonPointMatrix = earthPointMatrix;
     moonNormalMatrix = mat3(1.0);
-    // TODO: Erzeuge die lokale Mondmatrix.
 }
 
 void animateMars(float time) {
     marsPointMatrix = sunPointMatrix;
     marsNormalMatrix = mat3(1.0);
-    // TODO: Lasse Mars die Sonne umkreisen und skaliere ihn.
 }
 
 // @suffix

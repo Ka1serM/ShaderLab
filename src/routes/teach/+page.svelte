@@ -4,6 +4,7 @@
   import { resolve } from '$app/paths';
   import teaching from '$lib/data/teaching.json';
   import LibraryCard from '$lib/components/LibraryCard.svelte';
+  import { reveal, writeIn } from '$lib/actions/motion';
 
   let query = $state('');
   const filteredTeaching = $derived(teaching.filter(demo =>
@@ -19,11 +20,11 @@
 </script>
 
 <div class="library-page">
-  <div class="library-toolbar">
+  <div class="library-toolbar motion-reveal" use:reveal>
     <div>
-      <p class="library-kicker">Computergrafik Labor</p>
-      <h1 class="library-title">Lehr-Demos</h1>
-      <p class="library-description">Rendering-Konzepte mit interaktiven Parametern untersuchen und sichtbar machen.</p>
+      <p class="library-kicker">Computergrafik Labor HSD</p>
+      <h1 class="library-title motion-letters" use:writeIn={{ delay: 90, step: 38 }}>Lehr-Demos</h1>
+      <p class="library-description">Rendering-Konzepte mit interaktiven Parametern anschaulich erkunden.</p>
     </div>
     <div class="library-search relative">
       <Search class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />

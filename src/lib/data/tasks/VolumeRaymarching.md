@@ -16,7 +16,7 @@ title: Volumetric Raymarching
 
 # Task
 
-Wir bauen einen Volume Renderer basierend auf der Pipeline von Marc Levoy. Hilfsfunktionen für Gradienten und Beleuchtung sind bereits gegeben.
+Wir bauen einen Volumenrenderer nach der Pipeline von Marc Levoy. Hilfsfunktionen für Gradienten und Beleuchtung sind bereits gegeben.
 
 ## Aufgaben
 
@@ -29,7 +29,7 @@ Wir bauen einen Volume Renderer basierend auf der Pipeline von Marc Levoy. Hilfs
     *   *Feedback:* Sobald der Loop läuft, sehen Sie den Kopf im Viewport.
 
 3.  **Transfer Function**
-    *   Implementieren Sie die Transfer Funktion, um Dichtewerte in Farben zu übersetzen (Luft, Gewebe, Knochen).
+    *   Implementiere die Transferfunktion, um Dichtewerte in Farben zu übersetzen (Luft, Gewebe, Knochen).
     *   *Ergebnis:* Ein korrektes, eingefärbtes CT-Bild (Haut & Knochen).
 
 ## Nützliches zur Programmierung
@@ -40,8 +40,8 @@ Wir bauen einen Volume Renderer basierend auf der Pipeline von Marc Levoy. Hilfs
 - Ganze Vektoren oder einzelne Komponenten können mit Skalaren multipliziert oder addiert werden:
 
 ```glsl
-vec3 pos = origin + direction * t;  // Addition + Skalierung
-vec3 rgb = vec3(1.0, 0.5, 0.0);    // Initialisierung eines Vektors
+vec3 pos = origin + direction * t;
+vec3 rgb = vec3(1.0, 0.5, 0.0);
 ```
 - Skalar * Skalar = Skalar, Vektor + Vektor = Vektor, Vektor * Skalar = Vektor
 
@@ -49,16 +49,11 @@ vec3 rgb = vec3(1.0, 0.5, 0.0);    // Initialisierung eines Vektors
 
 ### **If-Abfragen**
 ```glsl
-// if / else if / else für Wertebereiche:
-
 if (wert < grenzeA) {  
- // Aktion 1  
 }  
 else if (wert < grenzeB) {  
- // Aktion 2  
 }  
 else {  
- // Standardfall  
 }
 ```
 
@@ -69,7 +64,7 @@ else {
 - t = 0 → Ergebnis = a, t = 1 → Ergebnis = b
 
 ```glsl
-float t = (x - min) / (max - min);  // Normalisierung eines Wertes für mix
+float t = (x - min) / (max - min);
 
 vec3 ergebnis = mix(vec3(0.0), vec3(1.0, 0.0, 0.0), t);
 ```
@@ -79,8 +74,7 @@ vec3 ergebnis = mix(vec3(0.0), vec3(1.0, 0.0, 0.0), t);
 for-Schleifen wiederholen Schritte:
 ```glsl
 for (int i = 0; i < steps; i++) {  
- float t = float(i) * stepSize;  // int → float für Berechnung  
- // Verarbeitung von t  
+ float t = float(i) * stepSize;
 }
 ```
 - `continue;` springt zum nächsten Schleifendurchlauf
@@ -92,7 +86,7 @@ any() prüft, ob **irgendeine Komponente** einer Bedingung entspricht:
 
 ```glsl
 if (any(lessThan(pos, vec3(0.0))) || any(greaterThan(pos, vec3(1.0)))) {  
- continue;  // Überspringt ungültige Position  
+ continue;
 }
 ```
 
@@ -108,7 +102,7 @@ vec4 sample = SampleVolume(coord, direction);
 
 - **Inputs:**  
   - `coord` → 3D-Position im normalisierten Raum (0..1)  
-  - `direction` → Richtungsvektor (für Gradienten / Beleuchtung berechnung)  
+  - `direction` → Richtungsvektor (für Gradienten und Beleuchtungsberechnung)  
 - **Output:** `vec4`  
   - `rgb` → berechnete Farbe / Materialwert  
   - `a` → Transparenz / Gewichtung
@@ -194,7 +188,6 @@ uniform vec3 cameraDirection;
 uniform sampler3D volumeTexture;
 uniform ivec2 iResolution;
 
-// Parameter aus der Vorlesung
 const float stepSize = 0.00256;
 const int   maxSteps = 512;
 const vec3  lightDir = normalize(vec3(1.0, 1.0, 0.0));
@@ -248,7 +241,6 @@ vec4 TransferFunction(float density, float gradientMagnitude)
         color = colorBone;
     }
 
-    // Gradient Modulation (Levoy)
     alpha *= 1.0 - exp(-5.0 * clamp(gradientMagnitude / 8.0, 0.0, 1.0));
 
     return vec4(color, alpha);
@@ -282,7 +274,7 @@ void GenerateRay(out vec3 rayOrigin, out vec3 rayDirection) {
 
 vec4 SampleVolume(vec3 textureCoord, vec3 rayDirection) {
     float rawValue = texture(volumeTexture, textureCoord).r;
-    float density = rawValue - 1100.0; // HU Offset
+    float density = rawValue - 1100.0;
     
     vec3 gradient = ComputeGradient(textureCoord); 
     float gradMag = length(gradient);
@@ -349,19 +341,15 @@ precision highp sampler3D;
 in vec2 vUv;
 out vec4 fragColor;
 
-// Uniforms
 uniform vec3 cameraPosition;
 uniform vec3 cameraDirection;
 uniform sampler3D volumeTexture;
 uniform ivec2 iResolution;
 
-// Konstanten
 const float stepSize = 0.00256;
 const int   maxSteps = 512;
 const vec3  lightDir = normalize(vec3(1.0, 1.0, 0.0));
 const float orthoScale = 0.5;
-
-//  Helper Functions 
 
 vec3 ComputeGradient(vec3 samplePosition) {
     vec3 H = 1.0 / vec3(textureSize(volumeTexture, 0));
@@ -393,9 +381,6 @@ vec4 SampleVolume(vec3 samplePosition, vec3 rayDirection) {
 }
 // @prefix
 
-// --------------------------------------------------
-// TASK 3: Transfer Function
-// --------------------------------------------------
 vec4 TransferFunction(float density, float gradientMagnitude) {
     const float huAir    = -800.0;
     const float huTissue =   50.0;
@@ -416,9 +401,6 @@ vec4 TransferFunction(float density, float gradientMagnitude) {
     }
 
 
-    // TODO: Implementieren Sie die Klassifizierung für die Zielwerte oben
-
-
     else {
         alpha = alphaBone;
         color = colorBone;
@@ -434,38 +416,27 @@ vec4 TransferFunction(float density, float gradientMagnitude) {
 
 
 
-// --------------------------------------------------
-//  TASK 2: Raymarching Loop 
-// --------------------------------------------------
 vec3 Raymarch(vec3 rayOrigin, vec3 rayDirection) {
 
     int totalSteps = min(int(1.0 / stepSize), maxSteps);
 
     vec3 accumulatedColor = vec3(-1.0);
 
-    // TODO: Implementieren Sie die Raymarching Schleife (Siehe Theory Abschnitt 2 & 3)
-    
     return accumulatedColor;
 }
 
 
 
 
-// --------------------------------------------------
-//  TASK 1: Ray Generation 
-// --------------------------------------------------
 void GenerateRay(out vec3 rayOrigin, out vec3 rayDirection) {
     float Aspect = float(iResolution.x) / float(iResolution.y);
     vec2 pixelPos = vUv;
     pixelPos.x *= Aspect;
 
-    // Basisvektoren der Kamera
     vec3 forward = normalize(cameraDirection);
     vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
     vec3 up = cross(right, forward);
 
-    // TODO: Berechnen Sie Strahlstartpunkt und Richtung für Orthographische Projektion (Siehe Theory Abschnitt 1)
-    
     rayDirection = vec3(0.0);
     rayOrigin = vec3(0.0);
 }

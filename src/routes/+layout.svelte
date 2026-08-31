@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { afterNavigate } from '$app/navigation';
   import TopNavigation from '$lib/components/TopNavigation.svelte';
   import { ModeWatcher } from "mode-watcher";
   import { checkStorageVersion } from '$lib/config';
@@ -10,6 +11,15 @@
   checkStorageVersion();
 
   let isPreparingOfflineCache = false;
+  let mainElement: HTMLElement;
+
+  // Keep route transitions opacity-only for WebGL and Monaco workspaces.
+  afterNavigate(() => {
+    if (!mainElement || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    mainElement.classList.remove('motion-fade');
+    void mainElement.offsetWidth;
+    mainElement.classList.add('motion-fade');
+  });
 
   onMount(() => {
     const isStandaloneApp = window.matchMedia('(display-mode: standalone)').matches
@@ -35,12 +45,11 @@
   });
 </script>
 
-<!-- Global tracker for the theme. -->
-<ModeWatcher defaultMode="light" />
+<ModeWatcher defaultMode="dark" />
 <Toaster />
 <div class="app-shell flex flex-col overflow-hidden">
   <TopNavigation />
-  <main class="app-main flex min-h-0 flex-1 flex-col overflow-hidden">
+  <main bind:this={mainElement} class="app-main motion-fade flex min-h-0 flex-1 flex-col overflow-hidden">
     <slot />
   </main>
 </div>

@@ -78,28 +78,22 @@ in vec2 vUV;
 out vec4 fragColor;
 
 uniform vec2 iResolution;
-// x/y are framebuffer pixels from the top-left; z is 1 while the pointer is in the viewport.
 uniform vec3 iMouse;
 
-const int GRID_SIZE = 32;
+const int GRID_SIZE = 64;
 
-// Convert UV coordinates to framebuffer pixels.
 vec2 viewportPixel(vec2 uv) {
     return uv * iResolution;
 }
 
-// The short viewport side contains GRID_SIZE cells. The longer side receives
-// additional cells of the same physical size, so no cell is stretched.
 float gridCellSize() {
     return min(iResolution.x, iResolution.y) / float(GRID_SIZE);
 }
 
-// Convert a grid coordinate to framebuffer pixels.
 vec2 gridToViewportPixel(int x, int y) {
     return vec2(float(x), float(y)) * gridCellSize();
 }
 
-// Determine if the fragment lies inside a grid pixel (square)
 bool isInsidePixel(vec2 uv, int x, int y) {
     float cellSize = gridCellSize();
     vec2 minP = gridToViewportPixel(x, y);
@@ -109,7 +103,6 @@ bool isInsidePixel(vec2 uv, int x, int y) {
     return all(greaterThanEqual(f, minP)) && all(lessThan(f, maxP));
 }
 
-// Draw a single pixel cell with color
 void drawPixel(int x, int y, inout vec3 color, vec3 pixelColor) {
     if (isInsidePixel(vUV, x, y)) {
         color = pixelColor;
@@ -117,32 +110,23 @@ void drawPixel(int x, int y, inout vec3 color, vec3 pixelColor) {
 }
 // @prefix
 
-// Integer Bresenham line
 void bresenhamLine(int x0, int y0, int x1, int y1, inout vec3 color) {
 
 }
 
 // @suffix
 void main() {
-    vec3 color = vec3(0.12); // dark gray background
+    vec3 color = vec3(0.12);
 
-    // Optional grid lines (1px thin)
     float cellSize = gridCellSize();
-    vec2 gridPosition = viewportPixel(vUV) / cellSize;
-    vec2 gridLine = smoothstep(0.98, 1.0, abs(fract(gridPosition) - 0.5) * 2.0);
-    float gridMask = min(gridLine.x, gridLine.y);
-    color = mix(vec3(0.15), color, gridMask);
-
     int gridWidth = int(ceil(iResolution.x / cellSize));
     int gridHeight = int(ceil(iResolution.y / cellSize));
 
-    // Default: a first-octant example line spanning the viewport width.
     int x0 = 0;
     int y0 = 0;
     int x1 = gridWidth - 1;
     int y1 = min(gridHeight - 1, int(0.75 * float(gridWidth)));
     if (iMouse.z > 0.5) {
-        // The pointer uses top-left origin while the raster uses bottom-left origin.
         x0 = gridWidth / 2;
         y0 = gridHeight / 2;
         vec2 mousePixel = vec2(iMouse.x, iResolution.y - iMouse.y);
@@ -151,7 +135,6 @@ void main() {
         y1 = max(0, min(gridHeight - 1, int(floor(mouseGrid.y))));
     }
 
-    // Draw Bresenham line
     bresenhamLine(x0, y0, x1, y1, color);
 
     fragColor = vec4(color, 1.0);
@@ -190,26 +173,20 @@ uniform vec2 iResolution;
 
 const int GRID_SIZE = 64;
 
-// x/y are framebuffer pixels from the top-left; z is 1 while the pointer is in the viewport.
 uniform vec3 iMouse;
 
-// Convert UV coordinates to framebuffer pixels.
 vec2 viewportPixel(vec2 uv) {
     return uv * iResolution;
 }
 
-// The short viewport side contains GRID_SIZE cells. The longer side receives
-// additional cells of the same physical size, so no cell is stretched.
 float gridCellSize() {
     return min(iResolution.x, iResolution.y) / float(GRID_SIZE);
 }
 
-// Convert a grid coordinate to framebuffer pixels.
 vec2 gridToViewportPixel(int x, int y) {
     return vec2(float(x), float(y)) * gridCellSize();
 }
 
-// Determine if the fragment lies inside a grid pixel (square)
 bool isInsidePixel(vec2 uv, int x, int y) {
     float cellSize = gridCellSize();
     vec2 minP = gridToViewportPixel(x, y);
@@ -219,14 +196,12 @@ bool isInsidePixel(vec2 uv, int x, int y) {
     return all(greaterThanEqual(f, minP)) && all(lessThan(f, maxP));
 }
 
-// Draw a single pixel cell with color
 void drawPixel(int x, int y, inout vec3 color, vec3 pixelColor) {
     if (isInsidePixel(vUV, x, y)) {
         color = pixelColor;
     }
 }
 
-// Integer Bresenham line
 void bresenhamLine(int x0, int y0, int x1, int y1, inout vec3 color) {
     int dx = abs(x1 - x0);
     int sx = x0 < x1 ? 1 : -1;
@@ -238,8 +213,8 @@ void bresenhamLine(int x0, int y0, int x1, int y1, inout vec3 color) {
     int x = x0;
     int y = y0;
 
-    for (int i = 0; i < 512; i++) { // safety loop
-        drawPixel(x, y, color, vec3(1.0, 0.0, 0.0)); // red pixel
+    for (int i = 0; i < 512; i++) {
+        drawPixel(x, y, color, vec3(1.0, 0.0, 0.0));
 
         if (x == x1 && y == y1) break;
 
@@ -250,19 +225,17 @@ void bresenhamLine(int x0, int y0, int x1, int y1, inout vec3 color) {
 }
 
 void main() {
-    vec3 color = vec3(0.12); // dark gray background
+    vec3 color = vec3(0.12);
 
     float cellSize = gridCellSize();
     int gridWidth = int(ceil(iResolution.x / cellSize));
     int gridHeight = int(ceil(iResolution.y / cellSize));
 
-    // Default: a first-octant example line spanning the viewport width.
     int x0 = 0;
     int y0 = 0;
     int x1 = gridWidth - 1;
     int y1 = min(gridHeight - 1, int(0.75 * float(gridWidth)));
     if (iMouse.z > 0.5) {
-        // The pointer uses top-left origin while the raster uses bottom-left origin.
         x0 = gridWidth / 2;
         y0 = gridHeight / 2;
         vec2 mousePixel = vec2(iMouse.x, iResolution.y - iMouse.y);
@@ -271,7 +244,6 @@ void main() {
         y1 = max(0, min(gridHeight - 1, int(floor(mouseGrid.y))));
     }
 
-    // Draw Bresenham line
     bresenhamLine(x0, y0, x1, y1, color);
 
     fragColor = vec4(color, 1.0);

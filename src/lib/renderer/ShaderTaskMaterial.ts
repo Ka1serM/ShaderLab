@@ -1,23 +1,15 @@
 import * as THREE from 'three';
 import { base } from '$app/paths';
 
-// Constant for 3D Atlas Reordering
 const ATLAS_GRID_SIZE = 32;
 
-// --- Type Definitions ---
 export type ShaderInput =
 	| { type: 'float' | 'int'; name: string; init?: number }
 	| { type: 'vec2' | 'vec3' | 'vec4'; name: string; init?: number[] }
 	| { type: 'mat3' | 'mat4'; name: string; init?: number[][] }
 	| { type: 'texture2D' | 'texture3D'; name: string; init?: string };
 
-// --- Main Class ---
 export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
-	// Public members inherited from THREE.RawShaderMaterial:
-	// this.vertexShader
-	// this.fragmentShader
-	// this.uniforms
-	
 	private textures = new Set<THREE.Texture>();
 	private pendingTextureLoads = new Map<string, { path: string; revision: number; controller: AbortController; promise: Promise<void> }>();
 	private inputRevisions = new Map<string, number>();
@@ -25,7 +17,6 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 	private loadGeneration = 0;
 	private shaderRevision = 0;
 	
-	// Internal map to track input metadata (type, path)
 	inputsMap: Record<
 		string,
 		{
@@ -36,11 +27,10 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 	> = {};
 
 	constructor(params: { vertexShader: string; fragmentShader: string; inputs?: ShaderInput[] }) {
-		// Three.js RawShaderMaterial configuration
 		super({
 			vertexShader: params.vertexShader,
 			fragmentShader: params.fragmentShader,
-			uniforms: {}, // Initialize uniforms object
+			uniforms: {},
 			glslVersion: THREE.GLSL3
 		});
 
@@ -53,22 +43,16 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 		}
 	}
 
-	/** Ensure each shader edit gets a fresh WebGL program cache entry. */
 	override customProgramCacheKey() {
 		return `shaderlab-${this.shaderRevision}`;
 	}
 
-	/**
-	 * Adds or updates a shader input (uniform).
-	 * Handles creation of vectors/matrices and triggers texture loading.
-	 */
 	addInput(input: ShaderInput) {
 		const name = input.name;
 		let value: any = null;
 		let initPath: string | undefined = undefined;
 		const existingEntry = this.inputsMap[name];
 
-		// 1. Determine the initial value based on type
 		switch (input.type) {
 			case 'float':
 			case 'int':
@@ -83,41 +67,33 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 				break;
 			case 'texture2D':
 			case 'texture3D':
-				// Textures are handled asynchronously below
 				value = existingEntry?.value instanceof THREE.Texture ? existingEntry.value : null;
 				if (input.init) {
 					initPath = this.resolvePath(input.init);
 					
-					// Check if we need to load or if we already have this texture.
 					if (existingEntry && existingEntry.initPath === initPath && existingEntry.value !== null) {
 						return; 
 					}
 
-					// If path changed or it's a new input, trigger load
 					this.loadTexture(input, initPath);
 				}
 				break;
 		}
 
-		// 2. Update internal maps and uniforms
 		if (existingEntry) {
-			// Update properties of existing uniform
 			existingEntry.value = value;
 			existingEntry.type = input.type;
 			existingEntry.initPath = initPath;
 			
-			// Update the actual uniform value, ensuring we don't overwrite a loading texture with null
 			if (!(input.type.startsWith('texture') && this.pendingTextureLoads.has(name))) {
 				this.uniforms[name].value = value;
 			}
 		} else {
-			// Create new uniform entry
 			this.inputsMap[name] = { value, type: input.type, initPath };
 			this.uniforms[name] = { value };
 		}
 	}
 
-	/** Removes an input and cancels/disposes resources owned by it. */
 	removeInput(name: string) {
 		const pending = this.pendingTextureLoads.get(name);
 		pending?.controller.abort();
@@ -132,7 +108,6 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 		delete this.uniforms[name];
 	}
 
-	/** Initialize vectors, matrices, or arrays of them */
 	private initStructuredInput(input: ShaderInput) {
 		const { type, init } = input;
 		let arr: any[] = init === undefined ? [0] : Array.isArray(init) ? init : [init];
@@ -140,11 +115,9 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 		if (!Array.isArray(arr[0])) {
 			return this.createStructuredValue(type, arr as number[]);
 		}
-		// Handle array of vectors/matrices
 		return (arr as number[][]).map((v) => this.createStructuredValue(type, v));
 	}
 
-	/** Creates the appropriate THREE.js object for structured types */
 	private createStructuredValue(
 		type: ShaderInput['type'],
 		arr: number[]
@@ -160,21 +133,16 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 				return new THREE.Matrix3().fromArray(arr);
 			case 'mat4':
 				return new THREE.Matrix4().fromArray(arr);
-			default:
-				// Should not happen, but return the first element for safety
-				return arr[0] ?? 0;
+			default: return arr[0] ?? 0;
 		}
 	}
 
-	/** Standardized path resolution using SvelteKit's base path */
 	private resolvePath(rawPath: string): string {
 		if (!rawPath) return rawPath;
-		// Ensure path starts with base/ or / if base is not defined
 		const p = rawPath.startsWith('/') ? rawPath.slice(1) : rawPath;
 		return base ? `${base}/${p}` : `/${p}`;
 	}
 
-	/** Load texture input (async) */
 	private loadTexture(
 		input: Extract<ShaderInput, { type: 'texture2D' | 'texture3D' }>,
 		resolvedPath: string
@@ -196,7 +164,6 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 				let format: THREE.PixelFormat = THREE.RedFormat;
 
 				if (resolvedPath.toLowerCase().endsWith('.raw')) {
-					// Raw file: fetch and parse
 					const response = await fetch(resolvedPath, { signal: controller.signal });
 					if (!response.ok) throw new Error(`HTTP ${response.status} while loading ${resolvedPath}`);
 					const buffer = await response.arrayBuffer();
@@ -217,7 +184,6 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 					arrayData = parsed.data;
 					dataType = parsed.dataType;
 				} else {
-					// Image file: load as ImageBitmap
 					const loader = new THREE.ImageBitmapLoader();
 					loader.setOptions({ imageOrientation: 'flipY' });
 					const bitmap = await loader.loadAsync(resolvedPath);
@@ -230,7 +196,6 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 					}
 					depth = 1;
 
-					// 3D Atlas Reordering Logic (Images only)
 					if (input.type === 'texture3D') {
 						const { reorderedData, w3d, h3d, d3d } = this.reorder3DDataFrom2DAtlas(
 							arrayData as Float32Array,
@@ -245,7 +210,6 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 					dataType = THREE.FloatType;
 				}
 				
-				// Create and configure texture
 				let tex: THREE.Texture;
 
 				if (input.type === 'texture3D') {
@@ -258,7 +222,7 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 				tex.type = dataType;
 				tex.colorSpace = THREE.NoColorSpace;
 				tex.minFilter = tex.magFilter = THREE.LinearFilter;
-				tex.unpackAlignment = 1; // 1 byte per component (RedFormat)
+				tex.unpackAlignment = 1;
 				tex.needsUpdate = true;
 
 				if (this.disposed || generation !== this.loadGeneration || revision !== this.inputRevisions.get(name)) {
@@ -266,7 +230,6 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 					return;
 				}
 
-				// Store texture for eventual disposal
 				const oldTexture = this.inputsMap[name]?.value;
 				if (oldTexture instanceof THREE.Texture && oldTexture !== tex) {
 					oldTexture.dispose();
@@ -274,7 +237,6 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 				}
 				this.textures.add(tex);
 
-				// Update uniforms and internal map
 				this.inputsMap[name].value = tex;
 				if (this.uniforms[name]) this.uniforms[name].value = tex;
 				
@@ -293,16 +255,13 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 		this.pendingTextureLoads.set(name, { path: resolvedPath, revision, controller, promise: loadPromise });
 	}
 
-	/**
-	 * Reorders a 2D atlas image (W x H) into a 3D volume (W_slice x H_slice x D).
-	 */
 	private reorder3DDataFrom2DAtlas(
 		sourceArray: Float32Array,
 		atlasWidth: number,
 		atlasHeight: number
 	): { reorderedData: Float32Array; w3d: number; h3d: number; d3d: number } {
-		const grid = ATLAS_GRID_SIZE; // 32
-		const totalSlices = grid * grid; // 1024
+		const grid = ATLAS_GRID_SIZE;
+		const totalSlices = grid * grid;
 
 		const sliceW = Math.floor(atlasWidth / grid);
 		const sliceH = Math.floor(atlasHeight / grid);
@@ -340,31 +299,25 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 		};
 	}
 
-	/** Convert ImageBitmap to Float32Array (red channel only, normalized 0-1) */
 	private bitmapToFloatArray(bitmap: ImageBitmap): Float32Array {
 		const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
 		const ctx = canvas.getContext('2d');
 		if (!ctx) throw new Error('Failed to create 2D context for ImageBitmap');
 		
-		// Use requestImageBitmap instead of drawing to canvas if possible for better performance,
-		// but since we need pixel data for 3D reordering, canvas method is necessary.
 		ctx.drawImage(bitmap, 0, 0);
 		const imgData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
 		
 		const arr = new Float32Array(bitmap.width * bitmap.height);
 		for (let i = 0; i < bitmap.width * bitmap.height; i++) {
-			// Taking only the Red channel (index i * 4) and normalizing it to 0-1
 			arr[i] = imgData.data[i * 4] / 255;
 		}
 		return arr;
 	}
 
-	/** Parses raw data buffer from a .raw file */
 	private parseRawData(
 		buffer: ArrayBuffer,
 		format: number
 	): { data: Float32Array | Uint16Array; dataType: THREE.TextureDataType } {
-		// Data starts at byte 16 (after W, H, D, Format headers)
 		if (format === 1)
 			return { data: new Uint16Array(buffer, 16), dataType: THREE.HalfFloatType };
 		if (format === 2)
@@ -372,7 +325,6 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 		throw new Error(`Unsupported raw format: ${format} (expected 1=Float16 or 2=Float32)`);
 	}
 
-	/** Sets the value of an existing uniform input */
 	setInput(name: string, value: any) {
 		let entry = this.inputsMap[name];
 		if (!entry) {
@@ -388,11 +340,9 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 			this.uniforms[name] = { value: structuredValue };
 		}
 
-		// Handle array of vectors/matrices
 		if (Array.isArray(value) && Array.isArray(value[0])) {
 			entry.value = (value as number[][]).map((v) => this.createStructuredValue(entry.type, v));
 		}
-		// Handle single vector/matrix (copying into existing to avoid allocation)
 		else if (
 			entry.value instanceof THREE.Vector2 ||
 			entry.value instanceof THREE.Vector3 ||
@@ -409,42 +359,35 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 			) {
 				entry.value.copy(value as any);
 			} else if (Array.isArray(value)) {
-				// Allows setting a Vector with a simple array [x, y, z]
 				if (entry.value instanceof THREE.Matrix3 || entry.value instanceof THREE.Matrix4) entry.value.fromArray(value);
 				else (entry.value as any).set(...value);
 			} else {
-				entry.value = value; // Fallback for incompatible type or primitive
+				entry.value = value;
 			}
 		}
-		// Handle primitives, textures, or replacement of vectors
 		else {
 			entry.value = value;
 		}
 
-		// Update the actual uniform
 		if (this.uniforms[name])
 			this.uniforms[name].value = entry.value;
 	}
 
-	/** Updates shader source code and flags the material for re-compilation */
 	updateShaders(vertexShader: string, fragmentShader: string) {
 		this.vertexShader = vertexShader;
 		this.fragmentShader = fragmentShader;
 		this.shaderRevision += 1;
-		this.needsUpdate = true; // Crucial Three.js flag for re-compilation
+		this.needsUpdate = true;
 	}
 
-	/** Clean up textures and inherited resources */
 	override dispose() {
 		this.disposed = true;
 		this.loadGeneration += 1;
-		// Dispose of dynamically created textures
 		this.pendingTextureLoads.forEach(load => load.controller.abort());
 		this.textures.forEach(tex => tex.dispose());
 		this.textures.clear();
 		this.pendingTextureLoads.clear();
 		
-		// Call parent dispose method
 		super.dispose();
 	}
 }

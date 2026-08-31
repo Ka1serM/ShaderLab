@@ -37,7 +37,6 @@ uniform mat4 projectionMatrix;
 uniform vec3 uLightDir;
 // @control shininess slider label="Shininess" min=1 max=128 step=1 default=32
 uniform float uShininess;
-// Wird vom Renderer bereitgestellt und enthält die Weltposition der Kamera.
 uniform vec3 cameraPosition;
 
 flat out int vShadingMode;
@@ -57,7 +56,6 @@ vec3 shadeGouraud(vec3 worldPosition, vec3 worldNormal) {
 }
 
 void main() {
-    // Die drei Kugeln desselben InstancedMesh erhalten die Modi 0, 1 und 2.
     vShadingMode = gl_InstanceID;
 
     mat4 instanceModelMatrix = modelMatrix * instanceMatrix;
@@ -65,7 +63,6 @@ void main() {
     vWorldPosition = worldPosition.xyz;
     vWorldNormal = normalize(mat3(transpose(inverse(instanceModelMatrix))) * normal);
 
-    // Gouraud: Beleuchtung genau einmal je Vertex auswerten.
     vGouraudColor = shadeGouraud(vWorldPosition, vWorldNormal);
 
     gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
@@ -100,7 +97,6 @@ vec3 shadeIllumination(vec3 worldPosition, vec3 worldNormal) {
 }
 
 vec3 shadeFlat() {
-    // Ableitungen der Fragmentposition liefern die geometrische Face-Normale.
     vec3 faceNormal = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));
     if (!gl_FrontFacing) faceNormal = -faceNormal;
     return shadeIllumination(vWorldPosition, faceNormal);
@@ -110,10 +106,8 @@ void main() {
     if (vShadingMode == 0) {
         fragColor = vec4(shadeFlat(), 1.0);
     } else if (vShadingMode == 1) {
-        // Bereits am Vertex berechnet; der Rasterizer interpoliert nur die Farbe.
         fragColor = vec4(vGouraudColor, 1.0);
     } else {
-        // Normalen und Positionen interpolieren, Beleuchtung pro Fragment berechnen.
         fragColor = vec4(shadeIllumination(vWorldPosition, vWorldNormal), 1.0);
     }
 }
@@ -121,7 +115,7 @@ void main() {
 
 # Overview
 
-Von links nach rechts zeigen die drei Instanzen **Flat**, **Gouraud** und **Illumination pro Fragment**. Alle verwenden dieselbe Kugelgeometrie, Materialfarbe und Lichtquelle; nur der Zeitpunkt der Beleuchtungsberechnung ändert sich. Verändere Lichtrichtung und Shininess und achte besonders auf das Glanzlicht.
+Von links nach rechts zeigen die drei Instanzen **Flat Shading**, **Gouraud Shading** und **Beleuchtung pro Fragment**. Alle verwenden dieselbe Kugelgeometrie, Materialfarbe und Lichtquelle; nur der Zeitpunkt der Beleuchtungsberechnung ändert sich. Verändere Lichtrichtung und Shininess und achte besonders auf das Glanzlicht.
 
 # Explanation
 
@@ -129,6 +123,6 @@ Beim **Flat Shading** nutzt jedes Dreieck seine geometrische Face-Normale. Desha
 
 Beim **Gouraud Shading** wird die Beleuchtung im Vertex Shader berechnet. Die resultierenden Farben werden innerhalb des Dreiecks interpoliert. Das ist effizient, kann aber kleine oder zwischen den Vertices liegende Glanzlichter übersehen.
 
-Bei **Illumination pro Fragment** werden Normalen und Positionen interpoliert; erst im Fragment Shader wird beleuchtet. Dadurch bleiben Glanzlichter genauer und die Oberfläche wirkt glatter.
+Bei der **Beleuchtung pro Fragment** werden Normalen und Positionen interpoliert; erst im Fragment Shader wird beleuchtet. Dadurch bleiben Glanzlichter genauer und die Oberfläche wirkt glatter.
 
-Die drei Kugeln sind Instanzen eines einzigen Meshes. `gl_InstanceID` wählt dabei `0 = Flat`, `1 = Gouraud` und `2 = Illumination pro Fragment`.
+Die drei Kugeln sind Instanzen eines einzigen Meshes. `gl_InstanceID` wählt dabei `0 = Flat Shading`, `1 = Gouraud Shading` und `2 = Beleuchtung pro Fragment`.

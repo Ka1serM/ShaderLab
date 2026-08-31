@@ -10,11 +10,11 @@ import { slugify } from './src/lib/utils/slugify';
 // its worker. List those documents explicitly so direct PWA launches and
 // navigation are independent of a network fallback.
 const offlineDocuments = [
-  'index.html',
-  'tasks.html',
-  'teach.html',
-  ...tasks.map(task => `task/${slugify(task.title)}.html`),
-  ...teaching.map(demo => `teach/${demo.id}.html`)
+  '/',
+  '/tasks',
+  '/teach',
+  ...tasks.map(task => `/task/${slugify(task.title)}`),
+  ...teaching.map(demo => `/teach/${demo.id}`)
 ];
 
 export default defineConfig({
@@ -33,7 +33,7 @@ export default defineConfig({
       // SvelteKit's static fallback replaces the generated HTML after Vite's
       // transform. Registration therefore lives explicitly in app.html.
       injectRegister: false,
-  includeAssets: ['favicon.svg', 'icons/app-icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'],
+  includeAssets: ['icons/app-icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'],
       manifest: {
         id: './',
         name: 'ShaderLab',
@@ -54,6 +54,10 @@ export default defineConfig({
         clientsClaim: true,
         cleanupOutdatedCaches: true,
         maximumFileSizeToCacheInBytes: 30 * 1024 * 1024,
+        // Every static route is explicitly precached above. A generic SPA
+        // fallback points at index.html, which adapter-static adds only after
+        // Workbox has generated this worker and causes a broken install.
+        navigateFallback: null,
         additionalManifestEntries: offlineDocuments.map(url => ({ url, revision: String(Date.now()) })),
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,ttf,json,glb,raw}']
       },

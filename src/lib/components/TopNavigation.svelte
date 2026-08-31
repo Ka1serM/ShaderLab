@@ -11,6 +11,13 @@
   import teaching from '$lib/data/teaching.json';
   import { slugify } from '$lib/utils/slugify';
   import LibraryCard from '$lib/components/LibraryCard.svelte';
+  import ShaderLabLogo from '$lib/components/ShaderLabLogo.svelte';
+
+  let logoReplay = 0;
+
+  function replayLogo() {
+    logoReplay += 1;
+  }
 
   function preview(html: string, maxLength = 100) {
     const text = html.replace(/<[^>]+>/g, '');
@@ -34,20 +41,16 @@
 </script>
 
 <header class="top-navigation">
-  <a class="top-navigation-brand" href={resolve('/')} aria-label="ShaderLab Startseite">
-    <svg class="shaderlab-gizmo h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M16.466 7.5C15.643 4.237 13.952 2 12 2 9.239 2 7 6.477 7 12s2.239 10 5 10c.342 0 .677-.069 1-.2" />
-      <path d="m15.194 13.707 3.814 1.86-1.86 3.814" />
-      <path d="M19 15.57c-1.804.885-4.274 1.43-7 1.43-5.523 0-10-2.239-10-5s4.477-5 10-5c4.838 0 8.873 1.718 9.8 4" />
-    </svg>
-    <span class="shaderlab-brand text-xl font-semibold"><span class="shaderlab-word">Shader</span><span class="shaderlab-accent">Lab</span></span>
+  <a class="top-navigation-brand motion-press" href={resolve('/')} aria-label="ShaderLab Startseite" onclick={replayLogo}>
+    <ShaderLabLogo animation="reveal" replay={logoReplay} className="h-5 w-5" />
+    <span class="shaderlab-brand text-2xl font-semibold"><span class="shaderlab-word">Shader</span><span class="shaderlab-accent">Lab</span></span>
   </a>
 
   <nav class="top-navigation-tabs" aria-label="Hauptnavigation">
     <div class="top-navigation-menu" class:has-dropdown={!isOverview('tasks')}>
       <a
         class:active={isSectionActive('tasks')}
-        class="top-navigation-tab"
+        class="top-navigation-tab motion-press"
         href={resolve('/tasks')}
       >Aufgaben</a>
       <div class="top-navigation-dropdown" aria-label="Aufgaben">
@@ -63,7 +66,7 @@
     <div class="top-navigation-menu" class:has-dropdown={!isOverview('teach')}>
       <a
         class:active={isSectionActive('teach')}
-        class="top-navigation-tab"
+        class="top-navigation-tab motion-press"
         href={resolve('/teach')}
       >Lehr-Demos</a>
       <div class="top-navigation-dropdown" aria-label="Lehr-Demos">
@@ -77,22 +80,22 @@
     </div>
   </nav>
 
-  <button class="top-navigation-theme" onclick={toggleMode} title="Farbschema wechseln" aria-label="Farbschema wechseln">
+  <button class="top-navigation-theme motion-press" onclick={toggleMode} title="Farbschema wechseln" aria-label="Farbschema wechseln">
     <Sun class="block h-4 w-4 dark:hidden" />
     <Moon class="hidden h-4 w-4 dark:block" />
   </button>
 </header>
 
 <footer class="mobile-bottom-navigation" aria-label="Mobile Hauptnavigation">
-  <a class:active={isActive(resolve('/'))} href={resolve('/')}>
+  <a class:active={isActive(resolve('/'))} class="motion-press" href={resolve('/')}>
     <House class="h-5 w-5" weight="fill" />
     <span>Home</span>
   </a>
-  <a class:active={isSectionActive('tasks')} href={resolve('/tasks')}>
+  <a class:active={isSectionActive('tasks')} class="motion-press" href={resolve('/tasks')}>
     <BookOpen class="h-5 w-5" weight="fill" />
     <span>Aufgaben</span>
   </a>
-  <a class:active={isSectionActive('teach')} href={resolve('/teach')}>
+  <a class:active={isSectionActive('teach')} class="motion-press" href={resolve('/teach')}>
     <Presentation class="h-5 w-5" weight="fill" />
     <span>Lehr-Demos</span>
   </a>
@@ -127,8 +130,12 @@
     transform: translateY(3px);
   }
 
-  .top-navigation-brand .shaderlab-gizmo {
-    color: var(--app-red);
+  .top-navigation-brand :global(.shaderlab-gizmo) {
+    transition: transform var(--motion-slow) var(--motion-emphasized);
+  }
+
+  .top-navigation-brand:hover :global(.shaderlab-gizmo) {
+    transform: rotate(-18deg) scale(1.08);
   }
 
   .top-navigation-tabs {
@@ -152,7 +159,7 @@
     font-size: .875rem;
     font-weight: 500;
     white-space: nowrap;
-    transition: color .15s, background .15s, border-color .15s;
+    transition: color var(--motion-fast) ease, background-color var(--motion-fast) ease, border-color var(--motion-fast) ease, transform var(--motion-fast) var(--motion-ease);
   }
 
   .top-navigation-tab:hover,
@@ -182,17 +189,19 @@
     background: var(--background);
     box-shadow: 0 .8rem 1.8rem rgb(0 0 0 / 16%);
     z-index: 2;
+    will-change: opacity;
   }
 
   @media (min-width: 36.0625rem) {
     .top-navigation-menu.has-dropdown:hover .top-navigation-dropdown {
       display: block;
+      animation: motion-fade var(--motion-slow) var(--motion-ease) both;
     }
   }
 
   .top-navigation-card-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
     gap: .6rem;
     padding: .6rem;
   }
@@ -209,11 +218,26 @@
     color: var(--muted-foreground);
   }
 
+  .top-navigation-theme :global(svg) {
+    transition: transform var(--motion-base) var(--motion-emphasized);
+  }
+
   .top-navigation-theme:hover,
   .top-navigation-theme:focus-visible {
     background: var(--accent);
     color: var(--foreground);
     outline: none;
+  }
+
+  .top-navigation-theme:hover :global(svg),
+  .top-navigation-theme:focus-visible :global(svg) {
+    transform: rotate(35deg);
+  }
+
+  @media (max-width: 48rem) {
+    .top-navigation-brand .shaderlab-brand {
+      font-size: 1.35rem;
+    }
   }
 
   .mobile-bottom-navigation {
@@ -225,12 +249,14 @@
       gap: .25rem;
       box-shadow: 0 .4rem 1.2rem rgb(0 0 0 / 10%);
     }
-    .top-navigation-brand > svg { display: none; }
+    .top-navigation-brand > :global(.shaderlab-gizmo) { display: block; width: 1.25rem; height: 1.25rem; }
     .top-navigation-brand {
       position: absolute;
       left: 50%;
       margin: 0;
-      transform: translateX(-50%);
+      /* Individual property, not `transform`: it composes with the `scale` that
+         .motion-press applies on tap instead of being scaled by it. */
+      translate: -50%;
     }
     .top-navigation-theme { position: relative; z-index: 1; }
     .top-navigation-tabs { display: none; }
@@ -261,13 +287,31 @@
       font-weight: 600;
       line-height: 1;
     }
+    .mobile-bottom-navigation a :global(svg) {
+      transition: transform var(--motion-base) var(--motion-emphasized);
+    }
     .mobile-bottom-navigation a.active {
       color: var(--app-red);
       background: color-mix(in srgb, var(--app-red) 10%, transparent);
     }
+    .mobile-bottom-navigation a.active :global(svg) {
+      transform: translateY(-1px) scale(1.12);
+    }
     .mobile-bottom-navigation a:focus-visible {
       outline: 2px solid var(--ring);
       outline-offset: -2px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .top-navigation-dropdown {
+      animation: none;
+    }
+
+    .top-navigation-brand :global(.shaderlab-gizmo),
+    .top-navigation-theme :global(svg),
+    .mobile-bottom-navigation a :global(svg) {
+      transition: none;
+      transform: none;
     }
   }
 </style>

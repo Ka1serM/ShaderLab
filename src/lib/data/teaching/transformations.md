@@ -4,6 +4,8 @@ title: Transformationen
 category: Transformationen
 task: Lambert
 type: shader-controls
+shaderStages:
+  - vertex
 overlays:
   transformControls:
     mode: translate

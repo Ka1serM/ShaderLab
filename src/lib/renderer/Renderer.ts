@@ -129,6 +129,9 @@ export class Renderer {
   private visible = true;
   private animationFrame = 0;
   private resizeFrame = 0;
+  private settledResizeFrame = 0;
+  private resizeRetryFrame = 0;
+  private resizeRetries = 0;
   private renderedWidth = 0;
   private renderedHeight = 0;
   private disposed = false;
@@ -518,7 +521,7 @@ export class Renderer {
     // pages. Always restore the ordinary mesh state before loading the next
     // scene so a previous wireframe-style scene cannot leak into it.
     this.material.wireframe = false;
-    this.material.linewidth = 1;
+    this.material.wireframeLinewidth = 1;
     this.material.needsUpdate = true;
     for (const object of sceneDefinition.objects) {
       const geometries = await this.loadGeometries(object);
@@ -572,10 +575,12 @@ export class Renderer {
   private async loadGeometries(object: Object): Promise<Geometry[]> {
     if (object.source.type === 'primitive') {
       if (object.source.geometry === 'box-wireframe') {
+        // EdgesGeometry contains only the twelve actual box edges. A mesh
+        // wireframe would also reveal the triangulation diagonals, obscuring
+        // the frustum construction this lesson is meant to show.
         const box = new THREE.BoxGeometry(1, 1, 1);
         const edges = new THREE.EdgesGeometry(box);
         box.dispose();
-        this.material.linewidth = 2;
         return [{
           geometry: edges,
           lineSegments: true,
@@ -756,25 +761,46 @@ export class Renderer {
     this.resizeFrame = requestAnimationFrame(() => {
       this.resizeFrame = 0;
       this.resize();
+      // Moving a panel into/out of the maximizer changes its containing block.
+      // ResizeObserver may run before that layout is final, so repaint once more
+      // on the settled size instead of leaving a newly resized canvas blank.
+      cancelAnimationFrame(this.settledResizeFrame);
+      this.settledResizeFrame = requestAnimationFrame(() => {
+        this.settledResizeFrame = 0;
+        this.resize(true);
+      });
     });
   }
 
-  private resize() {
+  private resize(forceRender = false) {
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
     // Split panes can briefly report zero dimensions while being dragged.
-    // Do not resize the WebGL buffer to that transient state.
-    if (width < 2 || height < 2) return;
-    if (width === this.renderedWidth && height === this.renderedHeight) return;
+    // Do not resize the WebGL buffer to that transient state, but check again
+    // a couple of frames later in case this was a maximization layout change.
+    if (width < 2 || height < 2) {
+      if (this.resizeRetries++ < 2 && !this.resizeRetryFrame) {
+        this.resizeRetryFrame = requestAnimationFrame(() => {
+          this.resizeRetryFrame = 0;
+          this.scheduleResize();
+        });
+      }
+      return;
+    }
+    this.resizeRetries = 0;
+    const sizeChanged = width !== this.renderedWidth || height !== this.renderedHeight;
+    if (!sizeChanged && !forceRender) return;
 
-    this.renderedWidth = width;
-    this.renderedHeight = height;
-    this.renderer.setSize(width, height, false);
+    if (sizeChanged) {
+      this.renderedWidth = width;
+      this.renderedHeight = height;
+      this.renderer.setSize(width, height, false);
+    }
     this.updateTransformControlsSize(height);
     this.camera.aspect = width / height;
     this.camera.fov = 2 * Math.atan(Math.tan(this.horizontalFov * Math.PI / 360) / this.camera.aspect) * 180 / Math.PI;
     this.camera.updateProjectionMatrix();
-    this.material.setInput('iResolution', [this.renderer.domElement.width, this.renderer.domElement.height]);
+    if (sizeChanged) this.material.setInput('iResolution', [this.renderer.domElement.width, this.renderer.domElement.height]);
     // Paint immediately after changing the drawing buffer. This keeps the
     // viewport responsive while a split pane is being dragged.
     this.renderScene();
@@ -854,6 +880,8 @@ export class Renderer {
     this.disposed = true;
     cancelAnimationFrame(this.animationFrame);
     cancelAnimationFrame(this.resizeFrame);
+    cancelAnimationFrame(this.settledResizeFrame);
+    cancelAnimationFrame(this.resizeRetryFrame);
     this.sceneGeneration++;
     this.resizeObserver.disconnect();
     this.visibilityObserver.disconnect();

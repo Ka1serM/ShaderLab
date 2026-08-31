@@ -5,6 +5,7 @@
   import Lightbulb from "phosphor-svelte/lib/LightbulbIcon";
   import { taskStore } from "$lib/stores/taskStore";
   import MaximizeButton from "./MaximizeButton.svelte";
+  import ShaderLabLogo from './ShaderLabLogo.svelte';
   import { maximizedPanel } from "$lib/stores/panelStore";
   import { maximizable } from '$lib/actions/maximizable';
 
@@ -28,26 +29,26 @@
 
 <div use:maximizable={{ active: $maximizedPanel === panelId }} class="workspace-panel">
 <div class="app-panel h-full flex flex-col overflow-hidden" data-tutorial="instructions">
-  <!-- Header -->
   <div class="task-panel-header app-panel-header flex items-center justify-between shrink-0">
     {#if $taskStore?.task}
       <h1 class="app-panel-title text-2xl font-bold text-foreground">
         {$taskStore.task.title}
       </h1>
     {:else}
-      <div class="text-muted-foreground">Aufgabe wird geladen …</div>
+      <div role="status" aria-label="Aufgabe wird geladen">
+        <ShaderLabLogo animation="spinner" className="h-6 w-6" />
+        <span class="sr-only">Aufgabe wird geladen</span>
+      </div>
     {/if}
     <MaximizeButton isMaximized={$maximizedPanel === panelId} onClick={toggleMaximize} />
   </div>
 
-  <!-- Tabs -->
   {#if $taskStore?.task}
     <Tabs.Root
       value="task"
       class="flex-1 flex flex-col min-h-0 overflow-hidden"
       onValueChange={(v) => activeTab = v}
     >
-      <!-- Tab List -->
       <div class="flex items-center px-4">
         <Tabs.List class="h-10 justify-start bg-muted/25 p-0 gap-0">
           <Tabs.Trigger 
@@ -65,7 +66,6 @@
         </Tabs.List>
       </div>
 
-      <!-- Task Tab -->
       <Tabs.Content
         value="task"
         class="flex-1 h-0 overflow-y-auto overflow-x-hidden p-0 mt-0 space-y-4 data-[state=inactive]:hidden"
@@ -106,7 +106,6 @@
         {/if}
       </Tabs.Content>
 
-      <!-- Theory Tab -->
       <Tabs.Content
         value="theory"
         class="flex-1 h-0 overflow-y-auto overflow-x-hidden p-0 mt-0 space-y-4 data-[state=inactive]:hidden"

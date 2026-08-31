@@ -2,7 +2,7 @@ import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import definitions from '$lib/data/teaching.json';
 import type { Scene, ViewportOverlays } from '$lib/renderer/Renderer';
-import type { ShaderTemplate } from '$lib/stores/taskStore';
+import type { ShaderStage, ShaderTemplate } from '$lib/stores/taskStore';
 import type { TeachingValue } from '$lib/utils/shaderControls';
 
 export type TeachingType = 'shader-controls';
@@ -22,6 +22,7 @@ export interface TeachingDefinition {
   presets?: TeachingPreset[];
   overview: string;
   explanation: string;
+  shaderStages?: ShaderStage[];
   vertexShader?: string;
   fragmentShader?: string;
   vertexShaderTemplate?: ShaderTemplate;

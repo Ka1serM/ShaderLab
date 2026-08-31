@@ -15,6 +15,7 @@
   import type { PageData } from './$types';
   import { isMobile } from '$lib/hooks/is-mobile.svelte';
   import AppTutorial from '$lib/components/AppTutorial.svelte';
+  import ShaderLabLogo from '$lib/components/ShaderLabLogo.svelte';
   import { loadSplitterSizes, saveSplitterSizes, type SplitterSizes } from '$lib/utils/splitPaneStorage';
 
   const defaultSplitterSizes: SplitterSizes = { outer: 35, inner: 34, viewports: 50 };
@@ -63,7 +64,7 @@
   }
   $: definition = $teachingStore.definition;
   $: task = definition?.task ? (tasks as Task[]).find(item => item.title === definition.task) ?? null : null;
-  $: visibleSources = (['vertex', 'fragment'] as const).filter(source => Boolean(definition?.[`${source}Shader`]));
+  $: visibleSources = (definition?.shaderStages ?? (['vertex', 'fragment'] as const).filter(source => Boolean(definition?.[`${source}Shader`]))) as TeachingShaderSource[];
   $: if (!visibleSources.includes(teachingSource)) teachingSource = visibleSources[0] ?? 'fragment';
   $: editorSources = {
     vertex: $teachingStore.codes.vertex ?? definition?.vertexShader ?? '',
@@ -71,19 +72,14 @@
   };
   $: defaultEditorSources = { vertex: definition?.vertexShader ?? '', fragment: definition?.fragmentShader ?? '' };
   $: scene = definition?.scene;
-  // The editors only show the student portions; hidden @prefix/@suffix blocks are re-attached for rendering.
   $: compiledVertexCode = assembleStudentShader(editorSources.vertex ?? '', definition?.vertexShaderTemplate);
   $: compiledFragmentCode = assembleStudentShader(editorSources.fragment ?? '', definition?.fragmentShaderTemplate);
   $: errorLineOffsets = {
     vertex: definition?.vertexShaderTemplate?.prefix ? definition.vertexShaderTemplate.prefix.split('\n').length : 0,
     fragment: definition?.fragmentShaderTemplate?.prefix ? definition.fragmentShaderTemplate.prefix.split('\n').length : 0
   };
-  // The matching task is already available from the static task catalogue. Do not
-  // source the other shader stage from taskStore here: the store is populated in
-  // onMount and can briefly still be empty while the viewport is being created.
   $: viewportVertexShader = definition?.vertexShader ? compiledVertexCode : task?.referenceVertexShader ?? '';
   $: viewportFragmentShader = definition?.fragmentShader ? compiledFragmentCode : task?.referenceFragmentShader ?? '';
-  // Controls come from the live editor source, so a new annotated uniform shows up as you type it.
   $: controls = parseShaderControls(`${compiledVertexCode}\n${compiledFragmentCode}`);
   $: values = controlValues(controls, $teachingStore.values);
   $: shaderReadbacks = controls
@@ -123,7 +119,6 @@
     });
   }
 
-  // A malformed annotation can leave a value the renderer has no uniform type for; skip those.
   function uniformValue(control: TeachingControl, value: TeachingValue) {
     if (control.type === 'color') return colorToVec3(value as string | number[]);
     return typeof value === 'string' ? undefined : value;
@@ -170,7 +165,6 @@
   {#if definition.type === 'shader-controls'}
     <div class="h-full w-full relative">
       {#if !$isMobile}
-        <!-- Desktop layout -->
         <div class="workspace-layout h-full w-full">
           <Splitpanes class="splitpanes-root" theme="my-theme" on:resized={(event) => handleSplitterResize('outer', event)}>
             <Pane size={splitterSizes.outer}>
@@ -211,7 +205,6 @@
           </Splitpanes>
         </div>
       {:else}
-        <!-- Mobile layout -->
         <div class="workspace-layout flex flex-col h-full overflow-auto gap-0">
           <div class="min-h-[400px]">
             <TeachingPanel {definition} {controls} values={displayedValues} />
@@ -244,7 +237,7 @@
               />
             </div>
           {/if}
-        </div>
+          </div>
       {/if}
 
       <AppTutorial mode="teaching" />
@@ -253,6 +246,9 @@
     </div>
   {/if}
 {:else}
-  <div class="flex h-full items-center justify-center text-muted-foreground">Lehr-Demo nicht gefunden.</div>
+  <div class="flex h-full items-center justify-center" role="status" aria-label="Lehr-Demo wird geladen">
+    <ShaderLabLogo animation="spinner" className="h-10 w-10" />
+    <span class="sr-only">Lehr-Demo wird geladen</span>
+  </div>
 {/if}
 {/key}

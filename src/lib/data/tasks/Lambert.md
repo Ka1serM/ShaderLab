@@ -12,7 +12,12 @@ modelPath: models/HeadDavid.glb
 ---
 
 # Task
-Implementiere im Fragment-Shader eine Lambert-Beleuchtung. Beurteile dein Ergebnis in der Vorschau.
+Implementiere im Fragment-Shader die Beleuchtung nach dem **Lambert-Beleuchtungsmodell**. Die Normale eines Fragments wird aus dem Vertex-Shader übergeben; nutze sie, um den diffusen Lichtanteil für die Szene zu bestimmen.
+
+1. **Lichtquelle und Material:** Lege eine gerichtete Lichtquelle sowie eine Grundfarbe für das Material fest. Beurteile das Bildergebnis und korrigiere mögliche Fehler.
+2. **Diffuser Lichtanteil:** Ergänze für die vorhandene Lichtquelle den diffusen Anteil aus dem Winkel zwischen Normale und Lichtrichtung. Lege einen diffusen Reflexionskoeffizienten fest und prüfe das Ergebnis in der Vorschau.
+
+Der diffuse Anteil darf nur auf der der Lichtquelle zugewandten Seite entstehen. Beurteile das Bildergebnis nach jedem Schritt und behebe auftretende Fehler.
 
 # Theory
 Ein Lambert-Reflektor streut einfallendes Licht ideal diffus. Seine Helligkeit hängt vom Winkel zwischen der Oberflächennormalen `N` und dem Vektor `L` zur Lichtquelle ab. Für normierte Vektoren gilt:
@@ -36,7 +41,6 @@ uniform mat3 normalMatrix;
 out vec3 vNormal;
 
 void main() {
-  // transform normal to view space and pass to fragment shader
   vNormal = normalize(normalMatrix * normal);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }

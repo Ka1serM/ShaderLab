@@ -67,30 +67,21 @@ void main() {
 }
 
 void animateA(float time) {
-    // Beispiel: So baust du eine Matrix von Hand auf. Schreib sie genau wie auf dem
-    // Papier, Zeile fuer Zeile -- ShaderLab dreht mat4(...)/mat3(...)-Literale mit
-    // allen 16 bzw. 9 Werten beim Kompilieren automatisch in die richtige Reihenfolge.
-    // Ausgeschrieben ist das hier die Identitätsmatrix mat4(1.0).
     gearAPointMatrix = mat4(1.0, 0.0, 0.0, 0.0,
                             0.0, 1.0, 0.0, 0.0,
                             0.0, 0.0, 1.0, 0.0,
                             0.0, 0.0, 0.0, 1.0);
     gearANormalMatrix = mat3(1.0);
-    // TODO: Implementiere Punkt- und Rotations-Transformation für Zahnrad A.
-    // Schreibe dir dafür eigene Funktionen nach dem Muster oben, zum Beispiel
-    // mat4 rotationXMatrix(float rotationAngle).
 }
 
 void animateB(float time) {
     gearBPointMatrix = mat4(1.0);
     gearBNormalMatrix = mat3(1.0);
-    // TODO: Implementiere die gegenläufige Rotation von Zahnrad B.
 }
 
 void animateC(float time) {
     gearCPointMatrix = mat4(1.0);
     gearCNormalMatrix = mat3(1.0);
-    // TODO: Positioniere und rotiere Zahnrad C passend zu Zahnrad B.
 }
 
 // @suffix

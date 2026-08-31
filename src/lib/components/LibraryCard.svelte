@@ -1,6 +1,7 @@
 <script lang="ts">
   import BookOpen from 'phosphor-svelte/lib/BookOpenIcon';
   import Presentation from 'phosphor-svelte/lib/PresentationIcon';
+  import { reveal, tilt } from '$lib/actions/motion';
 
   export let href: string;
   export let category = '';
@@ -11,7 +12,15 @@
   export let active = false;
 </script>
 
-<a {href} class:compact class:active class="library-card library-card-link">
+<a
+  {href}
+  class:compact
+  class:active
+  class:motion-reveal={!compact}
+  class="library-card library-card-link"
+  use:reveal={compact ? { disabled: true } : {}}
+  use:tilt={compact ? { disabled: true } : { rotation: 6 }}
+>
   <span class="library-card-category">
     {#if kind === 'task'}
       <BookOpen class="h-4 w-4" />
@@ -31,6 +40,8 @@
     gap: .55rem;
     padding: 1.5rem;
     color: var(--foreground);
+    isolation: isolate;
+    overflow: hidden;
     text-decoration: none;
   }
 
@@ -50,7 +61,7 @@
     margin: 0;
     overflow: hidden;
     color: var(--muted-foreground);
-    font-size: .875rem;
+    font-size: 1rem;
     line-height: 1.4;
     line-clamp: 3;
     -webkit-box-orient: vertical;
@@ -71,5 +82,19 @@
   .library-card-link.active {
     border-color: var(--app-red);
     background: color-mix(in srgb, var(--app-red) 15%, transparent);
+  }
+
+  .library-card-link .library-card-category :global(svg) {
+    transition: transform var(--motion-base) var(--motion-emphasized);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .library-card-link:hover .library-card-category :global(svg) {
+      transform: scale(1.12);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .library-card-link .library-card-category :global(svg) { transition: none; transform: none; }
   }
 </style>

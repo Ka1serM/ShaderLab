@@ -60,13 +60,11 @@ void main() {
 precision highp float;
 // @prefix
 
-// Interpolierte Weltkoordinaten und Oberflächennormale aus dem Vertex-Shader.
 in vec3 vNormal;
 in vec3 vPosition;
 
 out vec4 fragColor;
 
-// Wird von ShaderLab mit der aktuellen Kameraposition befüllt.
 uniform vec3 cameraPosition;
 
 void main() {
@@ -113,16 +111,13 @@ void main() {
     vec3 viewDir = normalize(cameraPosition - vPosition);
     vec3 baseColor = vec3(0.8, 0.4, 0.2);
 
-    // Diffuse component
     float diffuse = max(dot(vNormal, lightDir), 0.0);
 
-    // Specular component
     vec3 reflectDir = reflect(-lightDir, vNormal);
     float specular = diffuse > 0.0
         ? pow(max(dot(reflectDir, viewDir), 0.0), 32.0)
         : 0.0;
 
-    // Ambient component
     vec3 ambient = vec3(0.1);
 
     vec3 color = ambient + baseColor * diffuse + specular * vec3(1.0);

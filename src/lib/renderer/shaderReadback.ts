@@ -56,6 +56,8 @@ function uploadUniform(gl: WebGL2RenderingContext, program: WebGLProgram, info: 
 	if (!location) return;
 	const supplied = values[name];
 	const array = Array.isArray(supplied) ? supplied : undefined;
+	const matrix = (size: number, identity: number[]) =>
+		array?.length === size && array.every(Number.isFinite) ? array : identity;
 	switch (info.type) {
 		case gl.FLOAT: gl.uniform1f(location, typeof supplied === 'number' ? supplied : 0); break;
 		case gl.INT:
@@ -63,8 +65,8 @@ function uploadUniform(gl: WebGL2RenderingContext, program: WebGLProgram, info: 
 		case gl.FLOAT_VEC2: gl.uniform2fv(location, array ?? [0, 0]); break;
 		case gl.FLOAT_VEC3: gl.uniform3fv(location, array ?? [0, 0, 0]); break;
 		case gl.FLOAT_VEC4: gl.uniform4fv(location, array ?? [0, 0, 0, 0]); break;
-		case gl.FLOAT_MAT3: gl.uniformMatrix3fv(location, false, array ?? [1, 0, 0, 0, 1, 0, 0, 0, 1]); break;
-		case gl.FLOAT_MAT4: gl.uniformMatrix4fv(location, false, array ?? [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]); break;
+		case gl.FLOAT_MAT3: gl.uniformMatrix3fv(location, false, matrix(9, [1, 0, 0, 0, 1, 0, 0, 0, 1])); break;
+		case gl.FLOAT_MAT4: gl.uniformMatrix4fv(location, false, matrix(16, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])); break;
 	}
 }
 

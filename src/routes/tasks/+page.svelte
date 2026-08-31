@@ -1,10 +1,11 @@
 <script lang="ts">
 import { Input } from "$lib/components/ui/input/index.js";
 import Search from "phosphor-svelte/lib/MagnifyingGlassIcon";
-import { resolve } from "$app/paths"; // <-- use resolve
+import { resolve } from "$app/paths";
 import tasks from "$lib/data/tasks.json";
 import { slugify } from '$lib/utils/slugify';
 import LibraryCard from '$lib/components/LibraryCard.svelte';
+import { reveal, writeIn } from '$lib/actions/motion';
 
 let query = $state("");
 
@@ -25,10 +26,10 @@ function getPreview(html: string, maxLength: number = 90): string {
 </script>
 
 <div class="library-page">
-  <div class="library-toolbar">
+  <div class="library-toolbar motion-reveal" use:reveal>
     <div>
-      <p class="library-kicker">Computergrafik Labor</p>
-      <h1 class="library-title">Aufgaben</h1>
+      <p class="library-kicker">Computergrafik Labor HSD</p>
+      <h1 class="library-title motion-letters" use:writeIn={{ delay: 90, step: 38 }}>Aufgaben</h1>
       <p class="library-description">Shader entwickeln, direkt ausführen und mit einer Referenz vergleichen.</p>
     </div>
     <div class="library-search relative">
@@ -45,7 +46,7 @@ function getPreview(html: string, maxLength: number = 90): string {
   <main class="library-content">
     <div class="library-grid">
       {#if filteredTasks.length > 0}
-        {#each filteredTasks as task, index (task.title)}
+        {#each filteredTasks as task (task.title)}
           <LibraryCard
             href={resolve(`/task/${slugify(task.title)}`)}
             category={task.category}
