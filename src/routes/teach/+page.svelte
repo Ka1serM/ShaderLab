@@ -38,7 +38,7 @@
       {#if filteredTeaching.length}
         {#each filteredTeaching as demo (demo.id)}
           <LibraryCard
-            href={resolve(`/teach/${demo.id}`)}
+            href={resolve(`/teach/${demo.id}/`)}
             category={demo.category}
             title={demo.title}
             description={preview(demo.overview)}

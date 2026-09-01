@@ -29,13 +29,13 @@
   }
 
   function isSectionActive(section: 'tasks' | 'teach') {
-    const base = resolve(`/${section}`);
-    return $page.url.pathname === base || $page.url.pathname.startsWith(`${base}/`)
-      || (section === 'tasks' && $page.url.pathname.startsWith(resolve('/task/')));
+    const base = resolve(`/${section}/`);
+    return $page.url.pathname === base || $page.url.pathname.startsWith(base)
+      || (section === 'tasks' && $page.url.pathname.startsWith(`${resolve('/task')}/`));
   }
 
   function isOverview(section: 'tasks' | 'teach') {
-    return $page.url.pathname === resolve(`/${section}`);
+    return $page.url.pathname === resolve(`/${section}/`);
   }
 
 </script>
@@ -51,12 +51,12 @@
       <a
         class:active={isSectionActive('tasks')}
         class="top-navigation-tab motion-press"
-        href={resolve('/tasks')}
+        href={resolve('/tasks/')}
       >Aufgaben</a>
       <div class="top-navigation-dropdown" aria-label="Aufgaben">
         <div class="top-navigation-card-grid">
           {#each tasks as task}
-            {@const path = resolve(`/task/${slugify(task.title)}`)}
+            {@const path = resolve(`/task/${slugify(task.title)}/`)}
             <LibraryCard href={path} category={task.category} title={task.title} description={preview(task.task)} kind="task" compact active={isActive(path)} />
           {/each}
         </div>
@@ -67,12 +67,12 @@
       <a
         class:active={isSectionActive('teach')}
         class="top-navigation-tab motion-press"
-        href={resolve('/teach')}
+        href={resolve('/teach/')}
       >Lehr-Demos</a>
       <div class="top-navigation-dropdown" aria-label="Lehr-Demos">
         <div class="top-navigation-card-grid">
           {#each teaching as demo}
-            {@const path = resolve(`/teach/${demo.id}`)}
+            {@const path = resolve(`/teach/${demo.id}/`)}
             <LibraryCard href={path} category={demo.category} title={demo.title} description={preview(demo.overview)} kind="teaching" compact active={isActive(path)} />
           {/each}
         </div>
@@ -91,11 +91,11 @@
     <House class="h-5 w-5" weight="fill" />
     <span>Home</span>
   </a>
-  <a class:active={isSectionActive('tasks')} class="motion-press" href={resolve('/tasks')}>
+  <a class:active={isSectionActive('tasks')} class="motion-press" href={resolve('/tasks/')}>
     <BookOpen class="h-5 w-5" weight="fill" />
     <span>Aufgaben</span>
   </a>
-  <a class:active={isSectionActive('teach')} class="motion-press" href={resolve('/teach')}>
+  <a class:active={isSectionActive('teach')} class="motion-press" href={resolve('/teach/')}>
     <Presentation class="h-5 w-5" weight="fill" />
     <span>Lehr-Demos</span>
   </a>

@@ -31,8 +31,8 @@
         </div>
         <p class="hero-intro motion-reveal" use:reveal>Eine interaktive Lehrumgebung für GPU-Programmierung. Hier lässt sich direkt mit GLSL arbeiten und beobachten, wie aus wenigen Codezeilen ein gerendertes Bild entsteht.</p>
         <div class="hero-links motion-reveal" use:reveal>
-          <a href={resolve('/tasks')}>Aufgaben ansehen <ArrowRight size={16} /></a>
-          <a href={resolve('/teach')}>Lehr-Demos <ArrowRight size={16} /></a>
+          <a href={resolve('/tasks/')}>Aufgaben ansehen <ArrowRight size={16} /></a>
+          <a href={resolve('/teach/')}>Lehr-Demos <ArrowRight size={16} /></a>
         </div>
         <p class="hero-note motion-reveal" use:reveal>Für die Grundlagen und weiterführende Erklärungen empfehlen wir <a href="https://learnopengl.com/" target="_blank" rel="noreferrer">LearnOpenGL <ExternalLink size={12} /></a>.</p>
       </div>
@@ -54,10 +54,10 @@
 
     <section class="entry-section" aria-label="Inhalte">
       <div class="entry-list">
-        <a class="entry-row motion-reveal" use:reveal use:tilt href={resolve('/tasks')}>
+        <a class="entry-row motion-reveal" use:reveal use:tilt href={resolve('/tasks/')}>
           <span class="entry-icon"><BookOpen size={21} /></span><span class="entry-text"><b>Aufgaben</b><small>Shader selbst implementieren und mit Referenzbildern vergleichen.</small></span><ArrowRight class="entry-arrow" size={20} />
         </a>
-        <a class="entry-row motion-reveal" use:reveal use:tilt href={resolve('/teach')}>
+        <a class="entry-row motion-reveal" use:reveal use:tilt href={resolve('/teach/')}>
           <span class="entry-icon"><GraduationCap size={21} /></span><span class="entry-text"><b>Lehr-Demos</b><small>Parameter, Matrizen und Rendering-Konzepte direkt im Ergebnis untersuchen.</small></span><ArrowRight class="entry-arrow" size={20} />
         </a>
         <a class="entry-row external-row motion-reveal" use:reveal use:tilt href="https://learnopengl.com/" target="_blank" rel="noreferrer">

@@ -48,7 +48,7 @@ function getPreview(html: string, maxLength: number = 90): string {
       {#if filteredTasks.length > 0}
         {#each filteredTasks as task (task.title)}
           <LibraryCard
-            href={resolve(`/task/${slugify(task.title)}`)}
+            href={resolve(`/task/${slugify(task.title)}/`)}
             category={task.category}
             title={task.title}
             description={getPreview(task.task)}

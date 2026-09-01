@@ -11,10 +11,10 @@ import { slugify } from './src/lib/utils/slugify';
 // navigation are independent of a network fallback.
 const offlineDocuments = [
   '/',
-  '/tasks',
-  '/teach',
-  ...tasks.map(task => `/task/${slugify(task.title)}`),
-  ...teaching.map(demo => `/teach/${demo.id}`)
+  '/tasks/',
+  '/teach/',
+  ...tasks.map(task => `/task/${slugify(task.title)}/`),
+  ...teaching.map(demo => `/teach/${demo.id}/`)
 ];
 
 export default defineConfig({
