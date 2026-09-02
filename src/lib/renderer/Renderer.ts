@@ -491,7 +491,7 @@ export class Renderer {
         if (!point) {
           point = new THREE.Mesh(
             new THREE.SphereGeometry(.075, 20, 12),
-            new THREE.MeshBasicMaterial({ color: 0xbf2732 })
+            new THREE.MeshBasicMaterial({ color: 0xbf2732, side: THREE.DoubleSide })
           );
           this.pointHelpers.set(vector.id, point);
           this.scene.add(point);

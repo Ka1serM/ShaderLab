@@ -159,19 +159,19 @@ mat4 scalingMatrix(vec3 scaleVector) {
                 0.0, 0.0, 0.0, 1.0);
 }
 
-mat4 rotationXMatrix(float rotationAngle) {
+mat4 rotationZMatrix(float rotationAngle) {
     float cosine = cos(rotationAngle);
     float sine = sin(rotationAngle);
-    return mat4(1.0, 0.0, 0.0, 0.0,
-                0.0, cosine, sine, 0.0,
-                0.0, -sine, cosine, 0.0,
+    return mat4(cosine, sine, 0.0, 0.0,
+                -sine, cosine, 0.0, 0.0,
+                0.0, 0.0, 1.0, 0.0,
                 0.0, 0.0, 0.0, 1.0);
 }
 
 void animateA(float time) {
     gearAPointMatrix = mat4(1.0);
     gearAPointMatrix = gearAPointMatrix * translationMatrix(vec3(0.0, 0.0, 0.0));
-    gearAPointMatrix = gearAPointMatrix * rotationXMatrix(time * 0.8);
+    gearAPointMatrix = gearAPointMatrix * rotationZMatrix(time * 0.8);
     gearAPointMatrix = gearAPointMatrix * scalingMatrix(vec3(1.0, 1.0, 1.0));
     gearANormalMatrix = mat3(transpose(inverse(gearAPointMatrix)));
 }
@@ -179,16 +179,16 @@ void animateA(float time) {
 void animateB(float time) {
     gearBPointMatrix = mat4(1.0);
     gearBPointMatrix = gearBPointMatrix * translationMatrix(vec3(0.0, 2.0, 0.0));
-    gearBPointMatrix = gearBPointMatrix * rotationXMatrix(-time * 1.6);
-    gearBPointMatrix = gearBPointMatrix * scalingMatrix(vec3(1.0, 0.65, 0.65));
+    gearBPointMatrix = gearBPointMatrix * rotationZMatrix(-time * 1.6);
+    gearBPointMatrix = gearBPointMatrix * scalingMatrix(vec3(0.65, 0.65, 1.0));
     gearBNormalMatrix = mat3(transpose(inverse(gearBPointMatrix)));
 }
 
 void animateC(float time) {
     gearCPointMatrix = mat4(1.0);
     gearCPointMatrix = gearCPointMatrix * translationMatrix(vec3(0.0, 3.85, 0.0));
-    gearCPointMatrix = gearCPointMatrix * rotationXMatrix(time * 1.05 + 0.261799);
-    gearCPointMatrix = gearCPointMatrix * scalingMatrix(vec3(1.0, 0.85, 0.85));
+    gearCPointMatrix = gearCPointMatrix * rotationZMatrix(time * 1.05 + 0.261799);
+    gearCPointMatrix = gearCPointMatrix * scalingMatrix(vec3(0.85, 0.85, 1.0));
     gearCNormalMatrix = mat3(transpose(inverse(gearCPointMatrix)));
 }
 

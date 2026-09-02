@@ -31,7 +31,8 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 			vertexShader: params.vertexShader,
 			fragmentShader: params.fragmentShader,
 			uniforms: {},
-			glslVersion: THREE.GLSL3
+			glslVersion: THREE.GLSL3,
+			side: THREE.DoubleSide
 		});
 
 		this.vertexShader = params.vertexShader;

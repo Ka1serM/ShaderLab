@@ -47,6 +47,7 @@
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
+			side: THREE.DoubleSide,
       uniforms: {
         uTime: { value: 0 },
         uPointer: { value: new THREE.Vector2() },
@@ -172,14 +173,16 @@
       transparent: true,
       opacity: 0.72,
       depthWrite: false,
-      blending: THREE.AdditiveBlending
+      blending: THREE.AdditiveBlending,
+			side: THREE.DoubleSide
     });
     const orbitSecondaryMaterial = new THREE.MeshBasicMaterial({
       color: 0xaeb3bb,
       transparent: true,
       opacity: 0.45,
       depthWrite: false,
-      blending: THREE.AdditiveBlending
+      blending: THREE.AdditiveBlending,
+			side: THREE.DoubleSide
     });
     const orbitGeometry = new THREE.TorusGeometry(1.55, 0.009, 6, 180);
     const secondaryOrbitGeometry = new THREE.TorusGeometry(1.72, 0.006, 6, 180);
@@ -193,7 +196,7 @@
     scene.add(orbitGroup);
 
     const satelliteGeometry = new THREE.SphereGeometry(0.045, 10, 8);
-    const satelliteMaterial = new THREE.MeshBasicMaterial({ color: 0xe8e9eb });
+    const satelliteMaterial = new THREE.MeshBasicMaterial({ color: 0xe8e9eb, side: THREE.DoubleSide });
     const satellite = new THREE.Mesh(satelliteGeometry, satelliteMaterial);
     satellite.position.set(1.55, 0, 0);
     orbitGroup.add(satellite);
