@@ -67,8 +67,8 @@
   $: visibleSources = (definition?.shaderStages ?? (['vertex', 'fragment'] as const).filter(source => Boolean(definition?.[`${source}Shader`]))) as TeachingShaderSource[];
   $: if (!visibleSources.includes(teachingSource)) teachingSource = visibleSources[0] ?? 'fragment';
   $: editorSources = {
-    vertex: $teachingStore.codes.vertex ?? definition?.vertexShader ?? '',
-    fragment: $teachingStore.codes.fragment ?? definition?.fragmentShader ?? ''
+    vertex: $teachingStore.userCode.vertex ?? definition?.vertexShader ?? '',
+    fragment: $teachingStore.userCode.fragment ?? definition?.fragmentShader ?? ''
   };
   $: defaultEditorSources = { vertex: definition?.vertexShader ?? '', fragment: definition?.fragmentShader ?? '' };
   $: scene = definition?.scene;

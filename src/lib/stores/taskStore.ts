@@ -59,14 +59,11 @@ export interface CameraPose {
 	fov: number;
 }
 
-export interface TaskWorkspace {
+interface UserWorkspace {
 	taskSlug: string;
-	contentRevision: string;
-	vertexShader: string;
-	fragmentShader: string;
+	userCode: Partial<Record<ShaderStage, string>>;
 	activeTab: 'vertex' | 'fragment';
 	cameraPose: CameraPose;
-	updatedAt: number;
 }
 
 interface TaskState {
@@ -77,10 +74,9 @@ interface TaskState {
 	shaderErrors: { vertex: GLSLError[]; fragment: GLSLError[] };
 	cameraPose: CameraPose;
 	cameraPoseSaved: boolean;
-	_version: number;
 }
 
-const STORAGE_KEY = 'shaderlab:workspaces';
+const STORAGE_KEY = 'shaderlab:user-workspaces:v1';
 
 function defaultCameraPose(): CameraPose {
 	return { position: [0, 0, 1], quaternion: [0, 0, 0, 1], target: [0, 0, 0], fov: 30 };
@@ -96,18 +92,6 @@ export function taskCameraPose(task: Task): CameraPose {
 	};
 }
 
-function taskContentRevision(task: Task) {
-	const source = [task.starterVertexShader, task.starterFragmentShader,
-		task.starterVertexShaderTemplate?.prefix, task.starterVertexShaderTemplate?.suffix,
-		task.starterFragmentShaderTemplate?.prefix, task.starterFragmentShaderTemplate?.suffix].join('\u0000');
-	let hash = 2166136261;
-	for (let index = 0; index < source.length; index += 1) {
-		hash ^= source.charCodeAt(index);
-		hash = Math.imul(hash, 16777619);
-	}
-	return (hash >>> 0).toString(36);
-}
-
 function isCameraPose(value: unknown): value is CameraPose {
 	if (!value || typeof value !== 'object') return false;
 	const pose = value as Partial<CameraPose>;
@@ -117,16 +101,33 @@ function isCameraPose(value: unknown): value is CameraPose {
 		&& typeof pose.fov === 'number' && Number.isFinite(pose.fov);
 }
 
-function isTaskWorkspace(value: unknown, slug: string, contentRevision: string): value is TaskWorkspace {
-	if (!value || typeof value !== 'object') return false;
-	const workspace = value as Partial<TaskWorkspace>;
-	return workspace.taskSlug === slug
-		&& workspace.contentRevision === contentRevision
-		&& typeof workspace.vertexShader === 'string'
-		&& typeof workspace.fragmentShader === 'string'
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]) {
+	return Object.keys(value).every(key => allowed.includes(key));
+}
+
+function isUserCode(value: unknown): value is UserWorkspace['userCode'] {
+	if (!isRecord(value) || !hasOnlyKeys(value, ['vertex', 'fragment'])) return false;
+	const code = value as Partial<UserWorkspace['userCode']>;
+	return (code.vertex === undefined || typeof code.vertex === 'string')
+		&& (code.fragment === undefined || typeof code.fragment === 'string');
+}
+
+function isStoredUserWorkspace(value: unknown): value is UserWorkspace {
+	if (!isRecord(value) || !hasOnlyKeys(value, ['taskSlug', 'userCode', 'activeTab', 'cameraPose'])) return false;
+	const workspace = value as Partial<UserWorkspace>;
+	return typeof workspace.taskSlug === 'string'
+		&& isUserCode(workspace.userCode)
 		&& (workspace.activeTab === 'vertex' || workspace.activeTab === 'fragment')
-		&& isCameraPose(workspace.cameraPose)
-		;
+		&& isCameraPose(workspace.cameraPose);
+}
+
+function isUserWorkspace(value: unknown, slug: string): value is UserWorkspace {
+	return isStoredUserWorkspace(value)
+		&& value.taskSlug === slug;
 }
 
 export function getTaskShaderStages(task: Task): ShaderStage[] {
@@ -141,14 +142,13 @@ function emptyState(): TaskState {
 		activeTab: 'fragment',
 		shaderErrors: { vertex: [], fragment: [] },
 		cameraPose: defaultCameraPose(),
-		cameraPoseSaved: false,
-		_version: 0
+		cameraPoseSaved: false
 	};
 }
 
 function createPersistence() {
 	let autoSaveTimeout: ReturnType<typeof setTimeout> | null = null;
-	let workspaces: Record<string, TaskWorkspace> = {};
+	let workspaces: Record<string, UserWorkspace> = {};
 
 	function flush() {
 		if (!browser) return;
@@ -159,7 +159,7 @@ function createPersistence() {
 		}
 	}
 
-	function scheduleSave(workspace: TaskWorkspace) {
+	function scheduleSave(workspace: UserWorkspace) {
 		if (!browser) return;
 		workspaces[workspace.taskSlug] = workspace;
 		if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
@@ -170,7 +170,11 @@ function createPersistence() {
 		try {
 			const raw = localStorage.getItem(STORAGE_KEY);
 			const parsed = raw ? JSON.parse(raw) : {};
-			workspaces = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+			if (isRecord(parsed)) {
+				workspaces = Object.fromEntries(
+					Object.entries(parsed).filter((entry): entry is [string, UserWorkspace] => isStoredUserWorkspace(entry[1]))
+				);
+			}
 		} catch (error) {
 			console.error('Failed to load saved workspaces:', error);
 		}
@@ -178,7 +182,7 @@ function createPersistence() {
 	}
 
 	return {
-		get: (slug: string, contentRevision: string) => isTaskWorkspace(workspaces[slug], slug, contentRevision) ? workspaces[slug] : null,
+		get: (slug: string) => isUserWorkspace(workspaces[slug], slug) ? workspaces[slug] : null,
 		scheduleSave
 	};
 }
@@ -188,16 +192,16 @@ function createTaskStore() {
 	const persistence = createPersistence();
 	let currentTaskTitle: string | null = null;
 
-	function snapshot(state: TaskState): TaskWorkspace | null {
+	function snapshot(state: TaskState): UserWorkspace | null {
 		if (!state.task) return null;
+		const userCode: UserWorkspace['userCode'] = {};
+		if (state.vertexShader !== state.task.starterVertexShader) userCode.vertex = state.vertexShader;
+		if (state.fragmentShader !== state.task.starterFragmentShader) userCode.fragment = state.fragmentShader;
 		return {
 			taskSlug: slugify(state.task.title),
-			contentRevision: taskContentRevision(state.task),
-			vertexShader: state.vertexShader,
-			fragmentShader: state.fragmentShader,
+			userCode,
 			activeTab: state.activeTab,
-			cameraPose: state.cameraPose,
-			updatedAt: Date.now()
+			cameraPose: state.cameraPose
 		};
 	}
 
@@ -226,25 +230,24 @@ function createTaskStore() {
 				return state;
 			});
 			currentTaskTitle = task.title;
-			const saved = persistence.get(normalizedSlug, taskContentRevision(task));
+			const saved = persistence.get(normalizedSlug);
 			store.set({
 				task,
-				vertexShader: saved?.vertexShader ?? task.starterVertexShader,
-				fragmentShader: saved?.fragmentShader ?? task.starterFragmentShader,
+				vertexShader: saved?.userCode.vertex ?? task.starterVertexShader,
+				fragmentShader: saved?.userCode.fragment ?? task.starterFragmentShader,
 				activeTab: saved?.activeTab && getTaskShaderStages(task).includes(saved.activeTab)
 					? saved.activeTab
 					: getTaskShaderStages(task)[0],
 				shaderErrors: { vertex: [], fragment: [] },
 				cameraPose: saved?.cameraPose ?? taskCameraPose(task),
-				cameraPoseSaved: Boolean(saved),
-				_version: Date.now()
+				cameraPoseSaved: Boolean(saved)
 			});
 		},
 
 		setVertexShader(code: string) {
 			store.update(state => {
 				if (!state.task || state.vertexShader === code) return state;
-				const next = { ...state, vertexShader: code, _version: Date.now() };
+				const next = { ...state, vertexShader: code };
 				persist(next);
 				return next;
 			});
@@ -253,7 +256,7 @@ function createTaskStore() {
 		setFragmentShader(code: string) {
 			store.update(state => {
 				if (!state.task || state.fragmentShader === code) return state;
-				const next = { ...state, fragmentShader: code, _version: Date.now() };
+				const next = { ...state, fragmentShader: code };
 				persist(next);
 				return next;
 			});
@@ -262,7 +265,7 @@ function createTaskStore() {
 		setActiveTab(tab: 'vertex' | 'fragment') {
 			store.update(state => {
 				if (!state.task || state.activeTab === tab) return state;
-				const next = { ...state, activeTab: tab, _version: Date.now() };
+				const next = { ...state, activeTab: tab };
 				persist(next);
 				return next;
 			});
@@ -271,7 +274,7 @@ function createTaskStore() {
 		setCameraPose(cameraPose: CameraPose) {
 			store.update(state => {
 				if (!state.task || (state.cameraPoseSaved && JSON.stringify(state.cameraPose) === JSON.stringify(cameraPose))) return state;
-				const next = { ...state, cameraPose, cameraPoseSaved: true, _version: Date.now() };
+				const next = { ...state, cameraPose, cameraPoseSaved: true };
 				persist(next);
 				return next;
 			});
@@ -283,8 +286,7 @@ function createTaskStore() {
 				const next = {
 					...state,
 					vertexShader: type === 'vertex' ? state.task.starterVertexShader : state.vertexShader,
-					fragmentShader: type === 'fragment' ? state.task.starterFragmentShader : state.fragmentShader,
-					_version: Date.now()
+					fragmentShader: type === 'fragment' ? state.task.starterFragmentShader : state.fragmentShader
 				};
 				persist(next);
 				return next;
@@ -298,8 +300,7 @@ function createTaskStore() {
 					shaderErrors: {
 						vertex: errors.vertex ? errors.vertex.map(error => ({ ...error, timestamp: Date.now() })) : state.shaderErrors.vertex,
 						fragment: errors.fragment ? errors.fragment.map(error => ({ ...error, timestamp: Date.now() })) : state.shaderErrors.fragment
-					},
-					_version: Date.now()
+					}
 				};
 				return next;
 			});
@@ -307,7 +308,7 @@ function createTaskStore() {
 
 		clearShaderErrors() {
 			store.update(state => {
-				const next = { ...state, shaderErrors: { vertex: [], fragment: [] }, _version: Date.now() };
+				const next = { ...state, shaderErrors: { vertex: [], fragment: [] } };
 				return next;
 			});
 		},
