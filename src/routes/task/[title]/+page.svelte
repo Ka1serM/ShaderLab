@@ -90,19 +90,22 @@
                     <Pane size={splitterSizes.viewports}>
                       <Viewport
                         task={$taskStore.task}
+                        scenes={$taskStore.task.scenes ?? []}
                         vertexShader={$taskStore.task.referenceVertexShader}
                         fragmentShader={$taskStore.task.referenceFragmentShader}
                         cameraPose={$taskStore.cameraPose}
                         cameraPoseSaved={$taskStore.cameraPoseSaved}
                         overlays={$taskStore.task.overlays}
                         reportErrors={false}
-                        title="Referenz"
+                        title="Reference"
+                        showTimeControl={$taskStore.task.showTimeControl ?? false}
                         panelId="reference"
                       />
                     </Pane>
                     <Pane size={100 - splitterSizes.viewports}>
                       <Viewport
                         task={$taskStore.task}
+                        scenes={$taskStore.task.scenes ?? []}
                         vertexShader={$taskStore.vertexShader}
                         fragmentShader={$taskStore.fragmentShader}
                         cameraPose={$taskStore.cameraPose}
@@ -110,7 +113,8 @@
                         overlays={$taskStore.task.overlays}
                         reportErrors={true}
                         useStudentTemplates={true}
-                        title="Ausgabe"
+                        title="Output"
+                        showTimeControl={$taskStore.task.showTimeControl ?? false}
                         panelId="output"
                       />
                     </Pane>
@@ -132,6 +136,7 @@
           <div class="min-h-[400px]">
             <Viewport
               task={$taskStore.task}
+              scenes={$taskStore.task.scenes ?? []}
               vertexShader={$taskStore.vertexShader}
               fragmentShader={$taskStore.fragmentShader}
               cameraPose={$taskStore.cameraPose}
@@ -139,20 +144,23 @@
               overlays={$taskStore.task.overlays}
               reportErrors={true}
               useStudentTemplates={true}
-              title="Ausgabe"
+              title="Output"
+              showTimeControl={$taskStore.task.showTimeControl ?? false}
               panelId="output"
             />
           </div>
           <div class="min-h-[400px]">
             <Viewport
               task={$taskStore.task}
+              scenes={$taskStore.task.scenes ?? []}
               vertexShader={$taskStore.task.referenceVertexShader}
               fragmentShader={$taskStore.task.referenceFragmentShader}
               cameraPose={$taskStore.cameraPose}
               cameraPoseSaved={$taskStore.cameraPoseSaved}
               overlays={$taskStore.task.overlays}
               reportErrors={false}
-              title="Referenz"
+              title="Reference"
+              showTimeControl={$taskStore.task.showTimeControl ?? false}
               panelId="reference"
             />
           </div>
@@ -164,9 +172,9 @@
     <div class="pointer-events-none absolute inset-0 z-50" data-panel-maximizer></div>
   </div>
 {:else}
-  <div class="flex items-center justify-center h-full" role="status" aria-label="Aufgabe wird geladen">
+  <div class="flex items-center justify-center h-full" role="status" aria-label="Loading task">
     <ShaderLabLogo animation="spinner" className="h-10 w-10" />
-    <span class="sr-only">Aufgabe wird geladen</span>
+    <span class="sr-only">Loading task</span>
   </div>
 {/if}
 {/key}

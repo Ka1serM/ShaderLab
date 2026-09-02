@@ -13,17 +13,17 @@
   type Step = { title: string; text: string; selector?: string; icon: typeof Sparkles };
 
   $: steps = mode === 'task' ? [
-    { title: 'Willkommen bei ShaderLab', text: 'Du löst hier eine Shader-Aufgabe: Anforderungen lesen, GLSL-Code bearbeiten und deine Ausgabe mit der Referenz vergleichen. Diese Tour zeigt dir die dafür relevanten Bereiche.', icon: Sparkles },
-    { title: 'Aufgabe und Theorie', text: 'Unter „Aufgabe“ findest du die Anforderungen, unter „Theorie“ die passenden Grundlagen. Wenn du feststeckst, kannst du die Hinweise öffnen.', selector: '[data-tutorial="instructions"]', icon: BookOpen },
+    { title: 'Welcome to ShaderLab', text: 'Here you solve a shader task: read the requirements, edit GLSL code, and compare your output with the reference. This tour highlights the relevant areas.', icon: Sparkles },
+    { title: 'Task and theory', text: 'The “Task” tab contains the requirements, while “Theory” provides the background. Open the hints if you get stuck.', selector: '[data-tutorial="instructions"]', icon: BookOpen },
     { title: 'Der Shader-Editor', text: 'Im Editor bearbeitest du den GLSL-Code. Wenn beide Shader vorhanden sind, wechselst du oben zwischen Vertex- und Fragment-Shader. Fehlermeldungen erscheinen unter dem Editor und an der betroffenen Zeile.', selector: '[data-tutorial="editor"]', icon: Code2 },
-    { title: 'Ergebnis vergleichen', text: '„Referenz“ rendert den vorgegebenen Lösungsshader. „Ausgabe“ rendert deinen aktuellen Shader auf derselben Szene; Codeänderungen erscheinen dort direkt.', selector: '[data-tutorial="viewports"]', icon: PanelTopOpen },
-    { title: 'Ansicht erkunden', text: 'Mit der linken Maustaste drehst du die Kamera, mit dem Mausrad zoomst du. Ziehe mit der rechten Maustaste, um die Ansicht zu verschieben. Über „Maximieren“ vergrößerst du den jeweiligen Bereich.', selector: '[data-tutorial="output"]', icon: MousePointer2 }
+    { title: 'Compare results', text: '“Reference” renders the supplied solution shader. “Output” renders your shader in the same scene, updating as you edit.', selector: '[data-tutorial="viewports"]', icon: PanelTopOpen },
+    { title: 'Explore the view', text: 'Drag with the left mouse button to orbit, use the wheel to zoom, and drag with the right button to pan. “Maximise” expands the current panel.', selector: '[data-tutorial="output"]', icon: MousePointer2 }
   ] : [
-    { title: 'Willkommen bei ShaderLab', text: 'Diese Demo erklärt einen konkreten Shader-Effekt. Du kannst den zugehörigen GLSL-Code und die freigegebenen Parameter verändern und das Ergebnis in der Szene prüfen.', icon: Sparkles },
-    { title: 'Erklärung und Steuerelemente', text: 'Dieser Bereich enthält die Erklärung zur Demo und ihre Parameter. Jede Änderung eines Reglers oder Eingabefelds setzt den zugehörigen Uniform-Wert im Shader.', selector: '[data-tutorial="instructions"]', icon: BookOpen },
-    { title: 'Der Shader-Editor', text: 'Hier bearbeitest du den Shader der Demo. Nach einer Codeänderung wird die Vorschau neu gerendert; „Zurücksetzen“ stellt den Ausgangscode wieder her.', selector: '[data-tutorial="editor"]', icon: Code2 },
-    { title: 'Das Live-Ergebnis', text: 'Die Vorschau rendert die Szene mit deinem aktuellen Shader und den eingestellten Parametern. Demos mit Transformationswerkzeug erlauben zusätzlich Verschieben, Rotieren und Skalieren.', selector: '[data-tutorial="output"]', icon: PanelTopOpen },
-    { title: 'Kamera bewegen', text: 'Mit der linken Maustaste drehst du die Kamera, mit dem Mausrad zoomst du. Ziehe mit der rechten Maustaste, um die Ansicht zu verschieben. Über „Maximieren“ vergrößerst du den jeweiligen Bereich.', selector: '[data-tutorial="output"]', icon: MousePointer2 }
+    { title: 'Welcome to ShaderLab', text: 'This demo explains a specific shader effect. Change its GLSL code and exposed parameters, then inspect the result in the scene.', icon: Sparkles },
+    { title: 'Theory and controls', text: 'This area contains the demo’s explanation and parameters. Changing a slider or input updates the corresponding shader uniform.', selector: '[data-tutorial="instructions"]', icon: BookOpen },
+    { title: 'Shader editor', text: 'Edit the demo shader here. The preview renders again after each change; “Reset” restores the starter code.', selector: '[data-tutorial="editor"]', icon: Code2 },
+    { title: 'Live result', text: 'The preview renders the scene with your current shader and parameters. Demos with transform controls also let you translate, rotate, and scale objects.', selector: '[data-tutorial="output"]', icon: PanelTopOpen },
+    { title: 'Move the camera', text: 'Drag with the left mouse button to orbit, use the wheel to zoom, and drag with the right button to pan. “Maximise” expands the current panel.', selector: '[data-tutorial="output"]', icon: MousePointer2 }
   ];
 
   let visible = false;
@@ -99,7 +99,7 @@
             <path d="M38 55V73" stroke="white" stroke-width="2"/>
             <path class="gesture-click" d="M25 70C25 62.268 31.268 56 39 56V73H25V70Z" fill="white" fill-opacity=".9"/>
           </g>
-          <text x="104" y="126" fill="white" font-size="13" font-family="Inter, sans-serif" font-weight="600" text-anchor="middle">Klicken und ziehen zum Rotieren</text>
+          <text x="104" y="126" fill="white" font-size="13" font-family="Inter, sans-serif" font-weight="600" text-anchor="middle">Click and drag to orbit</text>
         </svg>
       </div>
     {/if}
@@ -109,14 +109,14 @@
         <div class="flex items-start gap-4">
           <div class="tutorial-icon flex h-10 w-10 shrink-0 items-center justify-center bg-primary text-primary-foreground"><svelte:component this={steps[current].icon} class="h-5 w-5" /></div>
           <div class="min-w-0 flex-1">
-            <div class="mb-1 flex items-center justify-between gap-3"><span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">Schritt {current + 1} von {steps.length}</span><button class="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Tutorial schließen" onclick={finish}><X class="h-4 w-4" /></button></div>
+            <div class="mb-1 flex items-center justify-between gap-3"><span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">Step {current + 1} of {steps.length}</span><button class="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close tutorial" onclick={finish}><X class="h-4 w-4" /></button></div>
             <h2 id="tutorial-title" class="text-xl font-semibold">{steps[current].title}</h2>
             <p class="mt-2 text-sm leading-6 text-muted-foreground">{steps[current].text}</p>
           </div>
         </div>
         <div class="mt-6 flex items-center justify-between gap-4">
           <div class="flex gap-1.5" aria-hidden="true">{#each steps as _, index}<span class="h-1.5 rounded-full transition-all" class:w-5={index === current} class:w-1.5={index !== current} class:bg-foreground={index === current} class:bg-muted={index !== current}></span>{/each}</div>
-          <div class="flex gap-2">{#if current > 0}<button class="rounded-md border border-input px-3 py-2 text-sm hover:bg-accent" onclick={previous}>Zurück</button>{/if}<button class="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90" onclick={next}>{current === steps.length - 1 ? 'Verstanden' : 'Weiter'}</button></div>
+          <div class="flex gap-2">{#if current > 0}<button class="rounded-md border border-input px-3 py-2 text-sm hover:bg-accent" onclick={previous}>Back</button>{/if}<button class="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90" onclick={next}>{current === steps.length - 1 ? 'Got it' : 'Next'}</button></div>
         </div>
       </section>
     </div>

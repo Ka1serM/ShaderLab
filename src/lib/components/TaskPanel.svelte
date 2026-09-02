@@ -35,9 +35,9 @@
         {$taskStore.task.title}
       </h1>
     {:else}
-      <div role="status" aria-label="Aufgabe wird geladen">
+      <div role="status" aria-label="Loading task">
         <ShaderLabLogo animation="spinner" className="h-6 w-6" />
-        <span class="sr-only">Aufgabe wird geladen</span>
+        <span class="sr-only">Loading task</span>
       </div>
     {/if}
     <MaximizeButton isMaximized={$maximizedPanel === panelId} onClick={toggleMaximize} />
@@ -49,19 +49,19 @@
       class="flex-1 flex flex-col min-h-0 overflow-hidden"
       onValueChange={(v) => activeTab = v}
     >
-      <div class="flex items-center px-4">
+      <div class="flex items-center">
         <Tabs.List class="h-10 justify-start bg-muted/25 p-0 gap-0">
           <Tabs.Trigger 
             value="task" 
             class="h-10 px-4 border-none data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
           >
-            Aufgabe
+            Task
           </Tabs.Trigger>
           <Tabs.Trigger 
             value="theory" 
             class="h-10 px-4 border-none data-[state=active]:bg-background hover:bg-muted/50 transition-colors"
           >
-            Theorie
+            Theory
           </Tabs.Trigger>
         </Tabs.List>
       </div>
@@ -78,7 +78,7 @@
           <div class="space-y-2 mt-6">
             <div class="flex items-center gap-2 mb-3">
               <Lightbulb class="w-4 h-4 text-primary" />
-              <h4 class="text-sm font-semibold text-foreground">Tipps</h4>
+              <h4 class="text-sm font-semibold text-foreground">Hints</h4>
             </div>
 
             {#each $taskStore.task.hints as hint, index}
@@ -89,7 +89,7 @@
                 <Collapsible.Trigger
                   class="flex items-center justify-between w-full p-3 bg-secondary hover:bg-muted rounded-lg transition-smooth text-left"
                 >
-                  <span class="text-sm text-foreground">Tipp {index + 1}</span>
+                  <span class="text-sm text-foreground">Hint {index + 1}</span>
                   <ChevronDown
                     class="w-4 h-4 text-muted-background transition-transform"
                     style="transform: rotate({isHintOpen(index) ? 180 : 0}deg);"

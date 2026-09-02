@@ -9,7 +9,7 @@
     let renderer: THREE.WebGLRenderer;
 
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     } catch {
       failed = true;
       return;
@@ -294,7 +294,7 @@
   });
 </script>
 
-<div class="home-viewport" bind:this={container}>
+<div class="home-viewport" bind:this={container} style="background: var(--viewport-background);">
   {#if failed}
     <div class="home-viewport-fallback">WebGL unavailable</div>
   {/if}
@@ -305,7 +305,7 @@
     position: absolute;
     inset: 0;
     overflow: hidden;
-    background: transparent;
+    background: var(--viewport-background);
   }
 
   .home-viewport :global(canvas) {

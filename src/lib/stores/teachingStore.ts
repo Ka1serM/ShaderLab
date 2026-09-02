@@ -1,11 +1,10 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
-import definitions from '$lib/data/teaching.json';
-import type { Scene, ViewportOverlays } from '$lib/renderer/Renderer';
+import { teaching as definitions } from '$lib/content';
+import type { Scene, SceneDefinition, ViewportOverlays } from '$lib/renderer/Renderer';
 import type { ShaderStage, ShaderTemplate } from '$lib/stores/taskStore';
 import type { TeachingValue } from '$lib/utils/shaderControls';
 
-export type TeachingType = 'shader-controls';
 export type { TeachingControl, TeachingValue } from '$lib/utils/shaderControls';
 
 export interface TeachingPreset {
@@ -13,12 +12,12 @@ export interface TeachingPreset {
   values: Record<string, TeachingValue>;
 }
 
-export interface TeachingDefinition {
+export interface Teach {
   id: string;
+  contentVersion: string;
   title: string;
   category?: string;
   task?: string;
-  type: TeachingType;
   presets?: TeachingPreset[];
   overview: string;
   explanation: string;
@@ -28,11 +27,13 @@ export interface TeachingDefinition {
   vertexShaderTemplate?: ShaderTemplate;
   fragmentShaderTemplate?: ShaderTemplate;
   scene?: Scene;
+  scenes?: SceneDefinition[];
   overlays?: ViewportOverlays;
+  showTimeControl?: boolean;
 }
 
 export interface TeachingState {
-  definition: TeachingDefinition | null;
+  definition: Teach | null;
   /** Overrides only: a control without an entry here shows the default from its @control annotation. */
   values: Record<string, TeachingValue>;
   userCode: Partial<Record<'vertex' | 'fragment', string>>;
@@ -77,10 +78,10 @@ function isTeachingUserWorkspace(value: unknown): value is TeachingUserWorkspace
     && isParameterOverrides(value.parameters);
 }
 
-function loadSaved(definition: TeachingDefinition) {
+function loadSaved(definition: Teach) {
   if (!browser) return { values: {}, userCode: {} };
   try {
-    const saved = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}${definition.id}`) ?? 'null');
+    const saved = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}${definition.id}:${definition.contentVersion}`) ?? 'null');
     return isTeachingUserWorkspace(saved)
       ? { values: { ...saved.parameters }, userCode: { ...saved.userCode } }
       : { values: {}, userCode: {} };
@@ -89,10 +90,10 @@ function loadSaved(definition: TeachingDefinition) {
   }
 }
 
-function persist(definition: TeachingDefinition, values: Record<string, TeachingValue>, userCode: TeachingState['userCode']) {
+function persist(definition: Teach, values: Record<string, TeachingValue>, userCode: TeachingState['userCode']) {
   if (!browser) return;
   try {
-    localStorage.setItem(`${STORAGE_PREFIX}${definition.id}`, JSON.stringify({
+    localStorage.setItem(`${STORAGE_PREFIX}${definition.id}:${definition.contentVersion}`, JSON.stringify({
       userCode,
       parameters: values
     } satisfies TeachingUserWorkspace));
@@ -104,7 +105,7 @@ function createTeachingStore() {
   return {
     subscribe: store.subscribe,
     load(id: string) {
-      const definition = (definitions as TeachingDefinition[]).find(item => item.id === id) ?? null;
+      const definition = (definitions as Teach[]).find(item => item.id === id) ?? null;
       const saved = definition ? loadSaved(definition) : { values: {}, userCode: {} };
       store.set({ definition, values: saved.values, userCode: saved.userCode });
     },

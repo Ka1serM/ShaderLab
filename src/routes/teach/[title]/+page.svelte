@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
-  import tasks from '$lib/data/tasks.json';
+  import { tasks } from '$lib/content';
   import { teachingStore } from '$lib/stores/teachingStore';
   import { assembleStudentShader, taskCameraPose, type CameraPose, type GLSLError, type Task } from '$lib/stores/taskStore';
   import { controlValues, parseShaderControls, type TeachingControl, type TeachingValue } from '$lib/utils/shaderControls';
@@ -12,6 +12,7 @@
   import { Splitpanes, Pane } from 'svelte-splitpanes';
   import * as THREE from 'three';
   import type { ViewportTransform, ViewportVector } from '$lib/renderer/Renderer';
+  import type { ShaderReadbackType, ShaderReadbackValue } from '$lib/renderer/shaderReadback';
   import type { PageData } from './$types';
   import { isMobile } from '$lib/hooks/is-mobile.svelte';
   import AppTutorial from '$lib/components/AppTutorial.svelte';
@@ -29,7 +30,7 @@
   let editorSources: Partial<Record<TeachingShaderSource, string>> = {};
   let defaultEditorSources: Partial<Record<TeachingShaderSource, string>> = {};
   let displayedValues: Record<string, TeachingValue> = {};
-  let readbackValues: Record<string, number[]> = {};
+  let readbackValues: Record<string, ShaderReadbackValue> = {};
   let readbackValuesKey = '';
   let shaderDiagnostics: { vertex: GLSLError[]; fragment: GLSLError[] } = { vertex: [], fragment: [] };
   let splitterSizes: SplitterSizes = { ...defaultSplitterSizes };
@@ -72,6 +73,7 @@
   };
   $: defaultEditorSources = { vertex: definition?.vertexShader ?? '', fragment: definition?.fragmentShader ?? '' };
   $: scene = definition?.scene;
+  $: scenes = definition?.scenes ?? [];
   $: compiledVertexCode = assembleStudentShader(editorSources.vertex ?? '', definition?.vertexShaderTemplate);
   $: compiledFragmentCode = assembleStudentShader(editorSources.fragment ?? '', definition?.fragmentShaderTemplate);
   $: errorLineOffsets = {
@@ -82,10 +84,11 @@
   $: viewportFragmentShader = definition?.fragmentShader ? compiledFragmentCode : task?.referenceFragmentShader ?? '';
   $: controls = parseShaderControls(`${compiledVertexCode}\n${compiledFragmentCode}`);
   $: values = controlValues(controls, $teachingStore.values);
-  $: shaderReadbacks = controls
-    .filter(control => control.type === 'matrix4' && control.readback)
-    .map(control => ({ id: control.id, variable: control.readback as string }));
-  $: transformMatrix = definition?.overlays?.transformControls ? readbackValues.pointMatrix : undefined;
+  $: shaderReadbacks = controls.flatMap(control => {
+    const type = readbackType(control);
+    return control.readback && type ? [{ id: control.id, variable: control.readback, type }] : [];
+  });
+  $: transformMatrix = definition?.overlays?.transformControls ? readbackValues.pointMatrix as number[] | undefined : undefined;
   $: displayedValues = {
     ...values,
     ...readbackValues
@@ -107,6 +110,14 @@
     if (Array.isArray(value)) return value;
     const hex = value.replace('#', '');
     return [0, 1, 2].map(index => parseInt(hex.slice(index * 2, index * 2 + 2), 16) / 255);
+  }
+
+  function readbackType(control: TeachingControl): ShaderReadbackType | undefined {
+    if (control.type === 'slider') return 'float';
+    if (control.type === 'vector3') return 'vector3';
+    if (control.type === 'vector4') return 'vector4';
+    if (control.type === 'matrix4') return 'matrix4';
+    return undefined;
   }
 
   function applyTransform(transform: ViewportTransform) {
@@ -131,7 +142,7 @@
     teachingStore.setCode(source, value);
   }
 
-  function applyShaderReadbacks(values: Record<string, number[]>) {
+  function applyShaderReadbacks(values: Record<string, ShaderReadbackValue>) {
     const key = JSON.stringify(values);
     if (key === readbackValuesKey) return;
     readbackValuesKey = key;
@@ -162,7 +173,7 @@
 
 {#key data.title}
 {#if definition}
-  {#if definition.type === 'shader-controls'}
+  {#if definition}
     <div class="h-full w-full relative">
       {#if !$isMobile}
         <div class="workspace-layout h-full w-full">
@@ -180,6 +191,7 @@
                     <Viewport
                       {task}
                       {scene}
+                      {scenes}
                       vertexShader={viewportVertexShader}
                       fragmentShader={viewportFragmentShader}
                       cameraPose={teachingCameraPose}
@@ -195,7 +207,8 @@
                       reportErrors={true}
                       {errorLineOffsets}
                       onShaderErrors={(errors) => shaderDiagnostics = errors}
-                      title="Ausgabe"
+                      title="Output"
+                      showTimeControl={definition.showTimeControl ?? false}
                       panelId="output"
                     />
                   {/if}
@@ -217,6 +230,7 @@
               <Viewport
                 {task}
                 {scene}
+                {scenes}
                 vertexShader={viewportVertexShader}
                 fragmentShader={viewportFragmentShader}
                 cameraPose={teachingCameraPose}
@@ -232,7 +246,8 @@
                 reportErrors={true}
                 {errorLineOffsets}
                 onShaderErrors={(errors) => shaderDiagnostics = errors}
-                title="Ausgabe"
+                title="Output"
+                showTimeControl={definition.showTimeControl ?? false}
                 panelId="output"
               />
             </div>
@@ -246,9 +261,9 @@
     </div>
   {/if}
 {:else}
-  <div class="flex h-full items-center justify-center" role="status" aria-label="Lehr-Demo wird geladen">
+  <div class="flex h-full items-center justify-center" role="status" aria-label="Loading teaching demo">
     <ShaderLabLogo animation="spinner" className="h-10 w-10" />
-    <span class="sr-only">Lehr-Demo wird geladen</span>
+    <span class="sr-only">Loading teaching demo</span>
   </div>
 {/if}
 {/key}

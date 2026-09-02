@@ -1,12 +1,13 @@
 import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
-import tasks from '$lib/data/tasks.json';
+import { tasks } from '$lib/content';
 import { slugify } from '$lib/utils/slugify';
 import type { ShaderInput } from '$lib/renderer/ShaderTaskMaterial';
-import type { Scene, ViewportOverlays } from '$lib/renderer/Renderer';
+import type { Scene, SceneDefinition, ViewportOverlays } from '$lib/renderer/Renderer';
 
 export interface Task {
 	title: string;
+	category?: string;
 	task: string;
 	theory: string;
 	hints: string[];
@@ -23,7 +24,9 @@ export interface Task {
 	instanceCount?: number;
 	inputs?: ShaderInput[];
 	scene?: Scene;
+	scenes?: SceneDefinition[];
 	overlays?: ViewportOverlays;
+	showTimeControl?: boolean;
 }
 
 export interface ShaderTemplate {

@@ -113,7 +113,7 @@ void main() {
 
     float diffuse = max(dot(vNormal, lightDir), 0.0);
 
-    vec3 reflectDir = reflect(-lightDir, vNormal);
+    vec3 reflectDir = 2.0 * dot(vNormal, lightDir) * vNormal - lightDir;
     float specular = diffuse > 0.0
         ? pow(max(dot(reflectDir, viewDir), 0.0), 32.0)
         : 0.0;

@@ -4,6 +4,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@media (min-width: 48rem) { html { overflow-y: scroll; } }
+
+:root { --viewport-background: #fff; }
+:root.dark { --viewport-background: #000; }
+
 @font-face {
   font-family: 'Inter';
   src: url('/fonts/inter/Inter-Regular.woff2') format('woff2');
@@ -12,19 +17,13 @@
   font-display: swap;
 }
 
-@font-face {
-  font-family: 'HSDSans';
-  src: url('/fonts/HSDSans/HSDSans-Regular.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
 .shaderlab-brand {
   display: inline-flex;
   align-items: baseline;
-  font-family: 'HSDSans', Arial, Helvetica, sans-serif;
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+  font-weight: 700;
   line-height: 1;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -557,10 +556,12 @@ body {
 
 .library-title {
   margin: 0;
-  font-family: 'HSDSans', Arial, Helvetica, sans-serif;
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+  font-weight: 700;
   font-size: clamp(2.5rem, 5vw, 4.8rem);
   letter-spacing: -.08em;
   line-height: .82;
+  text-transform: uppercase;
 }
 
 .library-description {
@@ -622,9 +623,11 @@ body {
 }
 
 .library-card-title {
-  font-family: 'HSDSans', Arial, Helvetica, sans-serif;
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+  font-weight: 700;
   font-size: 1.25rem;
   letter-spacing: -.03em;
+  text-transform: uppercase;
 }
 
 .app-panel {
@@ -648,8 +651,10 @@ body {
 }
 
 .app-panel-title {
-  font-family: 'HSDSans', Arial, Helvetica, sans-serif;
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+  font-weight: 700;
   letter-spacing: -.03em;
+  text-transform: uppercase;
 }
 
 .app-editor,
@@ -694,7 +699,7 @@ body {
   border-radius: .3rem;
   background: var(--muted);
   color: var(--foreground);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
   font-size: .68rem;
   line-height: 1;
   padding: .35rem .45rem;
@@ -766,7 +771,7 @@ body {
 
 .teaching-color-rgb {
   color: var(--foreground);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
   font-size: .68rem;
 }
 
@@ -774,6 +779,10 @@ body {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: .5rem;
+}
+
+.teaching-vector-grid--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .teaching-vector-field {
@@ -803,6 +812,7 @@ body {
 .teaching-axis-x { background: #bf2732; }
 .teaching-axis-y { background: #4d8c58; }
 .teaching-axis-z { background: #4779b8; }
+.teaching-axis-l, .teaching-axis-r, .teaching-axis-b, .teaching-axis-t { background: var(--app-line); }
 
 .teaching-vector-field input,
 .teaching-matrix-input {
@@ -812,7 +822,7 @@ body {
   outline: 0;
   background: transparent;
   color: var(--foreground);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
   font-size: .75rem;
 }
 
@@ -860,11 +870,20 @@ body {
   background: var(--background);
   padding: .45rem .35rem;
   text-align: right;
+  transition: border-color .18s ease, background-color .18s ease, color .18s ease;
 }
 
 .teaching-matrix-input:read-only {
   background: var(--muted);
   color: var(--foreground);
+  cursor: default;
+}
+
+.teaching-matrix-input--changed,
+.teaching-matrix-input--changed:read-only {
+  border-color: #38bdf8;
+  background: #bae6fd;
+  color: #0c4a6e;
 }
 
 .teaching-presets {
@@ -916,7 +935,7 @@ body {
 
 .teaching-empty code {
   color: var(--foreground);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
   font-size: .72rem;
 }
 

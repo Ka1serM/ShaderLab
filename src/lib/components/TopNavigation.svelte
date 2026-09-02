@@ -7,17 +7,14 @@
   import House from 'phosphor-svelte/lib/HouseIcon';
   import BookOpen from 'phosphor-svelte/lib/BookOpenIcon';
   import Presentation from 'phosphor-svelte/lib/PresentationIcon';
-  import tasks from '$lib/data/tasks.json';
-  import teaching from '$lib/data/teaching.json';
+  import { tasks, teaching } from '$lib/content';
   import { slugify } from '$lib/utils/slugify';
   import LibraryCard from '$lib/components/LibraryCard.svelte';
   import ShaderLabLogo from '$lib/components/ShaderLabLogo.svelte';
 
   let logoReplay = 0;
 
-  function replayLogo() {
-    logoReplay += 1;
-  }
+  function replayLogo() { logoReplay += 1; }
 
   function preview(html: string, maxLength = 100) {
     const text = html.replace(/<[^>]+>/g, '');
@@ -41,19 +38,19 @@
 </script>
 
 <header class="top-navigation">
-  <a class="top-navigation-brand motion-press" href={resolve('/')} aria-label="ShaderLab Startseite" onclick={replayLogo}>
-    <ShaderLabLogo animation="reveal" replay={logoReplay} className="h-5 w-5" />
+  <a class="top-navigation-brand motion-press" href={resolve('/')} aria-label="ShaderLab home" onclick={replayLogo}>
+    <ShaderLabLogo animation={logoReplay ? 'replay' : 'reveal'} replay={logoReplay} className="h-5 w-5" />
     <span class="shaderlab-brand text-2xl font-semibold"><span class="shaderlab-word">Shader</span><span class="shaderlab-accent">Lab</span></span>
   </a>
 
-  <nav class="top-navigation-tabs" aria-label="Hauptnavigation">
+  <nav class="top-navigation-tabs" aria-label="Main navigation">
     <div class="top-navigation-menu" class:has-dropdown={!isOverview('tasks')}>
       <a
         class:active={isSectionActive('tasks')}
         class="top-navigation-tab motion-press"
         href={resolve('/tasks/')}
-      >Aufgaben</a>
-      <div class="top-navigation-dropdown" aria-label="Aufgaben">
+      >Tasks</a>
+      <div class="top-navigation-dropdown" aria-label="Tasks">
         <div class="top-navigation-card-grid">
           {#each tasks as task}
             {@const path = resolve(`/task/${slugify(task.title)}/`)}
@@ -68,8 +65,8 @@
         class:active={isSectionActive('teach')}
         class="top-navigation-tab motion-press"
         href={resolve('/teach/')}
-      >Lehr-Demos</a>
-      <div class="top-navigation-dropdown" aria-label="Lehr-Demos">
+      >Teaching demos</a>
+      <div class="top-navigation-dropdown" aria-label="Teaching demos">
         <div class="top-navigation-card-grid">
           {#each teaching as demo}
             {@const path = resolve(`/teach/${demo.id}/`)}
@@ -80,24 +77,24 @@
     </div>
   </nav>
 
-  <button class="top-navigation-theme motion-press" onclick={toggleMode} title="Farbschema wechseln" aria-label="Farbschema wechseln">
+  <button class="top-navigation-theme motion-press" onclick={toggleMode} title="Toggle colour theme" aria-label="Toggle colour theme">
     <Sun class="block h-4 w-4 dark:hidden" />
     <Moon class="hidden h-4 w-4 dark:block" />
   </button>
 </header>
 
-<footer class="mobile-bottom-navigation" aria-label="Mobile Hauptnavigation">
+<footer class="mobile-bottom-navigation" aria-label="Mobile main navigation">
   <a class:active={isActive(resolve('/'))} class="motion-press" href={resolve('/')}>
     <House class="h-5 w-5" weight="fill" />
     <span>Home</span>
   </a>
   <a class:active={isSectionActive('tasks')} class="motion-press" href={resolve('/tasks/')}>
     <BookOpen class="h-5 w-5" weight="fill" />
-    <span>Aufgaben</span>
+    <span>Tasks</span>
   </a>
   <a class:active={isSectionActive('teach')} class="motion-press" href={resolve('/teach/')}>
     <Presentation class="h-5 w-5" weight="fill" />
-    <span>Lehr-Demos</span>
+    <span>Teaching demos</span>
   </a>
 </footer>
 
@@ -106,8 +103,8 @@
     box-sizing: border-box;
     position: fixed;
     top: 0;
-    right: 0;
     left: 0;
+    width: 100vw;
     z-index: 50;
     display: flex;
     min-height: calc(3.5rem + env(safe-area-inset-top));
@@ -126,9 +123,7 @@
     color: var(--foreground);
   }
 
-  .top-navigation-brand .shaderlab-brand {
-    transform: translateY(3px);
-  }
+  .top-navigation-brand .shaderlab-brand { transform: translateY(1px); }
 
   .top-navigation-brand :global(.shaderlab-gizmo) {
     transition: transform var(--motion-slow) var(--motion-emphasized);

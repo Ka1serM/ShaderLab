@@ -7,10 +7,10 @@ import { base } from '$app/paths';
 import { ShaderTaskMaterial, type ShaderInput } from './ShaderTaskMaterial';
 import { InfiniteGrid } from './InfiniteGrid';
 import { validateShaderProgram, type ShaderDiagnostic, type ShaderDiagnostics } from './shaderValidation';
-import { readShaderMatrices, type ShaderReadbackRequest } from './shaderReadback';
+import { readShaderMatrices, type ShaderReadbackRequest, type ShaderReadbackValue } from './shaderReadback';
 
-// Reuse downloaded model payloads between the reference and student viewports.
-THREE.Cache.enabled = true;
+// Scene assets must refresh when their Markdown definition changes during authoring.
+THREE.Cache.enabled = false;
 
 // TransformControls normally occupy a fixed fraction of the canvas height.
 // Use the size they have in a typical 600px-high viewport as our fixed visual size.
@@ -26,28 +26,23 @@ export type ViewportCameraPose = {
 export type ViewportShaderError = ShaderDiagnostic;
 
 export type Object = {
-  id: string;
-  source:
-    | {
-      type: 'primitive';
-      geometry: 'plane' | 'sphere' | 'box' | 'box-wireframe';
-      /** Optional segment count for a sphere; useful when its facets are part of the lesson. */
-      segments?: [number, number];
-    }
-    | { type: 'model'; path: string };
+  /** Path to a GLB scene asset. */
+  source: string;
   position?: [number, number, number];
   rotation?: [number, number, number];
   scale?: [number, number, number];
-  /** Excludes this object's meshes from viewport picking when false. Defaults to true. */
-  selectable?: boolean;
-  instances?: {
-    count: number;
-    matrices?: number[][];
-  };
+  /** Number of identical instances. Their placement belongs in the shader. */
+  instanceCount?: number;
 };
 
 export type Scene = {
   objects: Object[];
+};
+
+/** A named scene that can be selected from the viewport. */
+export type SceneDefinition = Scene & {
+  id: string;
+  label: string;
 };
 
 export type ViewportTransform = {
@@ -86,7 +81,7 @@ export type RendererOptions = {
   onTransformChange?: (transform: ViewportTransform) => void;
   onShaderErrors?: (errors: ShaderDiagnostics) => void;
   shaderReadbacks?: ShaderReadbackRequest[];
-  onShaderReadbacks?: (values: Record<string, number[]>) => void;
+  onShaderReadbacks?: (values: Record<string, ShaderReadbackValue>) => void;
 };
 
 /** All task-owned renderer state is replaced together during navigation. */
@@ -100,10 +95,9 @@ export type RendererTaskState = {
   scene: Scene;
 };
 
-type Drawable = THREE.Mesh | THREE.InstancedMesh | THREE.LineSegments;
+type Drawable = THREE.Mesh | THREE.InstancedMesh;
 type Geometry = {
   geometry: THREE.BufferGeometry;
-  lineSegments?: boolean;
   position: THREE.Vector3;
   quaternion: THREE.Quaternion;
   scale: THREE.Vector3;
@@ -119,6 +113,8 @@ export class Renderer {
 
   private readonly container: HTMLElement;
   private readonly clock = new THREE.Clock();
+  private shaderTime = 0;
+  private timePaused = false;
   private readonly loader = new GLTFLoader();
   private readonly onCameraChange?: RendererOptions['onCameraChange'];
   private readonly onTransformChange?: RendererOptions['onTransformChange'];
@@ -190,12 +186,13 @@ export class Renderer {
     this.horizontalFov = options.cameraPose.fov;
     const verticalFov = 2 * Math.atan(Math.tan(this.horizontalFov * Math.PI / 360) / (width / height)) * 180 / Math.PI;
     this.camera = new THREE.PerspectiveCamera(verticalFov, width / height, 0.01, 10_000);
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer.setClearColor(0x000000, 0);
     // Unbounded DPR makes two side-by-side teaching viewports prohibitively
     // expensive on modern mobile/retina displays without a visible benefit.
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(width, height, false);
-    this.renderer.domElement.style.cssText = 'width: 100%; height: 100%; display: block;';
+    this.renderer.domElement.style.cssText = 'width: 100%; height: 100%; display: block; background: transparent;';
     // Candidate programs are validated before Three.js sees them. Its debug
     // compiler is therefore unnecessary and cannot repeatedly log bad programs.
     this.renderer.debug.checkShaderErrors = false;
@@ -234,7 +231,7 @@ export class Renderer {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
     this.controls.minDistance = 0;
-    this.controls.maxDistance = 50;
+    this.controls.maxDistance = 100;
     this.controls.maxPolarAngle = Math.PI;
     this.controls.addEventListener('change', () => this.saveCamera());
     this.applyCameraPose(options.cameraPose);
@@ -325,6 +322,10 @@ export class Renderer {
 
   setShaderLineOffsets(offsets: { vertex: number; fragment: number }) {
     this.shaderLineOffsets = offsets;
+  }
+
+  setTimePaused(paused: boolean) {
+    this.timePaused = paused;
   }
 
   setOverlays(overlays: ViewportOverlays | undefined) {
@@ -523,20 +524,21 @@ export class Renderer {
     this.material.wireframe = false;
     this.material.wireframeLinewidth = 1;
     this.material.needsUpdate = true;
-    for (const object of sceneDefinition.objects) {
+    for (const [objectIndex, object] of sceneDefinition.objects.entries()) {
       const geometries = await this.loadGeometries(object);
       if (this.disposed || generation !== this.sceneGeneration) {
         geometries.forEach(loaded => loaded.geometry.dispose());
         continue;
       }
       const group = new THREE.Group();
-      group.name = object.id;
+      const objectId = `object-${objectIndex}`;
+      group.name = objectId;
       group.position.fromArray(object.position ?? [0, 0, 0]);
       group.rotation.fromArray(object.rotation ?? [0, 0, 0]);
       group.scale.fromArray(object.scale ?? [1, 1, 1]);
       this.objectGroups.push(group);
       this.scene.add(group);
-      geometries.forEach((loaded, index) => this.addDrawable(object, group, loaded, `${object.id}-${index}`));
+      geometries.forEach((loaded, index) => this.addDrawable(object, group, loaded, `${objectId}-${index}`));
     }
     if (!this.cameraPoseSaved) this.fitCameraToScene();
     this.renderScene();
@@ -573,32 +575,8 @@ export class Renderer {
   }
 
   private async loadGeometries(object: Object): Promise<Geometry[]> {
-    if (object.source.type === 'primitive') {
-      if (object.source.geometry === 'box-wireframe') {
-        // EdgesGeometry contains only the twelve actual box edges. A mesh
-        // wireframe would also reveal the triangulation diagonals, obscuring
-        // the frustum construction this lesson is meant to show.
-        const box = new THREE.BoxGeometry(1, 1, 1);
-        const edges = new THREE.EdgesGeometry(box);
-        box.dispose();
-        return [{
-          geometry: edges,
-          lineSegments: true,
-          position: new THREE.Vector3(),
-          quaternion: new THREE.Quaternion(),
-          scale: new THREE.Vector3(1, 1, 1)
-        }];
-      }
-      const geometry = object.source.geometry === 'plane'
-        ? new THREE.PlaneGeometry(2, 2)
-        : object.source.geometry === 'sphere'
-          ? new THREE.SphereGeometry(1, object.source.segments?.[0] ?? 48, object.source.segments?.[1] ?? 32)
-          : new THREE.BoxGeometry(1, 1, 1);
-      return [{ geometry, position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: new THREE.Vector3(1, 1, 1) }];
-    }
-
     try {
-      const gltf = await this.loader.loadAsync(this.resolvePath(object.source.path));
+      const gltf = await this.loader.loadAsync(this.resolvePath(object.source));
       gltf.scene.updateMatrixWorld(true);
       const geometries: Geometry[] = [];
       gltf.scene.traverse(child => {
@@ -625,43 +603,27 @@ export class Renderer {
         const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         materials.forEach(material => material.dispose());
       });
-      if (geometries.length) return geometries;
-      return [{ geometry: new THREE.BoxGeometry(1, 1, 1), position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: new THREE.Vector3(1, 1, 1) }];
+      return geometries;
     } catch (error) {
-      console.error(`Failed to load viewport model ${object.source.path}:`, error);
-      return [{ geometry: new THREE.BoxGeometry(1, 1, 1), position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: new THREE.Vector3(1, 1, 1) }];
+      console.error(`Failed to load viewport model ${object.source}:`, error);
+      return [];
     }
   }
 
   private addDrawable(object: Object, group: THREE.Group, loaded: Geometry, id: string) {
-    if (loaded.lineSegments) {
-      const drawable = new THREE.LineSegments(loaded.geometry, this.material);
-      drawable.name = id;
-      drawable.userData.selectable = object.selectable !== false;
-      drawable.position.copy(loaded.position);
-      drawable.quaternion.copy(loaded.quaternion);
-      drawable.scale.copy(loaded.scale);
-      this.drawables.push(drawable);
-      group.add(drawable);
-      return;
-    }
-    const count = Math.max(1, Math.floor(object.instances?.count ?? 1));
+    const count = Math.max(1, Math.floor(object.instanceCount ?? 1));
     // Use one consistent drawable type. This keeps the attribute/program path
     // identical for ordinary and instanced tasks, including count === 1.
     const drawable: Drawable = new THREE.InstancedMesh(loaded.geometry, this.material, count);
     drawable.name = id;
-    drawable.userData.selectable = object.selectable !== false;
+    drawable.userData.selectable = true;
     drawable.position.copy(loaded.position);
     drawable.quaternion.copy(loaded.quaternion);
     drawable.scale.copy(loaded.scale);
 
     if (drawable instanceof THREE.InstancedMesh) {
       for (let index = 0; index < count; index++) {
-        const matrix = object.instances?.matrices?.[index];
-        const instanceMatrix = matrix?.length === 16
-          ? new THREE.Matrix4().fromArray(matrix)
-          : new THREE.Matrix4().identity();
-        drawable.setMatrixAt(index, instanceMatrix);
+        drawable.setMatrixAt(index, new THREE.Matrix4().identity());
       }
       drawable.instanceMatrix.needsUpdate = true;
     }
@@ -845,7 +807,8 @@ export class Renderer {
       this.viewHelper.update(delta);
       if (!this.viewHelper.animating) this.saveCamera();
     }
-    this.material.setInput('time', this.clock.elapsedTime);
+    if (!this.timePaused) this.shaderTime += delta;
+    this.material.setInput('time', this.shaderTime);
     this.camera.position.toArray(this.cameraPositionArray);
     this.camera.getWorldDirection(this.cameraDirection).toArray(this.cameraDirectionArray);
     this.material.setInput('cameraPosition', this.cameraPositionArray);

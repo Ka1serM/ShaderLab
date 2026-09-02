@@ -2,6 +2,7 @@
 category: Transformation
 type: 3D
 title: Zahnräder
+showTimeControl: true
 shaderStages:
   - vertex
 camera:

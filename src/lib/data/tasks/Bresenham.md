@@ -4,10 +4,6 @@ type: 2D
 title: Bresenham
 shaderStages:
   - fragment
-camera:
-  position: [0, 0, 1]
-  target: [0, 0, 0]
-  fov: 30
 overlays:
   infiniteGrid: false
   viewHelper: false

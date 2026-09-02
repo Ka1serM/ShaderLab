@@ -2,6 +2,7 @@
 category: Transformation
 type: 3D
 title: Planeten System
+showTimeControl: true
 shaderStages:
   - vertex
 camera:
@@ -10,12 +11,8 @@ camera:
   fov: 30
 scene:
   objects:
-    - id: planets
-      source:
-        type: primitive
-        geometry: sphere
-      instances:
-        count: 6
+    - source: models/Sphere.glb
+      instanceCount: 6
 ---
 
 # Task

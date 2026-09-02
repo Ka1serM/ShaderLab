@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { assembleStudentShader, taskStore, type Task, type GLSLError, type CameraPose } from '$lib/stores/taskStore';
-  import { Renderer, type Scene, type ViewportOverlays, type ViewportTransform, type ViewportVector } from '$lib/renderer/Renderer';
-  import type { ShaderReadbackRequest } from '$lib/renderer/shaderReadback';
+  import { Renderer, type Scene, type SceneDefinition, type ViewportOverlays, type ViewportTransform, type ViewportVector } from '$lib/renderer/Renderer';
+  import type { ShaderReadbackRequest, ShaderReadbackValue } from '$lib/renderer/shaderReadback';
   import { rewriteRowMajorMatrixLiterals } from '$lib/utils/glslMatrixLiterals';
   import MaximizeButton from './MaximizeButton.svelte';
+  import Play from 'phosphor-svelte/lib/PlayIcon';
+  import Pause from 'phosphor-svelte/lib/PauseIcon';
   import { maximizedPanel } from '$lib/stores/panelStore';
   import { maximizable } from '$lib/actions/maximizable';
   import * as ToggleGroup from '$lib/components/ui/toggle-group';
@@ -18,9 +20,10 @@
   export let errorLineOffsets: { vertex: number; fragment: number } | undefined = undefined;
   export let onShaderErrors: ((errors: { vertex: GLSLError[]; fragment: GLSLError[] }) => void) | undefined = undefined;
   export let shaderReadbacks: ShaderReadbackRequest[] = [];
-  export let onShaderReadbacks: (values: Record<string, number[]>) => void = () => {};
+  export let onShaderReadbacks: (values: Record<string, ShaderReadbackValue>) => void = () => {};
   export let uniformValues: Record<string, number | number[] | boolean> = {};
   export let scene: Scene | undefined = undefined;
+  export let scenes: SceneDefinition[] = [];
   export let useStudentTemplates = false;
   export let overlays: ViewportOverlays | undefined = undefined;
   export let transformMatrix: number[] | undefined = undefined;
@@ -29,9 +32,12 @@
   export let onCameraChange: ((pose: CameraPose) => void) | undefined = undefined;
   export let title = '';
   export let panelId = '';
+  export let showTimeControl = false;
 
   let transformMode: 'translate' | 'rotate' | 'scale' = 'translate';
   let transformSpace: 'local' | 'world' = 'local';
+  let selectedSceneId = '';
+  let timePaused = false;
   const transformModes = ['translate', 'rotate', 'scale'] as const;
   const transformSpaces = ['local', 'world'] as const;
   const transformModeLabels = {
@@ -44,6 +50,7 @@
   let viewport: Renderer;
   let mounted = false;
   let previousTaskKey = '';
+  let previousSceneId = '';
   let previousVertexShader = '';
   let previousFragmentShader = '';
   let shaderUpdateTimer: ReturnType<typeof setTimeout> | undefined;
@@ -72,17 +79,16 @@
   function taskScene(value: Task): Scene {
     if (value.scene) return value.scene;
     if (value.type !== '3D' || !value.modelPath) {
-      return { objects: [{ id: 'canvas', source: { type: 'primitive', geometry: 'plane' } }] };
+      return { objects: [{ source: 'models/Canvas.glb' }] };
     }
     return { objects: [{
-      id: 'task-model',
-      source: { type: 'model', path: value.modelPath },
-      instances: value.instanceCount && value.instanceCount > 1 ? { count: value.instanceCount } : undefined
+      source: value.modelPath,
+      instanceCount: value.instanceCount
     }] };
   }
 
   function resolvedScene(value: Task) {
-    return scene ?? taskScene(value);
+    return scenes.find(candidate => candidate.id === selectedSceneId) ?? scene ?? taskScene(value);
   }
 
   function currentTaskKey(value: Task) {
@@ -103,6 +109,15 @@
     const empty = { vertex: [], fragment: [] };
     if (reportErrors && !onShaderErrors) taskStore.clearShaderErrors();
     else onShaderErrors?.(empty);
+  }
+
+  function toggleTime() {
+    timePaused = !timePaused;
+    viewport?.setTimePaused(timePaused);
+  }
+
+  $: if (scenes.length && !scenes.some(candidate => candidate.id === selectedSceneId)) {
+    selectedSceneId = scenes[0].id;
   }
 
   function scheduleShaderUpdate() {
@@ -149,6 +164,7 @@
     viewport.setShaderReadbacks(shaderReadbacks);
     mounted = true;
     previousTaskKey = currentTaskKey(task);
+    previousSceneId = selectedSceneId;
     previousVertexShader = vertexShader;
     previousFragmentShader = fragmentShader;
     replaceTaskState();
@@ -162,8 +178,9 @@
     viewport.setShaderReadbacks(shaderReadbacks);
   }
 
-  $: if (mounted && viewport && task && currentTaskKey(task) !== previousTaskKey) {
+  $: if (mounted && viewport && task && (currentTaskKey(task) !== previousTaskKey || selectedSceneId !== previousSceneId)) {
     previousTaskKey = currentTaskKey(task);
+    previousSceneId = selectedSceneId;
     previousVertexShader = vertexShader;
     previousFragmentShader = fragmentShader;
     replaceTaskState();
@@ -186,12 +203,39 @@
       <div class="viewport-panel-header app-panel-header flex items-center justify-between shrink-0">
         <h3 class="app-panel-title text-xl font-medium text-foreground">{title}</h3>
         {#if panelId}
-          <MaximizeButton isMaximized={$maximizedPanel === panelId} onClick={() => $maximizedPanel = $maximizedPanel === panelId ? null : panelId} />
+          <div class="flex items-center gap-1">
+            {#if showTimeControl}
+              <button
+                class="motion-press h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground shrink-0"
+                title={timePaused ? 'Resume animation' : 'Pause animation'}
+                aria-label={timePaused ? 'Resume animation' : 'Pause animation'}
+                aria-pressed={timePaused}
+                onclick={toggleTime}
+              >
+                {#if timePaused}<Play class="h-4 w-4" />{:else}<Pause class="h-4 w-4" />{/if}
+              </button>
+            {/if}
+            <MaximizeButton isMaximized={$maximizedPanel === panelId} onClick={() => $maximizedPanel = $maximizedPanel === panelId ? null : panelId} />
+          </div>
         {/if}
       </div>
     {/if}
     <div class="viewport-overlay-controls relative flex min-h-0 flex-1 items-start gap-2 p-3">
-      <div bind:this={container} class="absolute inset-0 h-full w-full overflow-hidden rounded-md bg-background"></div>
+      <div bind:this={container} class="absolute inset-0 h-full w-full overflow-hidden rounded-md" style="background: var(--viewport-background);"></div>
+      {#if scenes.length > 1}
+        <ToggleGroup.Root
+          type="single"
+          bind:value={selectedSceneId}
+          class="relative z-10 flex-none gap-0 bg-muted p-0"
+        >
+          {#each scenes as definedScene}
+            <ToggleGroup.Item
+              value={definedScene.id}
+              class="h-10 px-4 data-[state=on]:bg-background"
+            >{definedScene.label}</ToggleGroup.Item>
+          {/each}
+        </ToggleGroup.Root>
+      {/if}
       {#if overlays?.transformControls}
         <ToggleGroup.Root
           type="single"

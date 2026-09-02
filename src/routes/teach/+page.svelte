@@ -2,7 +2,7 @@
   import { Input } from '$lib/components/ui/input/index.js';
   import Search from 'phosphor-svelte/lib/MagnifyingGlassIcon';
   import { resolve } from '$app/paths';
-  import teaching from '$lib/data/teaching.json';
+  import { teaching } from '$lib/content';
   import LibraryCard from '$lib/components/LibraryCard.svelte';
   import { reveal, writeIn } from '$lib/actions/motion';
 
@@ -22,13 +22,13 @@
 <div class="library-page">
   <div class="library-toolbar motion-reveal" use:reveal>
     <div>
-      <p class="library-kicker">Computergrafik Labor HSD</p>
-      <h1 class="library-title motion-letters" use:writeIn={{ delay: 90, step: 38 }}>Lehr-Demos</h1>
-      <p class="library-description">Rendering-Konzepte mit interaktiven Parametern anschaulich erkunden.</p>
+      <p class="library-kicker">HSD Computer Graphics Lab</p>
+      <h1 class="library-title motion-letters" use:writeIn={{ delay: 90, step: 38 }}>Teaching demos</h1>
+      <p class="library-description">Explore rendering concepts through interactive parameters.</p>
     </div>
     <div class="library-search relative">
       <Search class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-      <Input bind:value={query} type="text" placeholder="Lehr-Demos filtern …"
+      <Input bind:value={query} type="text" placeholder="Filter teaching demos …"
         class="py-6 pl-10 text-base focus-visible:ring-1" />
     </div>
   </div>
@@ -46,7 +46,7 @@
           />
         {/each}
       {:else}
-        <p class="col-span-full text-center text-muted-foreground">Keine Lehr-Demos gefunden.</p>
+        <p class="col-span-full text-center text-muted-foreground">No teaching demos found.</p>
       {/if}
     </div>
   </main>

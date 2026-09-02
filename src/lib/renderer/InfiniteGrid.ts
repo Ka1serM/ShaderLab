@@ -32,7 +32,7 @@ export class InfiniteGrid extends THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMa
         float lineGrid(vec2 coordinate, float spacing) {
           vec2 scaled = coordinate / spacing;
           vec2 width = fwidth(scaled);
-          vec2 distanceToLine = abs(fract(scaled - 0.5) - 0.5) / width;
+          vec2 distanceToLine = abs(fract(scaled - 0.5) - 0.5) / (width * 1.5);
           return 1.0 - min(min(distanceToLine.x, distanceToLine.y), 1.0);
         }
 

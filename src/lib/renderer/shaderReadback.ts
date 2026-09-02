@@ -1,7 +1,35 @@
-export type ShaderReadbackRequest = { id: string; variable: string };
+export type ShaderReadbackType = 'float' | 'vector3' | 'vector4' | 'matrix4';
+export type ShaderReadbackValue = number | number[];
+export type ShaderReadbackRequest = { id: string; variable: string; type: ShaderReadbackType };
+
+const GLSL_TYPES: Record<ShaderReadbackType, string> = {
+	float: 'float',
+	vector3: 'vec3',
+	vector4: 'vec4',
+	matrix4: 'mat4'
+};
+
+const COMPONENTS: Record<ShaderReadbackType, number> = {
+	float: 1,
+	vector3: 3,
+	vector4: 4,
+	matrix4: 16
+};
 
 function statementEnd(source: string, variable: string) {
 	const declaration = new RegExp(`\\bmat4\\s+${variable.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\b`).exec(source);
+	if (!declaration) return -1;
+	let parentheses = 0;
+	for (let index = declaration.index + declaration[0].length; index < source.length; index += 1) {
+		if (source[index] === '(') parentheses += 1;
+		else if (source[index] === ')') parentheses -= 1;
+		else if (source[index] === ';' && parentheses === 0) return index + 1;
+	}
+	return -1;
+}
+
+function nonMatrixStatementEnd(source: string, variable: string, type: Exclude<ShaderReadbackType, 'matrix4'>) {
+	const declaration = new RegExp(`\\b${GLSL_TYPES[type]}\\s+${variable}\\b`).exec(source);
 	if (!declaration) return -1;
 	let parentheses = 0;
 	for (let index = declaration.index + declaration[0].length; index < source.length; index += 1) {
@@ -18,20 +46,26 @@ function instrument(source: string, requests: ShaderReadbackRequest[]) {
 	const targets = requests.map((request, requestIndex) => ({
 		request,
 		requestIndex,
-		end: statementEnd(source, request.variable)
+		end: request.type === 'matrix4'
+			? statementEnd(source, request.variable)
+			: nonMatrixStatementEnd(source, request.variable, request.type)
 	}));
 	if (targets.some(target => target.end < 0)) return undefined;
 
-	const declarations = targets.flatMap(({ requestIndex }) =>
-		[0, 1, 2, 3].map(column => `out vec4 shaderlabReadback_${requestIndex}_${column};`)
+	const declarations = targets.flatMap(({ request, requestIndex }) =>
+		request.type === 'matrix4'
+			? [0, 1, 2, 3].map(column => `out vec4 shaderlabReadback_${requestIndex}_${column};`)
+			: [`out ${GLSL_TYPES[request.type]} shaderlabReadback_${requestIndex};`]
 	).join('\n');
 	let result = `${source.slice(0, main)}${declarations}\n${source.slice(main)}`;
 	const declarationOffset = declarations.length + 1;
 	for (const target of [...targets].sort((a, b) => b.end - a.end)) {
 		const end = target.end + (target.end > main ? declarationOffset : 0);
-		const assignment = [0, 1, 2, 3]
-			.map(column => `shaderlabReadback_${target.requestIndex}_${column} = ${target.request.variable}[${column}];`)
-			.join('\n');
+		const assignment = target.request.type === 'matrix4'
+			? [0, 1, 2, 3]
+				.map(column => `shaderlabReadback_${target.requestIndex}_${column} = ${target.request.variable}[${column}];`)
+				.join('\n')
+			: `shaderlabReadback_${target.requestIndex} = ${target.request.variable};`;
 		result = `${result.slice(0, end)}\n${assignment}${result.slice(end)}`;
 	}
 	return result;
@@ -70,7 +104,7 @@ function uploadUniform(gl: WebGL2RenderingContext, program: WebGLProgram, info: 
 	}
 }
 
-/** Executes one vertex and captures explicitly marked mat4 values from the GPU. */
+/** Executes one vertex and captures explicitly marked local values from the GPU. */
 export function readShaderMatrices(
 	gl: WebGL2RenderingContext,
 	vertexSource: string,
@@ -92,8 +126,10 @@ export function readShaderMatrices(
 	if (!program) return {};
 	gl.attachShader(program, vertex);
 	gl.attachShader(program, fragment);
-	const varyings = requests.flatMap((_, requestIndex) =>
-		[0, 1, 2, 3].map(column => `shaderlabReadback_${requestIndex}_${column}`)
+	const varyings = requests.flatMap((request, requestIndex) =>
+		request.type === 'matrix4'
+			? [0, 1, 2, 3].map(column => `shaderlabReadback_${requestIndex}_${column}`)
+			: [`shaderlabReadback_${requestIndex}`]
 	);
 	gl.transformFeedbackVaryings(program, varyings, gl.INTERLEAVED_ATTRIBS);
 	gl.linkProgram(program);
@@ -108,7 +144,7 @@ export function readShaderMatrices(
 	const buffer = gl.createBuffer();
 	const feedback = gl.createTransformFeedback();
 	const vao = gl.createVertexArray();
-	const raw = new Float32Array(requests.length * 16);
+	const raw = new Float32Array(requests.reduce((total, request) => total + COMPONENTS[request.type], 0));
 	try {
 		gl.useProgram(program);
 		for (let index = 0; index < gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS); index += 1) {
@@ -139,5 +175,11 @@ export function readShaderMatrices(
 		gl.deleteShader(vertex);
 		gl.deleteShader(fragment);
 	}
-	return Object.fromEntries(requests.map((request, index) => [request.id, Array.from(raw.slice(index * 16, index * 16 + 16))]));
+	let offset = 0;
+	return Object.fromEntries(requests.map(request => {
+		const size = COMPONENTS[request.type];
+		const value = request.type === 'float' ? raw[offset] : Array.from(raw.slice(offset, offset + size));
+		offset += size;
+		return [request.id, value];
+	})) as Record<string, ShaderReadbackValue>;
 }

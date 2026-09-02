@@ -4,12 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "update-tasks": "node scripts/generateTasksJsonFromMD.js",
-    "update-teaching": "node scripts/generateTeachingJson.js",
-    "update-content": "npm run update-tasks && npm run update-teaching",
-    "predev": "npm run update-content",
     "dev": "vite dev",
-    "prebuild": "npm run update-content",
     "build": "vite build",
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",

@@ -8,7 +8,7 @@
 
 <button
   class="motion-press h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground shrink-0"
-  title={isMaximized ? 'Verkleinern' : 'Maximieren'}
+  title={isMaximized ? 'Restore size' : 'Maximise'}
   onclick={onClick}
 >
   {#if isMaximized}

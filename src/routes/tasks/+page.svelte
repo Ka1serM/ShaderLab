@@ -2,7 +2,7 @@
 import { Input } from "$lib/components/ui/input/index.js";
 import Search from "phosphor-svelte/lib/MagnifyingGlassIcon";
 import { resolve } from "$app/paths";
-import tasks from "$lib/data/tasks.json";
+import { tasks } from '$lib/content';
 import { slugify } from '$lib/utils/slugify';
 import LibraryCard from '$lib/components/LibraryCard.svelte';
 import { reveal, writeIn } from '$lib/actions/motion';
@@ -28,15 +28,15 @@ function getPreview(html: string, maxLength: number = 90): string {
 <div class="library-page">
   <div class="library-toolbar motion-reveal" use:reveal>
     <div>
-      <p class="library-kicker">Computergrafik Labor HSD</p>
-      <h1 class="library-title motion-letters" use:writeIn={{ delay: 90, step: 38 }}>Aufgaben</h1>
-      <p class="library-description">Shader entwickeln, direkt ausführen und mit einer Referenz vergleichen.</p>
+      <p class="library-kicker">HSD Computer Graphics Lab</p>
+      <h1 class="library-title motion-letters" use:writeIn={{ delay: 90, step: 38 }}>Tasks</h1>
+      <p class="library-description">Build shaders, run them instantly, and compare them with a reference.</p>
     </div>
     <div class="library-search relative">
       <Search class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
       <Input
         type="text"
-        placeholder="Aufgaben filtern …"
+        placeholder="Filter tasks …"
         bind:value={query}
         class="pl-10 py-6 text-base focus-visible:ring-1"
       />
@@ -57,7 +57,7 @@ function getPreview(html: string, maxLength: number = 90): string {
         {/each}
       {:else}
         <p class="text-center text-muted-foreground col-span-full">
-          Keine Aufgaben gefunden.
+          No tasks found.
         </p>
       {/if}
     </div>
