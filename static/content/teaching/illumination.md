@@ -1,16 +1,39 @@
 ---
 title: Illumination
 category: Illumination
-task: Phong
-scene:
-  objects:
-    - source: models/Sphere.glb
-      position: [-1.2, 0, 0]
-      scale: [0.8, 0.8, 0.8]
-    - source: models/HeadDavid.glb
-      position: [1.2, 0, 0]
-      scale: [0.8, 0.8, 0.8]
+shaderStages:
+  - fragment
+scenes:
+  - objects:
+      - source: models/Sphere.glb
+        position: [-1.2, 0, 0]
+        scale: [0.8, 0.8, 0.8]
+      - source: models/HeadDavid.glb
+        position: [1.2, 0, 0]
+        scale: [0.8, 0.8, 0.8]
 ---
+
+# Vertex Shader
+
+```glsl
+precision highp float;
+
+in vec3 position;
+in vec3 normal;
+
+uniform mat4 modelMatrix;
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+
+out vec3 vNormal;
+out vec3 vPosition;
+
+void main() {
+  vNormal = normalize(mat3(transpose(inverse(modelMatrix))) * normal);
+  vPosition = vec3(modelMatrix * vec4(position, 1.0));
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+```
 
 # Fragment Shader
 ```glsl
@@ -35,15 +58,18 @@ uniform vec3 uLightDir;
 uniform vec3 cameraPosition;
 
 void main() {
+  // Vertex normals are interpolated across the triangle, so normalize again
+  // per fragment before using them for diffuse or specular lighting.
+  vec3 normal = normalize(vNormal);
   vec3 lightDir = normalize(uLightDir);
   vec3 viewDir = normalize(cameraPosition - vPosition);
-  float nDotL = dot(vNormal, lightDir);
+  float nDotL = dot(normal, lightDir);
   float diffuseFactor = 0.0;
   if (nDotL > 0.0) {
     diffuseFactor = nDotL;
   }
 
-  vec3 reflectDir = 2.0 * dot(vNormal, lightDir) * vNormal - lightDir;
+  vec3 reflectDir = 2.0 * dot(normal, lightDir) * normal - lightDir;
   float rDotV = dot(reflectDir, viewDir);
   float specularFactor = 0.0;
   if (rDotV > 0.0) {

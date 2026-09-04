@@ -3,16 +3,40 @@
 import yaml from 'js-yaml';
 import { marked } from 'marked';
 import katex from 'katex';
-// sanitize-html does not ship TypeScript declarations.
-// @ts-expect-error
-import sanitizeHtml from 'sanitize-html';
 import type { Task } from '$lib/stores/taskStore';
 import type { Teach } from '$lib/stores/teachingStore';
 import { slugify } from '$lib/utils/slugify';
+import { base } from '$app/paths';
+import { browser } from '$app/environment';
+import { readable } from 'svelte/store';
 
-type RawModules = Record<string, string>;
-const taskFiles = import.meta.glob('/src/lib/data/tasks/*.md', { eager: true, query: '?raw', import: 'default' }) as RawModules;
-const teachingFiles = import.meta.glob('/src/lib/data/teaching/*.md', { eager: true, query: '?raw', import: 'default' }) as RawModules;
+type ContentEntry = { id: string; path: string };
+let indexRequests = new Map<'tasks' | 'teaching', Promise<ContentEntry[]>>();
+
+function contentUrl(path: string) {
+  return `${base}/content/${path}`;
+}
+
+async function fetchMarkdown(path: string) {
+  const response = await fetch(contentUrl(path), { cache: 'no-store' });
+  if (!response.ok) throw new Error(`Unable to load ${path}: ${response.status}`);
+  return response.text();
+}
+
+export function loadContentIndex(kind: 'tasks' | 'teaching') {
+  let request = indexRequests.get(kind);
+  if (!request) {
+    request = fetch(contentUrl(`${kind}/index.txt`), { cache: 'no-store' }).then(async response => {
+      if (!response.ok) throw new Error(`Unable to load ${kind} index: ${response.status}`);
+      return (await response.text()).split(/\r?\n/)
+        .map(name => name.trim())
+        .filter(name => name && !name.startsWith('#'))
+        .map(name => ({ id: slugify(name.replace(/\.md$/i, '')), path: `${kind}/${name}` }));
+    });
+    indexRequests.set(kind, request);
+  }
+  return request;
+}
 
 function camelCase(value: string) {
   return value.replace(/\s(.)/g, (_, char) => char.toUpperCase()).replace(/\s/g, '').replace(/^(.)/, (_, char) => char.toLowerCase());
@@ -53,7 +77,8 @@ function html(value: string, math = false) {
     .replace(/\$\$(.+?)\$\$/gs, (_, expression) => katex.renderToString(expression, { displayMode: true, throwOnError: false }))
     .replace(/\$(.+?)\$/g, (_, expression) => katex.renderToString(expression, { throwOnError: false }))
     : value;
-  return sanitizeHtml(marked.parse(rendered) as string, { allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn', 'msup', 'mfrac']), allowedAttributes: { ...sanitizeHtml.defaults.allowedAttributes, '*': ['class', 'aria-hidden'], span: ['class', 'style', 'aria-hidden'], annotation: ['encoding'] } });
+  // Markdown is bundled first-party course content, not user-provided input.
+  return marked.parse(rendered) as string;
 }
 
 function sections(content: string) {
@@ -78,7 +103,7 @@ function hints(value: string) {
   });
 }
 
-function parseTask(raw: string) {
+export function parseTask(raw: string): Task {
   const parsed = frontmatter(raw); const result: Record<string, unknown> = Object.fromEntries(Object.entries(parsed.data).map(([key, value]) => [camelCase(key), value]));
   for (const [key, value] of Object.entries(sections(parsed.content))) {
     const name = camelCase(key);
@@ -88,22 +113,42 @@ function parseTask(raw: string) {
       else result[name] = source;
     } else result[name] = name === 'hints' ? hints(value) : html(value, true);
   }
-  return result;
+  return result as unknown as Task;
 }
 
-function parseTeaching(raw: string) {
+export function parseTeaching(raw: string): Teach {
   const parsed = frontmatter(raw); const result: Record<string, unknown> = Object.fromEntries(Object.entries(parsed.data).map(([key, value]) => [camelCase(key), value]));
   result.id = slugify(String(result.title));
   result.contentVersion = Array.from(raw).reduce((hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) | 0, 0).toString(36);
-  if (Array.isArray(result.scenes)) result.scenes = result.scenes.map(scene => ({ ...scene as object, id: slugify(String((scene as { label: string }).label)) }));
   for (const [key, value] of Object.entries(sections(parsed.content))) result[camelCase(key)] = /shader/i.test(key) ? shader(value) : html(value, true);
   for (const stage of ['vertexShader', 'fragmentShader']) {
     if (typeof result[stage] !== 'string') continue;
     const split = splitStudentShader(result[stage]); result[stage] = split.source; if (split.template) result[`${stage}Template`] = split.template;
   }
-  return result;
+  return result as unknown as Teach;
 }
 
-/** Parsed once in the browser module cache; Vite HMR replaces changed raw Markdown files. */
-export const tasks = Object.values(taskFiles).map(parseTask) as unknown as Task[];
-export const teaching = Object.values(teachingFiles).map(parseTeaching) as unknown as Teach[];
+export async function loadTaskContent(id: string): Promise<Task | null> {
+  const entry = (await loadContentIndex('tasks')).find(item => item.id === slugify(id));
+  return entry ? parseTask(await fetchMarkdown(entry.path)) : null;
+}
+
+export async function loadTeachingContent(id: string): Promise<Teach | null> {
+  const entry = (await loadContentIndex('teaching')).find(item => item.id === slugify(id));
+  return entry ? parseTeaching(await fetchMarkdown(entry.path)) : null;
+}
+
+async function loadCatalog<T>(kind: 'tasks' | 'teaching', parse: (raw: string) => T) {
+  const entries = await loadContentIndex(kind);
+  return Promise.all(entries.map(async entry => parse(await fetchMarkdown(entry.path))));
+}
+
+export const taskCatalog = readable<Task[]>([], set => {
+  if (!browser) return;
+  void loadCatalog('tasks', parseTask).then(set).catch(error => console.error('Failed to load task catalog:', error));
+});
+
+export const teachingCatalog = readable<Teach[]>([], set => {
+  if (!browser) return;
+  void loadCatalog('teaching', parseTeaching).then(set).catch(error => console.error('Failed to load teaching catalog:', error));
+});

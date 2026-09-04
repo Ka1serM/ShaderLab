@@ -1,12 +1,13 @@
 ---
 title: Projection
 category: Projection
-task: Lambert
 shader stages:
   - vertex
-scene:
-  objects:
-    - source: models/ProjectionEdges.glb
+scenes:
+  - objects:
+      - source: models/ProjectionEdges.glb
+        wireframe: true
+        lineWidth: 5
 ---
 
 # Vertex Shader
@@ -16,13 +17,12 @@ scene:
 precision highp float;
 
 in vec3 position;
-in vec2 uv;
+in vec3 barycentric;
 
 uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 
-out vec3 vLocalPosition;
-out vec2 vEdgeUv;
+out vec3 vBarycentric;
 // @prefix
 
 // @control near slider label="Near n" min=0.1 max=2 step=0.05 default=1
@@ -45,6 +45,8 @@ void main() {
     // @readback top float label="Top t"
     float top = uNear * tanHalfFov;
     // @readback projectionMatrix matrix label="Projection matrix P"
+    // ShaderLab rewrites row-major matrix literals before compiling, so this
+    // matches the conventional matrix shown below.
     mat4 teachingProjectionMatrix = mat4(
         2.0 * uNear / (right - left), 0.0,
         (right + left) / (right - left), 0.0,
@@ -57,8 +59,7 @@ void main() {
 
     vec4 frustumPosition = inverse(teachingProjectionMatrix) * vec4(position * 2.0, 1.0);
     frustumPosition /= frustumPosition.w;
-    vLocalPosition = position;
-    vEdgeUv = uv;
+    vBarycentric = barycentric;
 
     gl_Position = projectionMatrix * modelViewMatrix * vec4(frustumPosition.xyz, 1.0);
 }
@@ -69,17 +70,40 @@ void main() {
 ```glsl
 precision highp float;
 
-in vec2 vEdgeUv;
+in vec3 vBarycentric;
+
+uniform float uWireframeLineWidth;
 
 out vec4 fragColor;
 
 void main() {
-    vec2 distanceToEdge = min(vEdgeUv, 1.0 - vEdgeUv);
-    vec2 edgeWidth = fwidth(vEdgeUv) * 3.5;
-    vec2 edge = vec2(1.0) - step(edgeWidth, distanceToEdge);
-    float line = max(edge.x, edge.y);
-    if (line == 0.0) discard;
-    fragColor = vec4(vec3(0.75, 0.12, 0.18), 1.0);
+    // Every quad is two triangles. The loader assigns barycentric values to
+    // their vertices and offsets the coordinate opposite the longest edge.
+    // The shared diagonal is the longest edge, so it never reaches zero and
+    // cannot be drawn as a wireframe line.
+    // Convert each barycentric coordinate to its perpendicular distance from
+    // an edge in framebuffer pixels. Unlike fwidth(), the Euclidean gradient
+    // is not wider for diagonal lines, so every orientation gets the same
+    // apparent stroke width.
+    vec3 gradientX = dFdx(vBarycentric);
+    vec3 gradientY = dFdy(vBarycentric);
+    vec3 gradient = sqrt(gradientX * gradientX + gradientY * gradientY);
+    vec3 edgeDistance = vBarycentric / max(gradient, vec3(1e-6));
+    float nearestEdge = min(edgeDistance.x, min(edgeDistance.y, edgeDistance.z));
+    float coverage = 1.0 - smoothstep(
+        uWireframeLineWidth - 0.75,
+        uWireframeLineWidth + 0.75,
+        nearestEdge
+    );
+    if (coverage == 0.0) discard;
+
+    // The renderer enables blending for this quad wireframe scene, so the
+    // coverage becomes a smooth, resolution-independent antialiasing ramp.
+    // A muted back-face colour keeps occluded frustum edges readable without
+    // competing with the front outline.
+    vec3 frontColor = vec3(0.75, 0.12, 0.18);
+    vec3 backColor = vec3(0.34, 0.06, 0.10);
+    fragColor = vec4(gl_FrontFacing ? frontColor : backColor, coverage);
 }
 ```
 

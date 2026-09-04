@@ -1,9 +1,11 @@
 ---
 category: Einführung
-type: 2D
 title: Bresenham
 shaderStages:
   - fragment
+scenes:
+  - objects:
+      - source: models/Canvas.glb
 overlays:
   infiniteGrid: false
   viewHelper: false
@@ -42,28 +44,6 @@ Der zunächst betrachtete Code setzt `x1 ≤ x2` und eine Steigung zwischen 0 un
 - Zwei unabhängige Entscheidungen erlauben Schritte in x-, y- oder beide Richtungen.
 
 Beide Schreibweisen treffen dieselbe Mittelpunktentscheidung und benötigen in der Schleife weder Division noch Gleitkommaarithmetik.
-
-# Starter Vertex Shader
-```glsl
-// @prefix
-precision highp float;
-
-in vec3 position;
-in vec3 normal;
-in vec2 uv;
-
-uniform mat4 modelViewMatrix;
-uniform mat4 projectionMatrix;
-uniform mat3 normalMatrix;
-
-out vec2 vUV;
-
-void main() {
-    vUV = uv;
-    gl_Position = vec4(position, 1.0);
-}
-// @prefix
-```
 
 # Starter Fragment Shader
 ```glsl

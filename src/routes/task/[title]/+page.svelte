@@ -4,7 +4,7 @@
   import TaskPanel from '$lib/components/TaskPanel.svelte';
   import MonacoEditor from '$lib/components/MonacoEditor.svelte';
   import Viewport from '$lib/components/Viewport.svelte';
-  import { taskStore, getTaskShaderStages } from '$lib/stores/taskStore';
+  import { taskStore, getTaskShaderStages, getTaskStudentShader } from '$lib/stores/taskStore';
   import { maximizedPanel } from '$lib/stores/panelStore';
   import type { PageData } from './$types';
   import { isMobile } from '$lib/hooks/is-mobile.svelte';
@@ -74,7 +74,7 @@
               <Pane size={splitterSizes.inner}>
                 <MonacoEditor
                   sources={{ vertex: $taskStore.vertexShader, fragment: $taskStore.fragmentShader }}
-                  defaultSources={{ vertex: $taskStore.task.starterVertexShader, fragment: $taskStore.task.starterFragmentShader }}
+                  defaultSources={{ vertex: getTaskStudentShader($taskStore.task, 'vertex'), fragment: getTaskStudentShader($taskStore.task, 'fragment') }}
                   visibleSources={getTaskShaderStages($taskStore.task)}
                   activeSource={$taskStore.activeTab}
                   diagnostics={$taskStore.shaderErrors}
@@ -89,12 +89,14 @@
                   <Splitpanes class="splitpanes-nested" theme="my-theme" on:resized={(event) => handleSplitterResize('viewports', event)}>
                     <Pane size={splitterSizes.viewports}>
                       <Viewport
-                        task={$taskStore.task}
-                        scenes={$taskStore.task.scenes ?? []}
+                        inputs={$taskStore.task.inputs ?? []}
+                        scenes={$taskStore.task.scenes}
+                        shaderTemplates={{ vertex: $taskStore.task.starterVertexShaderTemplate, fragment: $taskStore.task.starterFragmentShaderTemplate }}
                         vertexShader={$taskStore.task.referenceVertexShader}
                         fragmentShader={$taskStore.task.referenceFragmentShader}
                         cameraPose={$taskStore.cameraPose}
                         cameraPoseSaved={$taskStore.cameraPoseSaved}
+                        onCameraChange={taskStore.setCameraPose}
                         overlays={$taskStore.task.overlays}
                         reportErrors={false}
                         title="Reference"
@@ -104,15 +106,18 @@
                     </Pane>
                     <Pane size={100 - splitterSizes.viewports}>
                       <Viewport
-                        task={$taskStore.task}
-                        scenes={$taskStore.task.scenes ?? []}
+                        inputs={$taskStore.task.inputs ?? []}
+                        scenes={$taskStore.task.scenes}
+                        shaderTemplates={{ vertex: $taskStore.task.starterVertexShaderTemplate, fragment: $taskStore.task.starterFragmentShaderTemplate }}
                         vertexShader={$taskStore.vertexShader}
                         fragmentShader={$taskStore.fragmentShader}
                         cameraPose={$taskStore.cameraPose}
                         cameraPoseSaved={$taskStore.cameraPoseSaved}
+                        onCameraChange={taskStore.setCameraPose}
                         overlays={$taskStore.task.overlays}
                         reportErrors={true}
-                        useStudentTemplates={true}
+                        onShaderErrors={taskStore.setShaderErrors}
+                        useShaderTemplates={true}
                         title="Output"
                         showTimeControl={$taskStore.task.showTimeControl ?? false}
                         panelId="output"
@@ -131,19 +136,22 @@
             <TaskPanel />
           </div>
           <div class="min-h-[400px]">
-            <MonacoEditor sources={{ vertex: $taskStore.vertexShader, fragment: $taskStore.fragmentShader }} defaultSources={{ vertex: $taskStore.task.starterVertexShader, fragment: $taskStore.task.starterFragmentShader }} visibleSources={getTaskShaderStages($taskStore.task)} activeSource={$taskStore.activeTab} diagnostics={$taskStore.shaderErrors} editorId="task-mobile" workspaceKey={data.slug} onSourceChange={(source, value) => source === 'vertex' ? taskStore.setVertexShader(value) : taskStore.setFragmentShader(value)} onActiveSourceChange={(source) => taskStore.setActiveTab(source)} />
+            <MonacoEditor sources={{ vertex: $taskStore.vertexShader, fragment: $taskStore.fragmentShader }} defaultSources={{ vertex: getTaskStudentShader($taskStore.task, 'vertex'), fragment: getTaskStudentShader($taskStore.task, 'fragment') }} visibleSources={getTaskShaderStages($taskStore.task)} activeSource={$taskStore.activeTab} diagnostics={$taskStore.shaderErrors} editorId="task-mobile" workspaceKey={data.slug} onSourceChange={(source, value) => source === 'vertex' ? taskStore.setVertexShader(value) : taskStore.setFragmentShader(value)} onActiveSourceChange={(source) => taskStore.setActiveTab(source)} />
           </div>
           <div class="min-h-[400px]">
             <Viewport
-              task={$taskStore.task}
-              scenes={$taskStore.task.scenes ?? []}
+              inputs={$taskStore.task.inputs ?? []}
+              scenes={$taskStore.task.scenes}
+              shaderTemplates={{ vertex: $taskStore.task.starterVertexShaderTemplate, fragment: $taskStore.task.starterFragmentShaderTemplate }}
               vertexShader={$taskStore.vertexShader}
               fragmentShader={$taskStore.fragmentShader}
               cameraPose={$taskStore.cameraPose}
               cameraPoseSaved={$taskStore.cameraPoseSaved}
+              onCameraChange={taskStore.setCameraPose}
               overlays={$taskStore.task.overlays}
               reportErrors={true}
-              useStudentTemplates={true}
+              onShaderErrors={taskStore.setShaderErrors}
+              useShaderTemplates={true}
               title="Output"
               showTimeControl={$taskStore.task.showTimeControl ?? false}
               panelId="output"
@@ -151,12 +159,14 @@
           </div>
           <div class="min-h-[400px]">
             <Viewport
-              task={$taskStore.task}
-              scenes={$taskStore.task.scenes ?? []}
+              inputs={$taskStore.task.inputs ?? []}
+              scenes={$taskStore.task.scenes}
+              shaderTemplates={{ vertex: $taskStore.task.starterVertexShaderTemplate, fragment: $taskStore.task.starterFragmentShaderTemplate }}
               vertexShader={$taskStore.task.referenceVertexShader}
               fragmentShader={$taskStore.task.referenceFragmentShader}
               cameraPose={$taskStore.cameraPose}
               cameraPoseSaved={$taskStore.cameraPoseSaved}
+              onCameraChange={taskStore.setCameraPose}
               overlays={$taskStore.task.overlays}
               reportErrors={false}
               title="Reference"

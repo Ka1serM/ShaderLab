@@ -1,15 +1,14 @@
 ---
 title: Transformations
 category: Transformations
-task: Lambert
 shaderStages:
   - vertex
 overlays:
   transformControls:
     mode: translate
-scene:
-  objects:
-    - source: models/Cube.glb
+scenes:
+  - objects:
+      - source: models/Cube.glb
 ---
 
 # Vertex Shader

@@ -1,20 +1,22 @@
 ---
 title: Shading
 category: Shading
-task: Phong
 showTimeControl: true
+shaderStages:
+  - vertex
+  - fragment
 scenes:
   - label: Sphere
     objects:
-      - source: models/ShadingSphere.glb
+      - source: models/SphereLowPoly.glb
         instanceCount: 3
   - label: Teapot
     objects:
-      - source: models/ShadingTeapot.glb
+      - source: models/Teapot.glb
         instanceCount: 3
   - label: David
     objects:
-      - source: models/ShadingHead.glb
+      - source: models/HeadDavid.glb
         instanceCount: 3
 ---
 
@@ -50,6 +52,7 @@ out vec3 vWorldNormal;
 out vec3 vColor;
 
 vec3 phongIllumination(vec3 worldPosition, vec3 worldNormal) {
+    worldNormal = normalize(worldNormal);
     vec3 lightDir = normalize(uLightDir);
     vec3 viewDir = normalize(cameraPosition - worldPosition);
     float nDotL = dot(worldNormal, lightDir);
@@ -126,6 +129,7 @@ uniform float uShininess;
 out vec4 fragColor;
 
 vec3 phongIllumination(vec3 worldPosition, vec3 worldNormal) {
+    worldNormal = normalize(worldNormal);
     vec3 lightDir = normalize(uLightDir);
     vec3 viewDir = normalize(cameraPosition - worldPosition);
     float nDotL = dot(worldNormal, lightDir);

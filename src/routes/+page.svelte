@@ -5,13 +5,13 @@
   import Code2 from 'phosphor-svelte/lib/CodeIcon';
   import GraduationCap from 'phosphor-svelte/lib/GraduationCapIcon';
   import { resolve } from '$app/paths';
-  import { tasks, teaching } from '$lib/content';
+  import { taskCatalog, teachingCatalog } from '$lib/content';
   import HomeViewport from '$lib/components/HomeViewport.svelte';
   import ShaderLabLogo from '$lib/components/ShaderLabLogo.svelte';
   import { reveal, scramble, tilt, writeIn } from '$lib/actions/motion';
 
-  const taskCount = tasks.length;
-  const teachingCount = teaching.length;
+  $: taskCount = $taskCatalog.length;
+  $: teachingCount = $teachingCatalog.length;
 </script>
 
 <svelte:head>
@@ -46,7 +46,7 @@
     </section>
 
     <section class="overview" aria-labelledby="overview-title">
-      <div class="overview-heading motion-reveal" use:reveal><p class="section-kicker">What is ShaderLab?</p><h2 id="overview-title" use:scramble={{ delay: 160 }}>Make code<br /><b>visible.</b></h2></div>
+      <div class="overview-heading motion-reveal" use:reveal><p class="section-kicker">What is ShaderLab?</p><h2 id="overview-title" use:scramble={{ delay: 160 }}>Turn code<br /><b>into visuals.</b></h2></div>
       <div class="overview-copy motion-reveal" use:reveal><p>ShaderLab is a browser-based environment for computer graphics. Edit GLSL vertex and fragment shaders and see every change immediately in the viewport.</p><p>Tasks compare your output with a reference. Teaching demos make ideas such as projection, transformations, and lighting models tangible.</p></div>
       <div class="overview-facts"><div class="motion-reveal" use:reveal><strong>{taskCount}</strong><span>Tasks</span></div><div class="motion-reveal" use:reveal><strong>{teachingCount}</strong><span>Teaching demos</span></div><div class="motion-reveal" use:reveal><strong>GLSL</strong><span>GPU code</span></div></div>
     </section>

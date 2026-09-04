@@ -1,6 +1,5 @@
 ---
 category: Transformation
-type: 3D
 title: Planeten System
 showTimeControl: true
 shaderStages:
@@ -9,10 +8,10 @@ camera:
   position: [8.5, 8.5, 8.5]
   target: [0, 0, 0]
   fov: 30
-scene:
-  objects:
-    - source: models/Sphere.glb
-      instanceCount: 6
+scenes:
+  - objects:
+      - source: models/Sphere.glb
+        instanceCount: 6
 ---
 
 # Task
@@ -151,22 +150,6 @@ void render() {
     gl_Position = projectionMatrix * modelViewMatrix * pointMatrix * vec4(position, 1.0);
 }
 // @suffix
-```
-
-# Starter Fragment Shader
-```glsl
-precision highp float;
-
-in vec3 vNormal;
-in vec3 vColor;
-out vec4 fragColor;
-
-void main() {
-    vec3 lightDirection = normalize(vec3(0.5, 0.5, 1.0));
-    float diffuse = max(dot(normalize(vNormal), lightDirection), 0.0);
-    float ambient = 0.2;
-    fragColor = vec4(vColor * (diffuse + ambient), 1.0);
-}
 ```
 
 # Reference Vertex Shader

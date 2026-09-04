@@ -1,8 +1,10 @@
 ---
 category: Computer Animation
-type: 2D
 shaderStages:
   - fragment
+scenes:
+  - objects:
+      - source: models/Canvas.glb
 camera:
   position: [1.5, 1.5, 1.5]
   target: [0, 0, 0]
@@ -313,23 +315,6 @@ void main() {
 
     fragColor = vec4(finalColor, 1.0);
 }
-```
-
-# Starter Vertex Shader
-```glsl
-// @prefix
-precision highp float;
-
-in vec3 position;
-in vec2 uv;
-
-out vec2 vUv;
-
-void main() {
-    vUv = uv * 2.0 - 1.0;
-    gl_Position = vec4(position, 1.0);
-}
-// @prefix
 ```
 
 # Starter Fragment Shader

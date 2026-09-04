@@ -1,6 +1,5 @@
 ---
 category: Illumination
-type: 3D
 title: Lambert
 shaderStages:
   - fragment
@@ -8,7 +7,9 @@ camera:
   position: [2.5, 2.5, 2.5]
   target: [0, 0, 0]
   fov: 30
-modelPath: models/HeadDavid.glb
+scenes:
+  - objects:
+      - source: models/HeadDavid.glb
 ---
 
 # Task
@@ -25,26 +26,6 @@ Ein Lambert-Reflektor streut einfallendes Licht ideal diffus. Seine Helligkeit h
 `Id = Ip · kd · max(N · L, 0)`
 
 Das Skalarprodukt entspricht dem Kosinus des Winkels. Es ist maximal, wenn die Fläche zur Lichtquelle zeigt, wird bei 90° null und wird für abgewandte Flächen auf null begrenzt. `Ip` ist die RGB-Intensität der Lichtquelle, `kd` der diffuse RGB-Reflexionskoeffizient des Materials.
-
-# Starter Vertex Shader
-```glsl
-
-precision highp float;
-
-in vec3 position;
-in vec3 normal;
-
-uniform mat4 modelViewMatrix;
-uniform mat4 projectionMatrix;
-uniform mat3 normalMatrix;
-
-out vec3 vNormal;
-
-void main() {
-  vNormal = normalize(normalMatrix * normal);
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-```
 
 # Starter Fragment Shader
 ```glsl
@@ -90,9 +71,10 @@ in vec3 vNormal;
 out vec4 fragColor;
 
 void main() {
+  vec3 normal = normalize(vNormal);
   vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
   vec3 baseColor = vec3(0.8, 0.4, 0.2);
-  float diffuse = max(dot(vNormal, lightDir), 0.0);
+  float diffuse = max(dot(normal, lightDir), 0.0);
   vec3 color = baseColor * diffuse;
   fragColor = vec4(color, 1.0);
 }

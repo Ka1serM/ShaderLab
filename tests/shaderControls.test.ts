@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { controlValues, parseShaderControls } from './shaderControls';
+import { controlValues, parseShaderControls } from '../src/lib/utils/shaderControls';
 
 describe('parseShaderControls', () => {
   it('binds an annotation only to the next declaration', () => {

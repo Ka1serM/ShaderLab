@@ -33,6 +33,10 @@ export type Object = {
   scale?: [number, number, number];
   /** Number of identical instances. Their placement belongs in the shader. */
   instanceCount?: number;
+  /** Draw quad outlines without showing their internal triangulation edges. */
+  wireframe?: boolean;
+  /** Outline width in framebuffer pixels. Only applies when `wireframe` is enabled. */
+  lineWidth?: number;
 };
 
 export type Scene = {
@@ -185,7 +189,10 @@ export class Renderer {
     const height = Math.max(1, this.container.clientHeight);
     this.horizontalFov = options.cameraPose.fov;
     const verticalFov = 2 * Math.atan(Math.tan(this.horizontalFov * Math.PI / 360) / (width / height)) * 180 / Math.PI;
-    this.camera = new THREE.PerspectiveCamera(verticalFov, width / height, 0.01, 10_000);
+    // This is the viewport camera's clip plane, unrelated to the projection
+    // lesson's uNear control. Keep it small enough to inspect a frustum from
+    // close range without slicing its outline.
+    this.camera = new THREE.PerspectiveCamera(verticalFov, width / height, 0.1, 1_000);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setClearColor(0x000000, 0);
     // Unbounded DPR makes two side-by-side teaching viewports prohibitively
@@ -214,6 +221,9 @@ export class Renderer {
         { type: 'float', name: 'cameraFov', init: this.horizontalFov * Math.PI / 180 },
         { type: 'vec3', name: 'cameraPosition', init: [0, 0, 1] },
         { type: 'vec3', name: 'cameraDirection', init: [0, 0, -1] },
+        // This renderer-owned uniform must exist before any projection shader
+        // can compile. Scene changes only alter its value.
+        { type: 'float', name: 'uWireframeLineWidth', init: 3.5 },
         ...(options.inputs ?? [])
       ]
     });
@@ -301,6 +311,7 @@ export class Renderer {
    */
   async replaceTaskState(state: RendererTaskState) {
     this.setInputs(state.inputs);
+    this.setWireframeLineWidth(state.scene);
     this.setUniformValues(state.uniformValues ?? {});
     this.setOverlays(state.overlays);
     this.setShaderLineOffsets(state.shaderLineOffsets);
@@ -517,12 +528,22 @@ export class Renderer {
 
   async setScene(sceneDefinition: Scene) {
     const generation = ++this.sceneGeneration;
+    this.setWireframeLineWidth(sceneDefinition);
     this.clearObjects();
     // A viewport instance is reused when navigating between tasks/teaching
     // pages. Always restore the ordinary mesh state before loading the next
     // scene so a previous wireframe-style scene cannot leak into it.
     this.material.wireframe = false;
     this.material.wireframeLinewidth = 1;
+    // The quad-outline shader outputs fractional edge coverage. Blend it so
+    // the derivative ramp actually antialiases instead of being treated as an
+    // opaque red pixel. Keep depth writes enabled: the reference shader's
+    // front/back passes do this too, and it prevents unstable transparent-face
+    // ordering when the camera looks along a frustum edge.
+    const wireframeObjects = sceneDefinition.objects.filter(object => object.wireframe);
+    this.material.transparent = wireframeObjects.length > 0;
+    this.material.depthWrite = true;
+    this.material.forceSinglePass = false;
     this.material.needsUpdate = true;
     for (const [objectIndex, object] of sceneDefinition.objects.entries()) {
       const geometries = await this.loadGeometries(object);
@@ -556,7 +577,9 @@ export class Renderer {
 
     const center = bounds.getCenter(new THREE.Vector3());
     const size = bounds.getSize(new THREE.Vector3());
-    const radius = Math.max(size.length() * 0.5, 0.05);
+    // The orbit pivot is always the world origin. Include the scene's offset
+    // in the fit radius so off-origin objects remain fully visible.
+    const radius = Math.max(size.length() * 0.5 + center.length(), 0.05);
     const viewDirection = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
     if (viewDirection.lengthSq() < Number.EPSILON) viewDirection.set(1, 1, 1);
     viewDirection.normalize();
@@ -566,9 +589,8 @@ export class Renderer {
     const limitingFov = Math.min(verticalFov, horizontalFov);
     const distance = radius / Math.sin(limitingFov * 0.5) * 1.15;
 
-    this.camera.position.copy(center).addScaledVector(viewDirection, distance);
-    this.camera.lookAt(center);
-    this.controls.target.copy(center);
+    this.camera.position.copy(this.controls.target.set(0, 0, 0)).addScaledVector(viewDirection, distance);
+    this.camera.lookAt(0, 0, 0);
     this.controls.update();
     this.cameraKey = '';
     this.saveCamera();
@@ -581,17 +603,16 @@ export class Renderer {
       const geometries: Geometry[] = [];
       gltf.scene.traverse(child => {
         if ((child as THREE.Mesh).isMesh) {
-          geometries.push({
-            geometry: (child as THREE.Mesh).geometry.clone(),
+          let geometry = (child as THREE.Mesh).geometry.clone();
+          if (object.wireframe) geometry = this.createQuadWireframeGeometry(geometry);
+          const loaded = {
+            geometry,
             position: new THREE.Vector3(),
             quaternion: new THREE.Quaternion(),
             scale: new THREE.Vector3()
-          });
-          child.matrixWorld.decompose(
-            geometries[geometries.length - 1].position,
-            geometries[geometries.length - 1].quaternion,
-            geometries[geometries.length - 1].scale
-          );
+          };
+          child.matrixWorld.decompose(loaded.position, loaded.quaternion, loaded.scale);
+          geometries.push(loaded);
         }
       });
       // Drawables use cloned geometry, so the loader-owned graph can be released
@@ -610,6 +631,50 @@ export class Renderer {
     }
   }
 
+  /**
+   * The GPU rasterizes every quad as two triangles. Give each triangle
+   * barycentric coordinates, then move the coordinate opposite its longest
+   * edge away from zero. For a quad split into two triangles that longest edge
+   * is the diagonal, so the fragment shader can draw only the outer outline.
+   */
+  private createQuadWireframeGeometry(source: THREE.BufferGeometry) {
+    const geometry = source.index ? source.toNonIndexed() : source.clone();
+    if (geometry !== source) source.dispose();
+
+    const position = geometry.getAttribute('position');
+    if (!position) return geometry;
+
+    const barycentric = new Float32Array(position.count * 3);
+    const verticesPerTriangle = 3;
+    for (let vertex = 0; vertex + 2 < position.count; vertex += verticesPerTriangle) {
+      const a = new THREE.Vector3().fromBufferAttribute(position, vertex);
+      const b = new THREE.Vector3().fromBufferAttribute(position, vertex + 1);
+      const c = new THREE.Vector3().fromBufferAttribute(position, vertex + 2);
+      const oppositeEdgeLengths = [b.distanceToSquared(c), a.distanceToSquared(c), a.distanceToSquared(b)];
+      let ignoredEdge = 0;
+      if (oppositeEdgeLengths[1] > oppositeEdgeLengths[ignoredEdge]) ignoredEdge = 1;
+      if (oppositeEdgeLengths[2] > oppositeEdgeLengths[ignoredEdge]) ignoredEdge = 2;
+
+      for (let corner = 0; corner < verticesPerTriangle; corner++) {
+        const offset = (vertex + corner) * 3;
+        barycentric[offset + corner] = 1;
+        barycentric[offset + ignoredEdge] += 1;
+      }
+    }
+    geometry.setAttribute('barycentric', new THREE.BufferAttribute(barycentric, 3));
+    return geometry;
+  }
+
+  private getWireframeLineWidth(object: Object) {
+    const lineWidth = object.lineWidth ?? 3.5;
+    return Number.isFinite(lineWidth) ? Math.max(0.5, lineWidth) : 3.5;
+  }
+
+  private setWireframeLineWidth(sceneDefinition: Scene) {
+    const wireframeObject = sceneDefinition.objects.find(object => object.wireframe);
+    this.material.setInput('uWireframeLineWidth', wireframeObject ? this.getWireframeLineWidth(wireframeObject) : 3.5);
+  }
+
   private addDrawable(object: Object, group: THREE.Group, loaded: Geometry, id: string) {
     const count = Math.max(1, Math.floor(object.instanceCount ?? 1));
     // Use one consistent drawable type. This keeps the attribute/program path
@@ -617,9 +682,18 @@ export class Renderer {
     const drawable: Drawable = new THREE.InstancedMesh(loaded.geometry, this.material, count);
     drawable.name = id;
     drawable.userData.selectable = true;
+    // User vertex shaders can move vertices beyond the source mesh bounds.
+    // Those bounds are not reliable for any ShaderLab drawable.
+    drawable.frustumCulled = false;
     drawable.position.copy(loaded.position);
     drawable.quaternion.copy(loaded.quaternion);
     drawable.scale.copy(loaded.scale);
+    if (object.wireframe) {
+      const lineWidth = this.getWireframeLineWidth(object);
+      drawable.onBeforeRender = () => {
+        this.material.uniforms.uWireframeLineWidth.value = lineWidth;
+      };
+    }
 
     if (drawable instanceof THREE.InstancedMesh) {
       for (let index = 0; index < count; index++) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rewriteRowMajorMatrixLiterals } from './glslMatrixLiterals';
+import { rewriteRowMajorMatrixLiterals } from '../src/lib/utils/glslMatrixLiterals';
 
 describe('rewriteRowMajorMatrixLiterals', () => {
   it('transposes full flat matrix constructors', () => {

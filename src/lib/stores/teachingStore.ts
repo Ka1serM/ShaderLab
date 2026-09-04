@@ -1,8 +1,9 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
-import { teaching as definitions } from '$lib/content';
-import type { Scene, SceneDefinition, ViewportOverlays } from '$lib/renderer/Renderer';
-import type { ShaderStage, ShaderTemplate } from '$lib/stores/taskStore';
+import { loadTeachingContent } from '$lib/content';
+import type { Scene, ViewportOverlays } from '$lib/renderer/Renderer';
+import type { ShaderInput } from '$lib/renderer/ShaderTaskMaterial';
+import type { CameraPose, ShaderStage, ShaderTemplate } from '$lib/stores/taskStore';
 import type { TeachingValue } from '$lib/utils/shaderControls';
 
 export type { TeachingControl, TeachingValue } from '$lib/utils/shaderControls';
@@ -17,17 +18,16 @@ export interface Teach {
   contentVersion: string;
   title: string;
   category?: string;
-  task?: string;
   presets?: TeachingPreset[];
   overview: string;
   explanation: string;
-  shaderStages?: ShaderStage[];
+  shaderStages: ShaderStage[];
   vertexShader?: string;
   fragmentShader?: string;
   vertexShaderTemplate?: ShaderTemplate;
   fragmentShaderTemplate?: ShaderTemplate;
-  scene?: Scene;
-  scenes?: SceneDefinition[];
+  inputs?: ShaderInput[];
+  scenes: Scene[];
   overlays?: ViewportOverlays;
   showTimeControl?: boolean;
 }
@@ -37,15 +37,25 @@ export interface TeachingState {
   /** Overrides only: a control without an entry here shows the default from its @control annotation. */
   values: Record<string, TeachingValue>;
   userCode: Partial<Record<'vertex' | 'fragment', string>>;
+  cameraPose: CameraPose;
+  cameraPoseSaved: boolean;
 }
 
 interface TeachingUserWorkspace {
   userCode: Partial<Record<'vertex' | 'fragment', string>>;
   parameters: Record<string, TeachingValue>;
+  cameraPose?: CameraPose;
 }
 
 const STORAGE_PREFIX = 'shaderlab:teaching-user-workspaces:v1:';
-const initialState: TeachingState = { definition: null, values: {}, userCode: {} };
+const defaultCameraPose = (): CameraPose => ({ position: [0, 0, 1], quaternion: [0, 0, 0, 1], target: [0, 0, 0], fov: 30 });
+const initialState: TeachingState = {
+  definition: null,
+  values: {},
+  userCode: {},
+  cameraPose: defaultCameraPose(),
+  cameraPoseSaved: false
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -68,34 +78,45 @@ function isTeachingValue(value: unknown): value is TeachingValue {
     || (Array.isArray(value) && value.every(item => typeof item === 'number' && Number.isFinite(item)));
 }
 
+function isCameraPose(value: unknown): value is CameraPose {
+  if (!isRecord(value)) return false;
+  const pose = value as Partial<CameraPose>;
+  return Array.isArray(pose.position) && pose.position.length === 3 && pose.position.every(Number.isFinite)
+    && Array.isArray(pose.quaternion) && pose.quaternion.length === 4 && pose.quaternion.every(Number.isFinite)
+    && Array.isArray(pose.target) && pose.target.length === 3 && pose.target.every(Number.isFinite)
+    && typeof pose.fov === 'number' && Number.isFinite(pose.fov);
+}
+
 function isParameterOverrides(value: unknown): value is Record<string, TeachingValue> {
   return isRecord(value) && Object.values(value).every(isTeachingValue);
 }
 
 function isTeachingUserWorkspace(value: unknown): value is TeachingUserWorkspace {
-  if (!isRecord(value) || !hasOnlyKeys(value, ['userCode', 'parameters'])) return false;
+  if (!isRecord(value) || !hasOnlyKeys(value, ['userCode', 'parameters', 'cameraPose'])) return false;
   return isUserCode(value.userCode)
-    && isParameterOverrides(value.parameters);
+    && isParameterOverrides(value.parameters)
+    && (value.cameraPose === undefined || isCameraPose(value.cameraPose));
 }
 
 function loadSaved(definition: Teach) {
-  if (!browser) return { values: {}, userCode: {} };
+  if (!browser) return { values: {}, userCode: {}, cameraPose: undefined };
   try {
     const saved = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}${definition.id}:${definition.contentVersion}`) ?? 'null');
     return isTeachingUserWorkspace(saved)
-      ? { values: { ...saved.parameters }, userCode: { ...saved.userCode } }
-      : { values: {}, userCode: {} };
+      ? { values: { ...saved.parameters }, userCode: { ...saved.userCode }, cameraPose: saved.cameraPose }
+      : { values: {}, userCode: {}, cameraPose: undefined };
   } catch {
-    return { values: {}, userCode: {} };
+    return { values: {}, userCode: {}, cameraPose: undefined };
   }
 }
 
-function persist(definition: Teach, values: Record<string, TeachingValue>, userCode: TeachingState['userCode']) {
+function persist(definition: Teach, values: Record<string, TeachingValue>, userCode: TeachingState['userCode'], cameraPose: CameraPose) {
   if (!browser) return;
   try {
     localStorage.setItem(`${STORAGE_PREFIX}${definition.id}:${definition.contentVersion}`, JSON.stringify({
       userCode,
-      parameters: values
+      parameters: values,
+      cameraPose
     } satisfies TeachingUserWorkspace));
   } catch { /* storage is optional */ }
 }
@@ -104,16 +125,22 @@ function createTeachingStore() {
   const store = writable<TeachingState>(initialState);
   return {
     subscribe: store.subscribe,
-    load(id: string) {
-      const definition = (definitions as Teach[]).find(item => item.id === id) ?? null;
-      const saved = definition ? loadSaved(definition) : { values: {}, userCode: {} };
-      store.set({ definition, values: saved.values, userCode: saved.userCode });
+    async load(id: string) {
+      const definition = await loadTeachingContent(id);
+      const saved = definition ? loadSaved(definition) : { values: {}, userCode: {}, cameraPose: undefined };
+      store.set({
+        definition,
+        values: saved.values,
+        userCode: saved.userCode,
+        cameraPose: saved.cameraPose ?? defaultCameraPose(),
+        cameraPoseSaved: Boolean(saved.cameraPose)
+      });
     },
     setValue(id: string, value: TeachingValue) {
       store.update(state => {
         if (!state.definition) return state;
         const values = { ...state.values, [id]: value };
-        persist(state.definition, values, state.userCode);
+        persist(state.definition, values, state.userCode, state.cameraPose);
         return { ...state, values };
       });
     },
@@ -121,7 +148,7 @@ function createTeachingStore() {
       store.update(state => {
         if (!state.definition) return state;
         const values = { ...state.values, ...nextValues };
-        persist(state.definition, values, state.userCode);
+        persist(state.definition, values, state.userCode, state.cameraPose);
         return { ...state, values };
       });
     },
@@ -129,7 +156,7 @@ function createTeachingStore() {
       store.update(state => {
         if (!state.definition) return state;
         const nextValues = { ...values };
-        persist(state.definition, nextValues, state.userCode);
+        persist(state.definition, nextValues, state.userCode, state.cameraPose);
         return { ...state, values: nextValues };
       });
     },
@@ -137,7 +164,7 @@ function createTeachingStore() {
     resetValues() {
       store.update(state => {
         if (!state.definition) return state;
-        persist(state.definition, {}, state.userCode);
+        persist(state.definition, {}, state.userCode, state.cameraPose);
         return { ...state, values: {} };
       });
     },
@@ -148,8 +175,15 @@ function createTeachingStore() {
         const userCode = { ...state.userCode };
         if (code === (defaultCode ?? '')) delete userCode[source];
         else userCode[source] = code;
-        persist(state.definition, state.values, userCode);
+        persist(state.definition, state.values, userCode, state.cameraPose);
         return { ...state, userCode };
+      });
+    },
+    setCameraPose(cameraPose: CameraPose) {
+      store.update(state => {
+        if (!state.definition || (state.cameraPoseSaved && JSON.stringify(state.cameraPose) === JSON.stringify(cameraPose))) return state;
+        persist(state.definition, state.values, state.userCode, cameraPose);
+        return { ...state, cameraPose, cameraPoseSaved: true };
       });
     }
   };

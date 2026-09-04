@@ -2,7 +2,7 @@
 import { Input } from "$lib/components/ui/input/index.js";
 import Search from "phosphor-svelte/lib/MagnifyingGlassIcon";
 import { resolve } from "$app/paths";
-import { tasks } from '$lib/content';
+import { taskCatalog } from '$lib/content';
 import { slugify } from '$lib/utils/slugify';
 import LibraryCard from '$lib/components/LibraryCard.svelte';
 import { reveal, writeIn } from '$lib/actions/motion';
@@ -10,7 +10,7 @@ import { reveal, writeIn } from '$lib/actions/motion';
 let query = $state("");
 
 const filteredTasks = $derived(
-  tasks.filter(
+  $taskCatalog.filter(
     (task) =>
       task.title.toLowerCase().includes(query.toLowerCase()) ||
       task.category?.toLowerCase().includes(query.toLowerCase()) ||

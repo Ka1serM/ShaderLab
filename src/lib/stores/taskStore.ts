@@ -1,9 +1,9 @@
 import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
-import { tasks } from '$lib/content';
+import { loadTaskContent } from '$lib/content';
 import { slugify } from '$lib/utils/slugify';
 import type { ShaderInput } from '$lib/renderer/ShaderTaskMaterial';
-import type { Scene, SceneDefinition, ViewportOverlays } from '$lib/renderer/Renderer';
+import type { Scene, ViewportOverlays } from '$lib/renderer/Renderer';
 
 export interface Task {
 	title: string;
@@ -11,20 +11,16 @@ export interface Task {
 	task: string;
 	theory: string;
 	hints: string[];
-	starterVertexShader: string;
-	starterFragmentShader: string;
+	starterVertexShader?: string;
+	starterFragmentShader?: string;
 	starterVertexShaderTemplate?: ShaderTemplate;
 	starterFragmentShaderTemplate?: ShaderTemplate;
 	referenceVertexShader: string;
 	referenceFragmentShader: string;
-	modelPath: string;
-	type: '2D' | '3D';
-	shaderStages?: ShaderStage[];
+	shaderStages: ShaderStage[];
 	camera?: TaskCamera;
-	instanceCount?: number;
 	inputs?: ShaderInput[];
-	scene?: Scene;
-	scenes?: SceneDefinition[];
+	scenes: Scene[];
 	overlays?: ViewportOverlays;
 	showTimeControl?: boolean;
 }
@@ -86,13 +82,13 @@ function defaultCameraPose(): CameraPose {
 }
 
 export function taskCameraPose(task: Task): CameraPose {
-	const camera = task.camera;
-	return {
-		position: (camera?.position?.length === 3 ? camera.position : [0, 0, 1]) as CameraPose['position'],
-		quaternion: (camera?.quaternion?.length === 4 ? camera.quaternion : [0, 0, 0, 1]) as CameraPose['quaternion'],
-		target: (camera?.target?.length === 3 ? camera.target : [0, 0, 0]) as CameraPose['target'],
-		fov: camera?.fov ?? 30
-	};
+  const camera = task.camera;
+  return {
+    position: (camera?.position?.length === 3 ? camera.position : [0, 0, 1]) as CameraPose['position'],
+    quaternion: (camera?.quaternion?.length === 4 ? camera.quaternion : [0, 0, 0, 1]) as CameraPose['quaternion'],
+    target: [0, 0, 0],
+    fov: camera?.fov ?? 30
+  };
 }
 
 function isCameraPose(value: unknown): value is CameraPose {
@@ -134,7 +130,15 @@ function isUserWorkspace(value: unknown, slug: string): value is UserWorkspace {
 }
 
 export function getTaskShaderStages(task: Task): ShaderStage[] {
-	return task.shaderStages ?? (task.type === '3D' ? ['vertex', 'fragment'] : ['fragment']);
+	return task.shaderStages;
+}
+
+/** Non-editable stages always run the reference source. */
+export function getTaskStudentShader(task: Task, stage: ShaderStage): string {
+	if (!task.shaderStages.includes(stage)) {
+		return stage === 'vertex' ? task.referenceVertexShader : task.referenceFragmentShader;
+	}
+	return stage === 'vertex' ? task.starterVertexShader! : task.starterFragmentShader!;
 }
 
 function emptyState(): TaskState {
@@ -198,8 +202,8 @@ function createTaskStore() {
 	function snapshot(state: TaskState): UserWorkspace | null {
 		if (!state.task) return null;
 		const userCode: UserWorkspace['userCode'] = {};
-		if (state.vertexShader !== state.task.starterVertexShader) userCode.vertex = state.vertexShader;
-		if (state.fragmentShader !== state.task.starterFragmentShader) userCode.fragment = state.fragmentShader;
+		if (state.task.shaderStages.includes('vertex') && state.vertexShader !== getTaskStudentShader(state.task, 'vertex')) userCode.vertex = state.vertexShader;
+		if (state.task.shaderStages.includes('fragment') && state.fragmentShader !== getTaskStudentShader(state.task, 'fragment')) userCode.fragment = state.fragmentShader;
 		return {
 			taskSlug: slugify(state.task.title),
 			userCode,
@@ -216,10 +220,10 @@ function createTaskStore() {
 	return {
 		subscribe: store.subscribe,
 
-		loadTask(slug: string) {
+		async loadTask(slug: string) {
 			if (!browser) return;
 			const normalizedSlug = slugify(slug);
-			const task = (tasks as Task[]).find(t => slugify(t.title) === normalizedSlug);
+			const task = await loadTaskContent(normalizedSlug);
 			if (!task) {
 				console.error('Task not found for slug:', slug);
 				currentTaskTitle = null;
@@ -236,8 +240,8 @@ function createTaskStore() {
 			const saved = persistence.get(normalizedSlug);
 			store.set({
 				task,
-				vertexShader: saved?.userCode.vertex ?? task.starterVertexShader,
-				fragmentShader: saved?.userCode.fragment ?? task.starterFragmentShader,
+				vertexShader: task.shaderStages.includes('vertex') ? saved?.userCode.vertex ?? getTaskStudentShader(task, 'vertex') : task.referenceVertexShader,
+				fragmentShader: task.shaderStages.includes('fragment') ? saved?.userCode.fragment ?? getTaskStudentShader(task, 'fragment') : task.referenceFragmentShader,
 				activeTab: saved?.activeTab && getTaskShaderStages(task).includes(saved.activeTab)
 					? saved.activeTab
 					: getTaskShaderStages(task)[0],
@@ -288,8 +292,8 @@ function createTaskStore() {
 				if (!state.task) return state;
 				const next = {
 					...state,
-					vertexShader: type === 'vertex' ? state.task.starterVertexShader : state.vertexShader,
-					fragmentShader: type === 'fragment' ? state.task.starterFragmentShader : state.fragmentShader
+					vertexShader: type === 'vertex' ? getTaskStudentShader(state.task, 'vertex') : state.vertexShader,
+					fragmentShader: type === 'fragment' ? getTaskStudentShader(state.task, 'fragment') : state.fragmentShader
 				};
 				persist(next);
 				return next;

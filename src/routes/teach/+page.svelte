@@ -2,12 +2,12 @@
   import { Input } from '$lib/components/ui/input/index.js';
   import Search from 'phosphor-svelte/lib/MagnifyingGlassIcon';
   import { resolve } from '$app/paths';
-  import { teaching } from '$lib/content';
+  import { teachingCatalog } from '$lib/content';
   import LibraryCard from '$lib/components/LibraryCard.svelte';
   import { reveal, writeIn } from '$lib/actions/motion';
 
   let query = $state('');
-  const filteredTeaching = $derived(teaching.filter(demo =>
+  const filteredTeaching = $derived($teachingCatalog.filter(demo =>
     demo.title.toLowerCase().includes(query.toLowerCase()) ||
     demo.category?.toLowerCase().includes(query.toLowerCase()) ||
     demo.overview.toLowerCase().includes(query.toLowerCase())

@@ -417,7 +417,6 @@ body {
   width: 100%;
   height: 100%;
   padding: var(--workspace-gap);
-  animation: motion-enter var(--motion-base) var(--motion-emphasized) both;
 }
 
 @media (max-width: 36rem) {

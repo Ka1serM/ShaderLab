@@ -5,7 +5,6 @@ type MaximizableOptions = {
 
 const DEFAULT_TARGET = '[data-panel-maximizer]';
 const DURATION = 240;
-
 export function maximizable(node: HTMLElement, options: MaximizableOptions) {
   let active = false;
   let placeholder: Comment | null = null;
