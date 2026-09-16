@@ -75,8 +75,9 @@
 <ModeWatcher defaultMode="dark" />
 <Toaster />
 <div class="app-shell flex flex-col overflow-hidden">
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <TopNavigation />
-  <main bind:this={mainElement} class="app-main motion-fade flex min-h-0 flex-1 flex-col overflow-hidden">
+  <main id="main-content" bind:this={mainElement} class="app-main motion-fade flex min-h-0 flex-1 flex-col overflow-hidden" tabindex="-1">
     {#key pageReplay}
       <slot />
     {/key}

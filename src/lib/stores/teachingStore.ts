@@ -34,6 +34,7 @@ export interface Teach {
 
 export interface TeachingState {
   definition: Teach | null;
+  error: string | null;
   /** Overrides only: a control without an entry here shows the default from its @control annotation. */
   values: Record<string, TeachingValue>;
   userCode: Partial<Record<'vertex' | 'fragment', string>>;
@@ -51,6 +52,7 @@ const STORAGE_PREFIX = 'shaderlab:teaching-user-workspaces:v1:';
 const defaultCameraPose = (): CameraPose => ({ position: [0, 0, 1], quaternion: [0, 0, 0, 1], target: [0, 0, 0], fov: 30 });
 const initialState: TeachingState = {
   definition: null,
+  error: null,
   values: {},
   userCode: {},
   cameraPose: defaultCameraPose(),
@@ -123,18 +125,32 @@ function persist(definition: Teach, values: Record<string, TeachingValue>, userC
 
 function createTeachingStore() {
   const store = writable<TeachingState>(initialState);
+  let loadRequest = 0;
   return {
     subscribe: store.subscribe,
     async load(id: string) {
-      const definition = await loadTeachingContent(id);
-      const saved = definition ? loadSaved(definition) : { values: {}, userCode: {}, cameraPose: undefined };
-      store.set({
-        definition,
-        values: saved.values,
-        userCode: saved.userCode,
-        cameraPose: saved.cameraPose ?? defaultCameraPose(),
-        cameraPoseSaved: Boolean(saved.cameraPose)
-      });
+      const request = ++loadRequest;
+      try {
+        const definition = await loadTeachingContent(id);
+        if (request !== loadRequest) return;
+        if (!definition) {
+          store.set({ ...initialState, error: 'This teaching demo could not be found.' });
+          return;
+        }
+        const saved = loadSaved(definition);
+        store.set({
+          definition,
+          error: null,
+          values: saved.values,
+          userCode: saved.userCode,
+          cameraPose: saved.cameraPose ?? defaultCameraPose(),
+          cameraPoseSaved: Boolean(saved.cameraPose)
+        });
+      } catch (error) {
+        if (request !== loadRequest) return;
+        console.error(`Failed to load teaching demo ${id}:`, error);
+        store.set({ ...initialState, error: 'This teaching demo could not be loaded. Check your connection and try again.' });
+      }
     },
     setValue(id: string, value: TeachingValue) {
       store.update(state => {

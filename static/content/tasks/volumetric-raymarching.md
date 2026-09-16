@@ -17,97 +17,13 @@ title: Volumetric Raymarching
 ---
 
 # Task
+Implementiere im Fragment-Shader die wichtigsten Schritte eines einfachen Volumenrenderers für den bereitgestellten CT-Datensatz. Gradienten, Beleuchtung und der Großteil des Raymarching-Loops sind bereits vorbereitet.
 
-Wir bauen einen Volumenrenderer nach der Pipeline von Marc Levoy. Hilfsfunktionen für Gradienten und Beleuchtung sind bereits gegeben.
+1. **Orthographischen Strahl erzeugen:** Ergänze in `GenerateRay(...)` die letzten beiden Zuweisungen für `rayDirection` und `rayOrigin`. Nutze die bereits berechneten Kameraachsen. Prüfe das Ergebnis: Die Vorschau zeigt danach farbige Ray-Koordinaten.
+2. **Luft, Gewebe und Knochen unterscheiden:** Ergänze `TransferFunction(...)` um einen Fall für weiches Gewebe zwischen `huAir` und `huBone`. Luft bleibt transparent, Gewebe verwendet `colorTissue` und `alphaTissue`, Knochen `colorBone` und `alphaBone`.
+3. **Samples zusammensetzen:** Ergänze im vorbereiteten `Raymarch(...)` die Zeile, welche ein neues `sourceSample` über das bisherige Ergebnis legt. Gib anschließend `accumulatedColor` zurück statt des vorläufigen Fallback-Werts. Verwende dafür den Over-Operator `src.rgb * src.a + dst * (1.0 - src.a)`.
 
-## Aufgaben
-
-1.  **Orthographic Ray Generation**
-    *   Bestimmen Sie Startpunkt (`rayOrigin`) und Richtung (`rayDirection`) des Strahls.
-    *   *Feedback:* Sobald dies implementiert ist, wechselt die Ansicht automatisch von "UV-Gradient" zu "Ray-Koordinaten" (Bunt).
-
-2.  **Raymarching Loop**
-    *   Implementieren Sie die Schleife, die das Volumen abtastet.
-    *   *Feedback:* Sobald der Loop läuft, sehen Sie den Kopf im Viewport.
-
-3.  **Transfer Function**
-    *   Implementiere die Transferfunktion, um Dichtewerte in Farben zu übersetzen (Luft, Gewebe, Knochen).
-    *   *Ergebnis:* Ein korrektes, eingefärbtes CT-Bild (Haut & Knochen).
-
-## Nützliches zur Programmierung
-
-### **Vektoren und Skalare**
-- `vec3` = 3 Komponenten, `vec4` = 4 Komponenten  
-- Zugriff auf Komponenten: `.x`, `.y`, `.z` oder `.r`, `.g`, `.b`  oder `.rgb`
-- Ganze Vektoren oder einzelne Komponenten können mit Skalaren multipliziert oder addiert werden:
-
-```glsl
-vec3 pos = origin + direction * t;
-vec3 rgb = vec3(1.0, 0.5, 0.0);
-```
-- Skalar * Skalar = Skalar, Vektor + Vektor = Vektor, Vektor * Skalar = Vektor
-
----
-
-### **If-Abfragen**
-```glsl
-if (wert < grenzeA) {  
-}  
-else if (wert < grenzeB) {  
-}  
-else {  
-}
-```
-
----
-
-### **Interpolation / mix**
-- `mix(a, b, t)` blendet linear zwischen a und b  
-- t = 0 → Ergebnis = a, t = 1 → Ergebnis = b
-
-```glsl
-float t = (x - min) / (max - min);
-
-vec3 ergebnis = mix(vec3(0.0), vec3(1.0, 0.0, 0.0), t);
-```
----
-
-### **For-Schleifen**
-for-Schleifen wiederholen Schritte:
-```glsl
-for (int i = 0; i < steps; i++) {  
- float t = float(i) * stepSize;
-}
-```
-- `continue;` springt zum nächsten Schleifendurchlauf
-
----
-
-### **Überprüfung von Vektoren**
-any() prüft, ob **irgendeine Komponente** einer Bedingung entspricht:
-
-```glsl
-if (any(lessThan(pos, vec3(0.0))) || any(greaterThan(pos, vec3(1.0)))) {  
- continue;
-}
-```
-
----
-
-### **SampleVolume**
-
-SampleVolume berechnet **an einer 3D-Koordinate im Volumen** die benötigten Werte.
-
-```glsl
-vec4 sample = SampleVolume(coord, direction);
-```
-
-- **Inputs:**  
-  - `coord` → 3D-Position im normalisierten Raum (0..1)  
-  - `direction` → Richtungsvektor (für Gradienten und Beleuchtungsberechnung)  
-- **Output:** `vec4`  
-  - `rgb` → berechnete Farbe / Materialwert  
-  - `a` → Transparenz / Gewichtung
+Das Ergebnis soll den Kopf als zusammenhängendes, beleuchtetes Volumen zeigen. Bearbeite die Schritte in dieser Reihenfolge; jeder Schritt liefert bereits sichtbares Feedback in der Vorschau.
 
 # Hints
 
@@ -190,8 +106,9 @@ uniform vec3 cameraDirection;
 uniform sampler3D volumeTexture;
 uniform ivec2 iResolution;
 
-const float stepSize = 0.00256;
-const int   maxSteps = 512;
+const float maxDistance = 1.0;
+const int   maxSteps = 1024;
+const float stepSize = maxDistance / float(maxSteps);
 const vec3  lightDir = normalize(vec3(1.0, 1.0, 0.0));
 const float orthoScale = 0.5;
 
@@ -290,7 +207,7 @@ vec4 SampleVolume(vec3 textureCoord, vec3 rayDirection) {
 
 vec3 Raymarch(vec3 rayOrigin, vec3 rayDirection) {
     vec3 accumulatedColor = vec3(0.0);
-    int totalSteps = min(int(1.0 / stepSize), maxSteps);
+    int totalSteps = min(int(maxDistance / stepSize), maxSteps);
 
     for (int i = totalSteps - 1; i >= 0; --i) {     
         float t = float(i) * stepSize;         
@@ -331,8 +248,9 @@ uniform vec3 cameraDirection;
 uniform sampler3D volumeTexture;
 uniform ivec2 iResolution;
 
-const float stepSize = 0.00256;
-const int   maxSteps = 512;
+const float maxDistance = 1.0;
+const int   maxSteps = 1024;
+const float stepSize = maxDistance / float(maxSteps);
 const vec3  lightDir = normalize(vec3(1.0, 1.0, 0.0));
 const float orthoScale = 0.5;
 
@@ -402,12 +320,20 @@ vec4 TransferFunction(float density, float gradientMagnitude) {
 
 
 vec3 Raymarch(vec3 rayOrigin, vec3 rayDirection) {
+    int totalSteps = min(int(maxDistance / stepSize), maxSteps);
+    vec3 accumulatedColor = vec3(0.0);
 
-    int totalSteps = min(int(1.0 / stepSize), maxSteps);
+    for (int i = totalSteps - 1; i >= 0; --i) {
+        float t = float(i) * stepSize;
+        vec3 currentPosition = rayOrigin + rayDirection * t;
+        vec3 textureCoord = currentPosition + 0.5;
+        if (any(lessThan(textureCoord, vec3(0.0))) || any(greaterThan(textureCoord, vec3(1.0)))) continue;
 
-    vec3 accumulatedColor = vec3(-1.0);
-
-    return accumulatedColor;
+        vec4 sourceSample = SampleVolume(textureCoord, rayDirection);
+        // Compose sourceSample over accumulatedColor here.
+    }
+    // Keep the ray-coordinate fallback visible until compositing is complete.
+    return vec3(-1.0);
 }
 
 
@@ -447,7 +373,7 @@ void main() {
     vec3 rayOrigin, rayDirection;
     GenerateRay(rayOrigin, rayDirection);
 
-    vec3 resultColor = Raymarch(rayOrigin + 0.5, rayDirection);
+    vec3 resultColor = Raymarch(rayOrigin, rayDirection);
 
     if (resultColor.x >= 0.0) {
         fragColor = vec4(resultColor, 1.0);

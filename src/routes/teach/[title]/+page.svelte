@@ -243,9 +243,16 @@
     </div>
   {/if}
 {:else}
-  <div class="flex h-full items-center justify-center" role="status" aria-label="Loading teaching demo">
-    <ShaderLabLogo animation="spinner" className="h-10 w-10" />
-    <span class="sr-only">Loading teaching demo</span>
-  </div>
+  {#if $teachingStore.error}
+    <div class="flex h-full flex-col items-center justify-center gap-3 p-6 text-center" role="alert">
+      <p>{$teachingStore.error}</p>
+      <button class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground" onclick={() => teachingStore.load(data.title)}>Try again</button>
+    </div>
+  {:else}
+    <div class="flex h-full items-center justify-center" role="status" aria-label="Loading teaching demo">
+      <ShaderLabLogo animation="spinner" className="h-10 w-10" />
+      <span class="sr-only">Loading teaching demo</span>
+    </div>
+  {/if}
 {/if}
 {/key}

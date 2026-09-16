@@ -29,6 +29,9 @@
   let visible = false;
   let current = 0;
   let targetRect: DOMRect | null = null;
+  let dialog: HTMLElement;
+  let closeButton: HTMLButtonElement;
+  let previouslyFocused: HTMLElement | null = null;
   $: isCameraStep = steps[current]?.selector === '[data-tutorial="output"]' && steps[current]?.icon === MousePointer2;
 
   function updateTarget() {
@@ -50,6 +53,7 @@
   function finish() {
     localStorage.setItem(STORAGE_KEY, 'true');
     visible = false;
+    void tick().then(() => previouslyFocused?.focus());
   }
 
   function next() { current === steps.length - 1 ? finish() : void showStep(current + 1); }
@@ -58,14 +62,29 @@
   function handleKeydown(event: KeyboardEvent) {
     if (!visible) return;
     if (event.key === 'Escape') finish();
-    if (event.key === 'ArrowRight' || event.key === 'Enter') next();
+    if (event.key === 'ArrowRight') next();
     if (event.key === 'ArrowLeft') previous();
+    if (event.key !== 'Tab') return;
+    const focusable = [...dialog.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+    if (!focusable.length) return;
+    const first = focusable[0]!;
+    const last = focusable.at(-1)!;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   onMount(async () => {
     if (localStorage.getItem(STORAGE_KEY)) return;
     await tick();
+    previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     visible = true;
+    await tick();
+    closeButton.focus();
     updateTarget();
     window.addEventListener('resize', updateTarget);
     window.addEventListener('keydown', handleKeydown);
@@ -78,7 +97,7 @@
 </script>
 
 {#if visible}
-  <div class="pointer-events-none fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+  <div bind:this={dialog} class="pointer-events-none fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
     {#if targetRect}
       <div class="tutorial-spotlight pointer-events-none fixed ring-2 ring-[#bf2732] transition-all duration-200" style={`left:${Math.max(8, targetRect.left - 4)}px;top:${Math.max(8, targetRect.top - 4)}px;width:${Math.min(innerWidth - 16, targetRect.width + 8)}px;height:${Math.min(innerHeight - 16, targetRect.height + 8)}px`}></div>
     {:else}
@@ -109,7 +128,7 @@
         <div class="flex items-start gap-4">
           <div class="tutorial-icon flex h-10 w-10 shrink-0 items-center justify-center bg-primary text-primary-foreground"><svelte:component this={steps[current].icon} class="h-5 w-5" /></div>
           <div class="min-w-0 flex-1">
-            <div class="mb-1 flex items-center justify-between gap-3"><span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">Step {current + 1} of {steps.length}</span><button class="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close tutorial" onclick={finish}><X class="h-4 w-4" /></button></div>
+            <div class="mb-1 flex items-center justify-between gap-3"><span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">Step {current + 1} of {steps.length}</span><button bind:this={closeButton} class="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close tutorial" onclick={finish}><X class="h-4 w-4" /></button></div>
             <h2 id="tutorial-title" class="text-xl font-semibold">{steps[current].title}</h2>
             <p class="mt-2 text-sm leading-6 text-muted-foreground">{steps[current].text}</p>
           </div>

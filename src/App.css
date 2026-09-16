@@ -9,6 +9,23 @@
 :root { --viewport-background: #fff; }
 :root.dark { --viewport-background: #000; }
 
+.skip-link {
+  position: fixed;
+  z-index: 200;
+  top: .75rem;
+  left: .75rem;
+  transform: translateY(-200%);
+  border-radius: .375rem;
+  background: var(--background);
+  box-shadow: 0 .25rem .75rem rgb(0 0 0 / 25%);
+  padding: .6rem .8rem;
+  color: var(--foreground);
+  font-weight: 600;
+  transition: transform .15s ease;
+}
+
+.skip-link:focus { transform: translateY(0); outline: 3px solid var(--ring); outline-offset: 2px; }
+
 @font-face {
   font-family: 'Inter';
   src: url('/fonts/inter/Inter-Regular.woff2') format('woff2');

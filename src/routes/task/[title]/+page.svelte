@@ -182,9 +182,16 @@
     <div class="pointer-events-none absolute inset-0 z-50" data-panel-maximizer></div>
   </div>
 {:else}
-  <div class="flex items-center justify-center h-full" role="status" aria-label="Loading task">
-    <ShaderLabLogo animation="spinner" className="h-10 w-10" />
-    <span class="sr-only">Loading task</span>
-  </div>
+  {#if $taskStore.error}
+    <div class="flex h-full flex-col items-center justify-center gap-3 p-6 text-center" role="alert">
+      <p>{$taskStore.error}</p>
+      <button class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground" onclick={() => taskStore.loadTask(data.slug)}>Try again</button>
+    </div>
+  {:else}
+    <div class="flex items-center justify-center h-full" role="status" aria-label="Loading task">
+      <ShaderLabLogo animation="spinner" className="h-10 w-10" />
+      <span class="sr-only">Loading task</span>
+    </div>
+  {/if}
 {/if}
 {/key}

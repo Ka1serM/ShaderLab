@@ -2,7 +2,6 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
-import { slugify } from './src/lib/utils/slugify';
 
 // SvelteKit's static adapter writes route HTML after VitePWA has generated
 // its worker. List those documents explicitly so direct PWA launches and
@@ -26,6 +25,10 @@ export default defineConfig({
     tailwindcss(),
     sveltekit(),
     VitePWA({
+      // vite-plugin-pwa derives the source worker from srcDir + filename. A
+      // .ts filename is emitted as sw.js, matching app.html's registration.
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       // SvelteKit's static fallback replaces the generated HTML after Vite's
       // transform. Registration therefore lives explicitly in app.html.
@@ -47,16 +50,13 @@ export default defineConfig({
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' }
         ]
       },
-      workbox: {
-        clientsClaim: true,
-        cleanupOutdatedCaches: true,
+      strategies: 'injectManifest',
+      injectManifest: {
         maximumFileSizeToCacheInBytes: 30 * 1024 * 1024,
-        // Every static route is explicitly precached above. A generic SPA
-        // fallback points at index.html, which adapter-static adds only after
-        // Workbox has generated this worker and causes a broken install.
-        navigateFallback: null,
+        // Course content is part of the install snapshot. The custom worker
+        // still fetches it from the network first, using this only offline.
         additionalManifestEntries: offlineDocuments.map(url => ({ url, revision: String(Date.now()) })),
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,ttf,json,glb,raw}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,ttf,json,glb,raw,md,txt}']
       },
       devOptions: {
         enabled: true,
