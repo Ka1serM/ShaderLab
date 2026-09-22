@@ -144,6 +144,15 @@ export function readShaderMatrices(
 	const buffer = gl.createBuffer();
 	const feedback = gl.createTransformFeedback();
 	const vao = gl.createVertexArray();
+	if (!buffer || !feedback || !vao) {
+		if (buffer) gl.deleteBuffer(buffer);
+		if (feedback) gl.deleteTransformFeedback(feedback);
+		if (vao) gl.deleteVertexArray(vao);
+		gl.deleteProgram(program);
+		gl.deleteShader(vertex);
+		gl.deleteShader(fragment);
+		return {};
+	}
 	const raw = new Float32Array(requests.reduce((total, request) => total + COMPONENTS[request.type], 0));
 	try {
 		gl.useProgram(program);

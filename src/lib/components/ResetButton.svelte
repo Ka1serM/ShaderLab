@@ -19,7 +19,7 @@
 
 {#if confirmReset}
   <Portal>
-    <div transition:fade={{ duration: 150 }} class="fixed inset-2 z-50 flex items-center justify-center rounded-xl bg-black/40 p-4 backdrop-blur-[1px]" role="presentation" onclick={(event) => { if (event.target === event.currentTarget) confirmReset = false; }}>
+    <div transition:fade={{ duration: 150 }} class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]" role="presentation" onclick={(event) => { if (event.target === event.currentTarget) confirmReset = false; }}>
       <div transition:scale={{ duration: 200, start: .96, opacity: 0 }} class="w-full max-w-sm rounded-lg bg-background p-5 text-foreground shadow-lg" role="dialog" aria-modal="true" aria-labelledby="reset-title">
         <h2 id="reset-title" class="text-lg font-semibold">Confirm reset</h2>
         <p class="mt-2 text-sm text-muted-foreground">{description}</p>

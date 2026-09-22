@@ -57,7 +57,7 @@
       completed = true;
       window.clearTimeout(timeout);
       isPreparingOfflineCache = false;
-      toast.success('ShaderLab is now ready to use offline.');
+      toast.success('ShaderLab’s core interface is ready offline. Large assets are cached when first opened.');
     }).catch(() => {
       completed = true;
       window.clearTimeout(timeout);

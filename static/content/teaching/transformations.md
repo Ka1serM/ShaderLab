@@ -3,12 +3,9 @@ title: Transformations
 category: Transformations
 shaderStages:
   - vertex
-overlays:
-  transformControls:
-    mode: translate
 scenes:
   - objects:
-      - source: models/Cube.glb
+      - source: models/TransformShape.glb
 ---
 
 # Vertex Shader
@@ -27,16 +24,24 @@ out vec3 vTransformedPosition;
 out vec3 vTransformedNormal;
 // @prefix
 
-// @control translationMatrix matrix label="Translation T" readonly=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
+// @control label="Mesh offset P" default="0,0,0" step=0.1
+uniform vec3 uPivotPoint;
+// @control label="Translation T" transform=translate readonly=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
 uniform mat4 uTranslationMatrix;
-// @control rotationMatrix matrix label="Rotation R" readonly=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
+// @control label="Rotation R" transform=rotate readonly=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
 uniform mat4 uRotationMatrix;
-// @control scaleMatrix matrix label="Scale S" readonly=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
+// @control label="Scale S" transform=scale readonly=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
 uniform mat4 uScaleMatrix;
 
 void main() {
-    // @readback pointMatrix matrix label="Point matrix (T · R · S)"
-    mat4 pointMatrix = uTranslationMatrix * uRotationMatrix * uScaleMatrix;
+    // @readback hidden=true
+    mat4 objectMatrix = uTranslationMatrix * uRotationMatrix * uScaleMatrix;
+    // @readback visualize=point target=uPivotPoint inverse=objectMatrix
+    vec3 pivotWorld = (objectMatrix * vec4(uPivotPoint, 1.0)).xyz;
+    mat4 pivotMatrix = mat4(1.0);
+    pivotMatrix[3].xyz = uPivotPoint;
+    // @readback label="Point matrix (T · R · S · P)"
+    mat4 pointMatrix = objectMatrix * pivotMatrix;
     vec4 transformedPosition = pointMatrix * vec4(position, 1.0);
     vTransformedPosition = transformedPosition.xyz;
     vTransformedNormal = mat3(transpose(inverse(pointMatrix))) * normal;
@@ -77,7 +82,7 @@ Adjust translation, rotation, and scale, and observe their combined effect on th
 
 # Explanation
 
-Points are written in homogeneous form as `p = (x, y, z, 1)ᵀ`. Translation by `(tₓ, tᵧ, t_z)`, rotation about the z axis by angle `φ`, and scaling by `(sₓ, sᵧ, s_z)` are:
+For a homogeneous point $p=(x,y,z,1)^T$:
 
 $$
 T =
@@ -109,6 +114,53 @@ s_x&0&0&0\\
 \end{pmatrix}
 $$
 
-The shader builds `M = T · R · S` and transforms every point with `p' = M · p`. With column vectors, this means scale is applied first, then rotation, and finally translation. The displayed point matrix is exactly this product.
+The mesh offset is another translation:
 
-For normals, `M` is not sufficient under non-uniform scaling. The shader therefore uses the normal matrix `N = (M⁻¹)ᵀ` and computes `n' = N · n`.
+$$
+P =
+\begin{pmatrix}
+1&0&0&p_x\\
+0&1&0&p_y\\
+0&0&1&p_z\\
+0&0&0&1
+\end{pmatrix}
+$$
+
+Points are transformed from right to left:
+
+$$
+p' = Mp, \qquad M = TRSP.
+$$
+
+Normals are directions, so translation and the mesh offset do not affect them. Their linear transformation is $A=RS$.
+
+Non-uniform scaling can tilt a normal. The inverse transpose corrects this:
+
+$$
+N = (A^{-1})^T
+$$
+
+For rotation and scaling, this simplifies to:
+
+$$
+N = RS^{-1}
+$$
+
+The inverse scale uses reciprocal scale factors:
+
+$$
+S^{-1} =
+\begin{pmatrix}
+1/s_x&0&0\\
+0&1/s_y&0\\
+0&0&1/s_z
+\end{pmatrix}
+$$
+
+Finally, transform and normalize the normal:
+
+$$
+n' = \operatorname{normalize}(Nn)
+$$
+
+The inverse exists only when $s_x$, $s_y$, and $s_z$ are nonzero.

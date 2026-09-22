@@ -34,15 +34,15 @@ uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 uniform float time;
 
-// @control ambient color label="Ambient" default="0.05,0.05,0.05"
+// @control display=color label="Ambient" default="0.05,0.05,0.05"
 uniform vec3 uAmbient;
-// @control kd color label="Diffuse Kd" default="0.5,0.5,0.5"
+// @control display=color label="Diffuse Kd" default="0.5,0.5,0.5"
 uniform vec3 uKd;
-// @control ks color label="Specular Ks" default="1,1,1"
+// @control display=color label="Specular Ks" default="1,1,1"
 uniform vec3 uKs;
-// @control shininess slider label="Shininess n" min=1 max=256 step=1 default=32
+// @control label="Shininess n" min=1 max=256 step=1 default=32
 uniform float uShininess;
-// @control lightDir vec3 label="Light Direction" default="1,1,1" visualize=vector
+// @control label="Light Direction" default="1,1,1" visualize=vector
 uniform vec3 uLightDir;
 uniform vec3 cameraPosition;
 
@@ -167,7 +167,7 @@ void main() {
 
 # Overview
 
-Use the scene selector to compare the **Sphere**, **Teapot**, and **David**. From left to right, the three instances show **flat shading**, **Gouraud shading**, and **per-fragment illumination**. The material colour and light source remain the same; only the point at which illumination is calculated changes. Adjust the light direction and shininess, paying particular attention to the highlight.
+Use the scene selector to compare the **Sphere**, **Teapot**, and **David**. From left to right, the three instances show **flat shading**, **Gouraud shading**, and **per-fragment illumination**. The material colour and light direction remain the same; only the point at which illumination is calculated changes. Adjust the light direction and shininess, paying particular attention to the highlight.
 
 # Explanation
 

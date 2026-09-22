@@ -12,21 +12,29 @@ import { readable } from 'svelte/store';
 
 type ContentEntry = { id: string; path: string };
 let indexRequests = new Map<'tasks' | 'teaching', Promise<ContentEntry[]>>();
+const markdownRequests = new Map<string, Promise<string>>();
 
 function contentUrl(path: string) {
   return `${base}/content/${path}`;
 }
 
 async function fetchMarkdown(path: string) {
-  const response = await fetch(contentUrl(path), { cache: 'no-store' });
-  if (!response.ok) throw new Error(`Unable to load ${path}: ${response.status}`);
-  return response.text();
+  let request = markdownRequests.get(path);
+  if (!request) {
+    request = fetch(contentUrl(path), { cache: 'no-cache' }).then(response => {
+      if (!response.ok) throw new Error(`Unable to load ${path}: ${response.status}`);
+      return response.text();
+    });
+    markdownRequests.set(path, request);
+    request.catch(() => markdownRequests.delete(path));
+  }
+  return request;
 }
 
 export function loadContentIndex(kind: 'tasks' | 'teaching') {
   let request = indexRequests.get(kind);
   if (!request) {
-    request = fetch(contentUrl(`${kind}/index.txt`), { cache: 'no-store' }).then(async response => {
+    request = fetch(contentUrl(`${kind}/index.txt`), { cache: 'no-cache' }).then(async response => {
       if (!response.ok) throw new Error(`Unable to load ${kind} index: ${response.status}`);
       return (await response.text()).split(/\r?\n/)
         .map(name => name.trim())

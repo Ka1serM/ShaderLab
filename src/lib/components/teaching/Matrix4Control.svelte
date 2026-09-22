@@ -1,11 +1,13 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import ControlResetButton from './ControlResetButton.svelte';
 
   export let value: number[] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
   export let label = '';
   export let step = 0.1;
   export let readOnly = false;
   export let onChange: (value: number[]) => void = () => {};
+  export let onReset: (() => void) | undefined = undefined;
 
   let recentlyChanged = new Set<number>();
   let clearChangeHighlight: ReturnType<typeof setTimeout> | undefined;
@@ -56,7 +58,10 @@
 </script>
 
 <div class="teaching-control-body">
-  <div class="teaching-control-heading"><span class="teaching-control-label">{label}</span>{#if readOnly}<span class="teaching-readonly">read-only</span>{/if}</div>
+  <div class="teaching-control-heading">
+    <span class="teaching-control-label">{label}</span>
+    <ControlResetButton {label} {onReset} />
+  </div>
   <div class="teaching-matrix-grid">
     {#each [0, 1, 2, 3] as row}
       {#each [0, 1, 2, 3] as column}

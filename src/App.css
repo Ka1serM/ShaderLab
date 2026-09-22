@@ -283,15 +283,8 @@ body {
     align-content: flex-start;
   }
 
-  .transform-controls-line-break {
-    flex-basis: 100%;
-    height: 0;
-  }
-
-  .transform-space-toggle {
-    flex-basis: auto;
-    width: fit-content;
-  }
+  .transform-mode-toggle :is(button) { padding-inline: .65rem; }
+  .transform-space-toggle :is(button) { padding-inline: .65rem; }
 }
 
 .splitpanes-root,
@@ -878,6 +871,39 @@ body {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: .35rem;
+}
+
+.teaching-control-reset {
+  display: inline-flex;
+  width: 1.65rem;
+  height: 1.65rem;
+  margin-left: auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--app-line);
+  border-radius: .35rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 1rem;
+  line-height: 1;
+  transition: border-color .15s ease, color .15s ease, background-color .15s ease;
+}
+
+.teaching-control-reset:hover {
+  border-color: var(--app-red);
+  background: var(--muted);
+  color: var(--app-red);
+}
+
+.teaching-control-heading-actions,
+.teaching-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.teaching-checkbox-row .teaching-checkbox-control {
+  flex: 1;
 }
 
 .teaching-matrix-input {

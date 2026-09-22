@@ -15,20 +15,21 @@
   {#if !controls.length}
     <p class="teaching-empty">No parameters yet. Mark a uniform with <code>// @control</code> in the editor to add a control here.</p>
   {/if}
-  {#each controls as control (control.id)}
+  {#each controls.filter(control => !control.hidden) as control (control.id)}
     <!-- Read values inline: a helper call would be untracked and stop reflecting external changes. -->
     {@const current = values[control.id] ?? control.default}
+    {@const reset = control.uniform ? () => teachingStore.resetValue(control.id) : undefined}
     <div class="teaching-control-slot">
       {#if control.type === 'slider'}
-        <SliderControl label={control.label} value={current as number} min={control.min ?? 0} max={control.max ?? 1} step={control.step ?? 0.01} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} />
+        <SliderControl label={control.label} value={current as number} min={control.min ?? 0} max={control.max ?? 1} step={control.step ?? 0.01} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} onReset={reset} />
       {:else if control.type === 'color'}
-        <ColorControl label={control.label} value={current as string | number[]} onChange={(value) => teachingStore.setValue(control.id, value)} />
+        <ColorControl label={control.label} value={current as string | number[]} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} onReset={reset} />
       {:else if control.type === 'checkbox'}
-        <CheckboxControl label={control.label} value={current as boolean} onChange={(value) => teachingStore.setValue(control.id, value)} />
+        <CheckboxControl label={control.label} value={current as boolean} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} onReset={reset} />
       {:else if control.type === 'matrix4'}
-        <Matrix4Control label={control.label} value={current as number[]} step={control.step ?? 0.1} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} />
+        <Matrix4Control label={control.label} value={current as number[]} step={control.step ?? 0.1} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} onReset={reset} />
       {:else}
-        <Vector3Control label={control.label} value={current as number[]} axes={control.type === 'vector4' ? ['L', 'R', 'B', 'T'] : ['X', 'Y', 'Z']} min={control.min} max={control.max} step={control.step ?? 0.1} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} />
+        <Vector3Control label={control.label} value={current as number[]} axes={control.type === 'vector4' ? ['L', 'R', 'B', 'T'] : ['X', 'Y', 'Z']} min={control.min} max={control.max} step={control.step ?? 0.1} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} onReset={reset} />
       {/if}
     </div>
   {/each}

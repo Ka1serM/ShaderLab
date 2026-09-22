@@ -1,7 +1,11 @@
 <script lang="ts">
+  import ControlResetButton from './ControlResetButton.svelte';
+
   export let value: string | number[] = [0, 0, 0];
   export let label = '';
   export let onChange: (value: number[]) => void = () => {};
+  export let readOnly = false;
+  export let onReset: (() => void) | undefined = undefined;
 
   function toHex(v: string | number[]): string {
     if (typeof v === 'string') return v.startsWith('#') ? v : '#000000';
@@ -21,9 +25,9 @@
 </script>
 
 <div class="teaching-control-body">
-  <div class="teaching-control-heading"><span class="teaching-control-label">{label}</span><output class="teaching-control-value">{hex}</output></div>
+  <div class="teaching-control-heading"><span class="teaching-control-label">{label}</span><div class="teaching-control-heading-actions"><output class="teaching-control-value">{hex}</output><ControlResetButton {label} {onReset} /></div></div>
   <label class="teaching-color-picker">
-    <input aria-label={label} type="color" value={hex} oninput={(event) => onChange(fromHex((event.currentTarget as HTMLInputElement).value))} />
+    <input aria-label={label} type="color" value={hex} disabled={readOnly} oninput={(event) => onChange(fromHex((event.currentTarget as HTMLInputElement).value))} />
     <span class="teaching-color-rgb">{displayRgb}</span>
   </label>
 </div>

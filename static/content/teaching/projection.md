@@ -25,26 +25,26 @@ uniform mat4 projectionMatrix;
 out vec3 vBarycentric;
 // @prefix
 
-// @control near slider label="Near n" min=0.1 max=2 step=0.05 default=1
+// @control label="Near n" min=0.1 max=2 step=0.05 default=1
 uniform float uNear;
-// @control far slider label="Far f" min=2.5 max=10 step=0.1 default=6
+// @control label="Far f" min=2.5 max=10 step=0.1 default=6
 uniform float uFar;
-// @control fov slider label="Field of view (°)" min=30 max=120 step=1 default=90
+// @control label="Field of view (°)" min=30 max=120 step=1 default=90
 uniform float uFov;
-// @control aspect slider label="Aspect ratio" min=0.5 max=2.5 step=0.01 default=1.333
+// @control label="Aspect ratio" min=0.5 max=2.5 step=0.01 default=1.333
 uniform float uAspect;
 
 void main() {
     float tanHalfFov = tan(radians(uFov) * 0.5);
-    // @readback left float label="Left l"
+    // @readback label="Left l"
     float left = -uNear * uAspect * tanHalfFov;
-    // @readback right float label="Right r"
+    // @readback label="Right r"
     float right = uNear * uAspect * tanHalfFov;
-    // @readback bottom float label="Bottom b"
+    // @readback label="Bottom b"
     float bottom = -uNear * tanHalfFov;
-    // @readback top float label="Top t"
+    // @readback label="Top t"
     float top = uNear * tanHalfFov;
-    // @readback projectionMatrix matrix label="Projection matrix P"
+    // @readback label="Projection matrix P"
     // ShaderLab rewrites row-major matrix literals before compiling, so this
     // matches the conventional matrix shown below.
     mat4 teachingProjectionMatrix = mat4(

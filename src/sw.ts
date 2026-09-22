@@ -1,14 +1,16 @@
 /// <reference lib="webworker" />
 
 import { clientsClaim } from 'workbox-core';
-import { createHandlerBoundToURL, cleanupOutdatedCaches, matchPrecache, precache } from 'workbox-precaching';
-import { NavigationRoute, registerRoute } from 'workbox-routing';
+import { cleanupOutdatedCaches, matchPrecache, precache } from 'workbox-precaching';
+import { registerRoute } from 'workbox-routing';
 
 declare let self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<string | { url: string; revision?: string | null }> };
 
 const contentCacheName = 'shaderlab-content-runtime-v1';
+const binaryCacheName = 'shaderlab-binary-runtime-v1';
 const contentPath = new URL('content/', self.registration.scope).pathname;
-const appShellPath = new URL('index.html', self.registration.scope).pathname;
+const modelsPath = new URL('models/', self.registration.scope).pathname;
+const texturesPath = new URL('textures/', self.registration.scope).pathname;
 
 self.skipWaiting();
 clientsClaim();
@@ -40,6 +42,23 @@ registerRoute(
   }
 );
 
-// Dynamic task and teaching URLs do not have individual prerendered HTML.
-// The app shell lets those routes hydrate and load their offline Markdown.
-registerRoute(new NavigationRoute(createHandlerBoundToURL(appShellPath)));
+// Large binary assets stay off the critical install path. Cache them after
+// their first successful request so subsequent visits and offline use are fast.
+registerRoute(
+  ({ url }) => url.pathname.startsWith(modelsPath) || url.pathname.startsWith(texturesPath),
+  async ({ request }) => {
+    const cache = await caches.open(binaryCacheName);
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    try {
+      const response = await fetch(request);
+      if (response.ok) await cache.put(request, response.clone());
+      return response;
+    } catch {
+      return new Response('Offline asset unavailable.', {
+        status: 503,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+      });
+    }
+  }
+);

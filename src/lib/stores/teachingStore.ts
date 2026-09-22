@@ -160,6 +160,15 @@ function createTeachingStore() {
         return { ...state, values };
       });
     },
+    resetValue(id: string) {
+      store.update(state => {
+        if (!state.definition || !(id in state.values)) return state;
+        const values = { ...state.values };
+        delete values[id];
+        persist(state.definition, values, state.userCode, state.cameraPose);
+        return { ...state, values };
+      });
+    },
     setValues(nextValues: Record<string, TeachingValue>) {
       store.update(state => {
         if (!state.definition) return state;

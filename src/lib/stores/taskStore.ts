@@ -87,7 +87,7 @@ export function taskCameraPose(task: Task): CameraPose {
   return {
     position: (camera?.position?.length === 3 ? camera.position : [0, 0, 1]) as CameraPose['position'],
     quaternion: (camera?.quaternion?.length === 4 ? camera.quaternion : [0, 0, 0, 1]) as CameraPose['quaternion'],
-    target: [0, 0, 0],
+    target: (camera?.target?.length === 3 ? camera.target : [0, 0, 0]) as CameraPose['target'],
     fov: camera?.fov ?? 30
   };
 }

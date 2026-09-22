@@ -55,11 +55,14 @@ export type ViewportTransform = {
   scale: [number, number, number];
 };
 
+export type TransformMode = 'translate' | 'rotate' | 'scale';
+
 export type ViewportOverlays = {
   infiniteGrid?: boolean;
   viewHelper?: boolean;
   transformControls?: {
-    mode?: 'translate' | 'rotate' | 'scale';
+    mode?: TransformMode;
+    modes?: TransformMode[];
   };
 };
 
@@ -68,6 +71,9 @@ export type ViewportVector = {
   value: [number, number, number];
   origin?: [number, number, number];
   visualization: 'vector' | 'point';
+  editable?: boolean;
+  target?: string;
+  inverse?: number[];
 };
 
 export type RendererOptions = {
@@ -83,6 +89,8 @@ export type RendererOptions = {
   reportErrors?: boolean;
   onCameraChange?: (pose: ViewportCameraPose) => void;
   onTransformChange?: (transform: ViewportTransform) => void;
+  onVectorChange?: (id: string, value: [number, number, number]) => void;
+  onGizmoSelectionChange?: (selection: 'object' | 'visualization' | null) => void;
   onShaderErrors?: (errors: ShaderDiagnostics) => void;
   shaderReadbacks?: ShaderReadbackRequest[];
   onShaderReadbacks?: (values: Record<string, ShaderReadbackValue>) => void;
@@ -114,6 +122,14 @@ export class Renderer {
   readonly camera: THREE.PerspectiveCamera;
   readonly controls: OrbitControls;
   readonly material: ShaderTaskMaterial;
+  private readonly pickingMaterial: THREE.RawShaderMaterial;
+  private readonly pickingTarget = new THREE.WebGLRenderTarget(1, 1, {
+    minFilter: THREE.NearestFilter,
+    magFilter: THREE.NearestFilter,
+    depthBuffer: true,
+    stencilBuffer: false
+  });
+  private readonly pickingPixel = new Uint8Array(4);
 
   private readonly container: HTMLElement;
   private readonly clock = new THREE.Clock();
@@ -122,6 +138,8 @@ export class Renderer {
   private readonly loader = new GLTFLoader();
   private readonly onCameraChange?: RendererOptions['onCameraChange'];
   private readonly onTransformChange?: RendererOptions['onTransformChange'];
+  private readonly onVectorChange?: RendererOptions['onVectorChange'];
+  private readonly onGizmoSelectionChange?: RendererOptions['onGizmoSelectionChange'];
   private readonly onShaderErrors?: RendererOptions['onShaderErrors'];
   private readonly reportErrors: boolean;
   private resizeObserver: ResizeObserver;
@@ -154,12 +172,20 @@ export class Renderer {
   private viewHelper?: ViewHelper;
   private viewHelperPointerUp?: (event: PointerEvent) => void;
   private transformProxy?: THREE.Object3D;
-  private transformOverlayMatrix = new THREE.Matrix4();
-  private selectionPointerStart?: THREE.Vector2;
-  private suppressSelection = false;
   private vectorHelpers = new Map<string, THREE.ArrowHelper>();
   private pointHelpers = new Map<string, THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>>();
+  private vectorDefinitions = new Map<string, ViewportVector>();
+  private vectorEditProxy?: THREE.Object3D;
+  private editingVectorId?: string;
+  private visualizationPointerStart?: THREE.Vector2;
+  private suppressVisualizationSelection = false;
+  private gizmoSelection: 'object' | 'visualization' | null = null;
   private applyingTransform = false;
+  private transformPosition = new THREE.Vector3();
+  private transformQuaternion = new THREE.Quaternion();
+  private transformScale = new THREE.Vector3(1, 1, 1);
+  private transformMode: TransformMode = 'translate';
+  private transformSpace: 'local' | 'world' = 'local';
   private horizontalFov: number;
   private shaderRenderable = false;
   private vertexShader: string;
@@ -177,6 +203,8 @@ export class Renderer {
     this.cameraPoseSaved = options.cameraPoseSaved ?? false;
     this.onCameraChange = options.onCameraChange;
     this.onTransformChange = options.onTransformChange;
+    this.onVectorChange = options.onVectorChange;
+    this.onGizmoSelectionChange = options.onGizmoSelectionChange;
     this.onShaderErrors = options.onShaderErrors;
     this.onShaderReadbacks = options.onShaderReadbacks;
     this.shaderReadbacks = options.shaderReadbacks ?? [];
@@ -226,6 +254,13 @@ export class Renderer {
         { type: 'float', name: 'uWireframeLineWidth', init: 3.5 },
         ...(options.inputs ?? [])
       ]
+    });
+    this.pickingMaterial = new THREE.RawShaderMaterial({
+      vertexShader: initialValidation.valid ? options.vertexShader : fallbackVertex,
+      fragmentShader: 'precision highp float; out vec4 fragColor; void main() { fragColor = vec4(1.0, 0.0, 0.0, 1.0); }',
+      uniforms: this.material.uniforms,
+      glslVersion: THREE.GLSL3,
+      side: THREE.DoubleSide
     });
     this.taskInputNames = new Set((options.inputs ?? []).map(input => input.name));
     // Teaching shaders supply their control uniforms at construction time.
@@ -296,6 +331,8 @@ export class Renderer {
       return;
     }
     this.material.updateShaders(vertexShader, fragmentShader);
+    this.pickingMaterial.vertexShader = vertexShader;
+    this.pickingMaterial.needsUpdate = true;
     this.vertexShader = vertexShader;
     // Compile during the edit update instead of waiting for the next animation
     // frame. This makes diagnostics deterministic even while the viewport is
@@ -321,14 +358,19 @@ export class Renderer {
 
   private updateShaderReadbacks() {
     if (!this.shaderRenderable || !this.shaderReadbacks.length) return;
-    const values = readShaderMatrices(
-      this.renderer.getContext() as WebGL2RenderingContext,
-      this.vertexShader,
-      this.shaderReadbacks,
-      this.uniformValues
-    );
-    this.renderer.resetState();
-    if (Object.keys(values).length) this.onShaderReadbacks?.(values);
+    try {
+      const values = readShaderMatrices(
+        this.renderer.getContext() as WebGL2RenderingContext,
+        this.vertexShader,
+        this.shaderReadbacks,
+        this.uniformValues
+      );
+      if (Object.keys(values).length) this.onShaderReadbacks?.(values);
+    } catch (error) {
+      console.warn('Shader readback failed:', error);
+    } finally {
+      this.renderer.resetState();
+    }
   }
 
   setShaderLineOffsets(offsets: { vertex: number; fragment: number }) {
@@ -360,32 +402,41 @@ export class Renderer {
     }
 
     if (overlays?.transformControls) {
-      this.transformProxy = new THREE.Object3D();
-      this.scene.add(this.transformProxy);
-      this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
-      this.transformControls.setSpace('local');
-      this.transformControls.setMode(overlays.transformControls.mode ?? 'translate');
-      this.updateTransformControlsSize();
-      this.transformControls.addEventListener('mouseDown', () => {
-        this.suppressSelection = true;
-        this.transformDragging = true;
-        this.controls.enabled = false;
-      });
-      this.transformControls.addEventListener('mouseUp', () => {
-        this.transformDragging = false;
-        this.controls.enabled = !this.transformDragging && !this.viewHelper?.animating;
-        queueMicrotask(() => { this.suppressSelection = false; });
-      });
-      this.transformControls.addEventListener('dragging-changed', event => {
-        this.transformDragging = Boolean(event.value);
-        this.controls.enabled = !this.transformDragging && !this.viewHelper?.animating;
-      });
-      this.transformControls.addEventListener('objectChange', () => this.saveTransform());
-      this.transformControlsHelper = this.transformControls.getHelper();
-      this.scene.add(this.transformControlsHelper);
-      this.renderer.domElement.addEventListener('pointerdown', this.handleSelectionPointerDown);
-      this.renderer.domElement.addEventListener('pointerup', this.handleSelectionPointerUp);
+      const modes = overlays.transformControls.modes?.filter(mode => ['translate', 'rotate', 'scale'].includes(mode)) ?? [];
+      const requestedMode = overlays.transformControls.mode ?? 'translate';
+      this.transformMode = modes.includes(requestedMode) ? requestedMode : modes[0] ?? requestedMode;
+      this.transformSpace = 'local';
+      this.ensureTransformControls();
     }
+  }
+
+  private ensureTransformControls() {
+    if (this.transformControls) return;
+    this.transformProxy = new THREE.Object3D();
+    this.scene.add(this.transformProxy);
+    this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
+    this.transformControls.setSpace(this.transformSpace);
+    this.transformControls.setMode(this.transformMode);
+    this.updateTransformControlsSize();
+    this.transformControls.addEventListener('mouseDown', () => {
+      this.suppressVisualizationSelection = true;
+      this.transformDragging = true;
+      this.controls.enabled = false;
+    });
+    this.transformControls.addEventListener('mouseUp', () => {
+      this.transformDragging = false;
+      this.controls.enabled = !this.transformDragging && !this.viewHelper?.animating;
+      queueMicrotask(() => { this.suppressVisualizationSelection = false; });
+    });
+    this.transformControls.addEventListener('dragging-changed', event => {
+      this.transformDragging = Boolean(event.value);
+      this.controls.enabled = !this.transformDragging && !this.viewHelper?.animating;
+    });
+    this.transformControls.addEventListener('objectChange', () => this.editingVectorId ? this.saveVectorEdit() : this.saveTransform());
+    this.transformControlsHelper = this.transformControls.getHelper();
+    this.scene.add(this.transformControlsHelper);
+    this.renderer.domElement.addEventListener('pointerdown', this.handleVisualizationPointerDown);
+    this.renderer.domElement.addEventListener('pointerup', this.handleVisualizationPointerUp);
   }
 
   private syncInfiniteGrid(enabled: boolean) {
@@ -402,38 +453,63 @@ export class Renderer {
     }
   }
 
-  setTransformMode(mode: 'translate' | 'rotate' | 'scale') {
-    this.transformControls?.setMode(mode);
+  setTransformMode(mode: TransformMode) {
+    this.editingVectorId = undefined;
+    this.transformMode = mode;
+    this.transformControls?.setMode(this.transformMode);
+    this.syncTransformProxy();
+    if (this.gizmoSelection === 'object') this.attachObjectGizmo();
   }
 
   setTransformSpace(space: 'local' | 'world') {
-    this.transformControls?.setSpace(space);
+    this.transformSpace = space;
+    this.syncTransformProxy();
   }
 
-  setTransformOverlayMatrix(matrix: number[] | undefined) {
+  setTransformState(transform: ViewportTransform | undefined) {
     if (!this.transformProxy) return;
-    const m = matrix && matrix.length === 16 ? new THREE.Matrix4().fromArray(matrix) : new THREE.Matrix4();
-    this.transformOverlayMatrix.copy(m);
-    const p = new THREE.Vector3();
-    const q = new THREE.Quaternion();
-    const s = new THREE.Vector3();
-    m.decompose(p, q, s);
-    if (
-      this.transformProxy.position.equals(p) &&
-      this.transformProxy.quaternion.equals(q) &&
-      this.transformProxy.scale.equals(s)
-    ) return;
+    if (this.transformDragging && this.gizmoSelection === 'object') return;
+    this.transformPosition.fromArray(transform?.position ?? [0, 0, 0]);
+    this.transformQuaternion.fromArray(transform?.quaternion ?? [0, 0, 0, 1]).normalize();
+    this.transformScale.fromArray(transform?.scale ?? [1, 1, 1]);
+    this.syncTransformProxy();
+  }
+
+  private syncTransformProxy() {
+    if (!this.transformProxy || !this.transformControls) return;
     this.applyingTransform = true;
-    this.transformProxy.position.copy(p);
-    this.transformProxy.quaternion.copy(q);
-    this.transformProxy.scale.copy(s);
+    this.transformProxy.position.copy(this.transformPosition);
+    // Three.js intentionally treats scaling as local-only. Using an
+    // unrotated proxy gives the scale handles genuine world-axis alignment.
+    const worldAligned = this.transformMode === 'scale' && this.transformSpace === 'world';
+    this.transformProxy.quaternion.copy(worldAligned ? new THREE.Quaternion() : this.transformQuaternion);
+    this.transformProxy.scale.copy(this.transformScale);
     this.transformProxy.updateMatrixWorld();
+    if (this.editingVectorId || this.gizmoSelection !== 'object') {
+      this.applyingTransform = false;
+      return;
+    }
+    this.transformControls.setSpace(this.transformSpace);
+    this.attachObjectGizmo();
     this.applyingTransform = false;
   }
 
-  private handleSelectionPointerDown = (event: PointerEvent) => {
-    this.selectionPointerStart = new THREE.Vector2(event.clientX, event.clientY);
-  };
+  /**
+   * Scene content is replaced asynchronously while the overlay objects live
+   * for the lifetime of the viewport. Keep the transform proxy attached
+   * independently of scene-loading and route-transition order.
+   */
+  private attachObjectGizmo() {
+    if (!this.transformControls || !this.transformProxy) return;
+    if (this.transformControls.object !== this.transformProxy) this.transformControls.attach(this.transformProxy);
+    this.transformControlsHelper?.updateMatrixWorld(true);
+  }
+
+  private setGizmoSelection(selection: 'object' | 'visualization' | null) {
+    if (this.gizmoSelection === selection) return;
+    this.gizmoSelection = selection;
+    this.onGizmoSelectionChange?.(selection);
+  }
 
   private handleMouseMove = (event: PointerEvent) => {
     const rect = this.renderer.domElement.getBoundingClientRect();
@@ -449,39 +525,14 @@ export class Renderer {
     this.material.setInput('iMouse', this.mousePositionArray);
   };
 
-  private handleSelectionPointerUp = (event: PointerEvent) => {
-    if (this.suppressSelection) {
-      this.suppressSelection = false;
-      this.selectionPointerStart = undefined;
-      return;
-    }
-    if (event.defaultPrevented || !this.selectionPointerStart || !this.transformControls || !this.transformProxy) return;
-    const distance = this.selectionPointerStart.distanceTo(new THREE.Vector2(event.clientX, event.clientY));
-    this.selectionPointerStart = undefined;
-    if (distance > 4) return;
-
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    const pointer = new THREE.Vector2(
-      ((event.clientX - rect.left) / rect.width) * 2 - 1,
-      -((event.clientY - rect.top) / rect.height) * 2 + 1
-    );
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(pointer, this.camera);
-    this.scene.updateMatrixWorld(true);
-
-    const hit = this.drawables.some(drawable => {
-      if (drawable.userData.selectable === false) return false;
-      const matrixWorld = drawable.matrixWorld.clone();
-      drawable.matrixWorld.multiplyMatrices(matrixWorld, this.transformOverlayMatrix);
-      const intersects = raycaster.intersectObject(drawable, false).length > 0;
-      drawable.matrixWorld.copy(matrixWorld);
-      return intersects;
-    });
-    if (hit) this.transformControls.attach(this.transformProxy);
-    else this.transformControls.detach();
-  };
-
   setVectorVisualizations(vectors: ViewportVector[] = []) {
+    if (vectors.some(vector => vector.editable)) this.ensureTransformControls();
+    this.vectorDefinitions = new Map(vectors.map(vector => [vector.id, vector]));
+    if (this.editingVectorId && !this.vectorDefinitions.get(this.editingVectorId)?.editable) {
+      this.editingVectorId = undefined;
+      this.transformControls?.detach();
+      this.setGizmoSelection(null);
+    }
     const activeVectorIds = new Set(vectors.filter(vector => vector.visualization === 'vector').map(vector => vector.id));
     const activePointIds = new Set(vectors.filter(vector => vector.visualization === 'point').map(vector => vector.id));
     for (const [id, helper] of this.vectorHelpers) {
@@ -498,20 +549,25 @@ export class Renderer {
     for (const vector of vectors) {
       const value = new THREE.Vector3().fromArray(vector.value);
       const origin = new THREE.Vector3().fromArray(vector.origin ?? [0, 0, 0]);
+      const endpoint = origin.clone().add(value);
       if (vector.visualization === 'point') {
         let point = this.pointHelpers.get(vector.id);
         if (!point) {
           point = new THREE.Mesh(
-            new THREE.SphereGeometry(.075, 20, 12),
-            new THREE.MeshBasicMaterial({ color: 0xbf2732, side: THREE.DoubleSide })
+            new THREE.SphereGeometry(.1, 20, 12),
+            new THREE.MeshBasicMaterial({ color: 0xbf2732, side: THREE.DoubleSide, depthTest: false, depthWrite: false })
           );
           this.pointHelpers.set(vector.id, point);
+          point.renderOrder = 1000;
           this.scene.add(point);
         }
-        point.position.copy(origin).add(value);
+        point.position.copy(endpoint);
+        point.userData.visualizationId = vector.id;
+        if (this.editingVectorId === vector.id && this.vectorEditProxy) this.vectorEditProxy.position.copy(point.position);
         continue;
       }
-      const length = value.length();
+      const displayedValue = endpoint.clone().sub(origin);
+      const length = displayedValue.length();
       let helper = this.vectorHelpers.get(vector.id);
       if (!helper) {
         helper = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1, 0xbf2732);
@@ -519,15 +575,128 @@ export class Renderer {
         this.scene.add(helper);
       }
       helper.position.copy(origin);
+      helper.userData.visualizationId = vector.id;
       helper.visible = length > Number.EPSILON;
       if (!helper.visible) continue;
-      helper.setDirection(value.normalize());
+      helper.setDirection(displayedValue.normalize());
       helper.setLength(length, Math.min(.25, length * .2), Math.min(.12, length * .1));
+      if (this.editingVectorId === vector.id && this.vectorEditProxy) this.vectorEditProxy.position.copy(endpoint);
     }
+  }
+
+  private handleVisualizationPointerDown = (event: PointerEvent) => {
+    this.visualizationPointerStart = new THREE.Vector2(event.clientX, event.clientY);
+  };
+
+  private handleVisualizationPointerUp = (event: PointerEvent) => {
+    if (this.suppressVisualizationSelection) {
+      this.visualizationPointerStart = undefined;
+      return;
+    }
+    if (!this.visualizationPointerStart || !this.transformControls) return;
+    const distance = this.visualizationPointerStart.distanceTo(new THREE.Vector2(event.clientX, event.clientY));
+    this.visualizationPointerStart = undefined;
+    if (distance > 4) return;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+    const raycaster = new THREE.Raycaster();
+    raycaster.params.Line!.threshold = .12;
+    raycaster.setFromCamera(pointer, this.camera);
+    this.scene.updateMatrixWorld(true);
+    const candidates: Array<{ id: string; object: THREE.Object3D }> = [];
+    for (const [id, point] of this.pointHelpers) if (this.vectorDefinitions.get(id)?.editable) candidates.push({ id, object: point });
+    for (const [id, arrow] of this.vectorHelpers) if (this.vectorDefinitions.get(id)?.editable) candidates.push({ id, object: arrow });
+    const hit = candidates
+      .map(candidate => ({ ...candidate, distance: raycaster.intersectObject(candidate.object, true)[0]?.distance ?? Infinity }))
+      .sort((a, b) => a.distance - b.distance)[0];
+    if (hit && Number.isFinite(hit.distance)) {
+      const definition = this.vectorDefinitions.get(hit.id)!;
+      this.editingVectorId = hit.id;
+      if (!this.vectorEditProxy) {
+        this.vectorEditProxy = new THREE.Object3D();
+        this.scene.add(this.vectorEditProxy);
+      }
+      this.vectorEditProxy.position.fromArray(definition.origin ?? [0, 0, 0]).add(new THREE.Vector3().fromArray(definition.value));
+      this.vectorEditProxy.quaternion.identity();
+      this.vectorEditProxy.scale.set(1, 1, 1);
+      this.transformControls.setMode('translate');
+      this.transformControls.setSpace('world');
+      this.transformControls.attach(this.vectorEditProxy);
+      this.setGizmoSelection('visualization');
+      return;
+    }
+
+    const objectHit = this.overlays?.transformControls && this.pickDrawable(event);
+    this.editingVectorId = undefined;
+    if (objectHit) {
+      this.attachObjectGizmo();
+      this.transformControls.setMode(this.transformMode);
+      this.transformControls.setSpace(this.transformSpace);
+      this.setGizmoSelection('object');
+    } else {
+      this.transformControls.detach();
+      this.setGizmoSelection(null);
+    }
+  };
+
+  /** GPU picking uses the active vertex shader, so shader-side transforms and
+   * deformations have exactly the same silhouette as the visible object. */
+  private pickDrawable(event: PointerEvent) {
+    if (!this.shaderRenderable || !this.drawables.length) return false;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    const drawingSize = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    const x = Math.min(drawingSize.x - 1, Math.max(0, Math.floor((event.clientX - rect.left) * drawingSize.x / rect.width)));
+    const y = Math.min(drawingSize.y - 1, Math.max(0, Math.floor((event.clientY - rect.top) * drawingSize.y / rect.height)));
+    const previousTarget = this.renderer.getRenderTarget();
+    const previousOverride = this.scene.overrideMaterial;
+    const previousAutoClear = this.renderer.autoClear;
+    const previousLayerMask = this.camera.layers.mask;
+    try {
+      // Inputs can be added and removed while editing shader annotations.
+      // Reuse the exact uniform objects from the visible material each pick.
+      this.pickingMaterial.uniforms = this.material.uniforms;
+      this.camera.layers.set(1);
+      this.camera.setViewOffset(drawingSize.x, drawingSize.y, x, y, 1, 1);
+      this.camera.updateProjectionMatrix();
+      this.scene.overrideMaterial = this.pickingMaterial;
+      this.renderer.autoClear = true;
+      this.renderer.setRenderTarget(this.pickingTarget);
+      this.renderer.clear();
+      this.renderer.render(this.scene, this.camera);
+      this.renderer.readRenderTargetPixels(this.pickingTarget, 0, 0, 1, 1, this.pickingPixel);
+      return this.pickingPixel[0] > 0;
+    } finally {
+      this.renderer.setRenderTarget(previousTarget);
+      this.renderer.autoClear = previousAutoClear;
+      this.scene.overrideMaterial = previousOverride;
+      this.camera.clearViewOffset();
+      this.camera.layers.mask = previousLayerMask;
+      this.camera.updateProjectionMatrix();
+      this.renderer.resetState();
+    }
+  }
+
+  private saveVectorEdit() {
+    if (!this.editingVectorId || !this.vectorEditProxy) return;
+    const definition = this.vectorDefinitions.get(this.editingVectorId);
+    if (!definition) return;
+    const localPosition = this.vectorEditProxy.position.clone();
+    if (definition.inverse?.length === 16) {
+      const matrix = new THREE.Matrix4().fromArray(definition.inverse);
+      if (Math.abs(matrix.determinant()) <= Number.EPSILON) return;
+      localPosition.applyMatrix4(matrix.invert());
+    }
+    const value = localPosition.sub(new THREE.Vector3().fromArray(definition.origin ?? [0, 0, 0]));
+    this.onVectorChange?.(definition.target ?? this.editingVectorId, value.toArray() as [number, number, number]);
   }
 
   async setScene(sceneDefinition: Scene) {
     const generation = ++this.sceneGeneration;
+    this.editingVectorId = undefined;
+    this.transformControls?.detach();
+    this.setGizmoSelection(null);
     this.setWireframeLineWidth(sceneDefinition);
     this.clearObjects();
     // A viewport instance is reused when navigating between tasks/teaching
@@ -549,7 +718,7 @@ export class Renderer {
       const geometries = await this.loadGeometries(object);
       if (this.disposed || generation !== this.sceneGeneration) {
         geometries.forEach(loaded => loaded.geometry.dispose());
-        continue;
+        return;
       }
       const group = new THREE.Group();
       const objectId = `object-${objectIndex}`;
@@ -702,11 +871,12 @@ export class Renderer {
       drawable.instanceMatrix.needsUpdate = true;
     }
     this.drawables.push(drawable);
+    drawable.layers.set(1);
+    this.camera.layers.enable(1);
     group.add(drawable);
   }
 
   private clearObjects() {
-    this.transformControls?.detach();
     this.drawables.forEach(drawable => {
       drawable.geometry.dispose();
     });
@@ -749,14 +919,23 @@ export class Renderer {
 
   private saveTransform() {
     if (this.applyingTransform || !this.transformProxy) return;
+    this.transformPosition.copy(this.transformProxy.position);
+    if (!(this.transformMode === 'scale' && this.transformSpace === 'world')) {
+      this.transformQuaternion.copy(this.transformProxy.quaternion);
+    }
+    this.transformScale.copy(this.transformProxy.scale);
     this.onTransformChange?.({
-      position: this.transformProxy.position.toArray() as ViewportTransform['position'],
-      quaternion: this.transformProxy.quaternion.toArray() as ViewportTransform['quaternion'],
-      scale: this.transformProxy.scale.toArray() as ViewportTransform['scale']
+      position: this.transformPosition.toArray() as ViewportTransform['position'],
+      quaternion: this.transformQuaternion.toArray() as ViewportTransform['quaternion'],
+      scale: this.transformScale.toArray() as ViewportTransform['scale']
     });
   }
 
   private disposeOverlays() {
+    this.setGizmoSelection(null);
+    this.transformDragging = false;
+    this.suppressVisualizationSelection = false;
+    this.visualizationPointerStart = undefined;
     if (this.viewHelper) {
       if (this.viewHelperPointerUp) this.renderer.domElement.removeEventListener('pointerup', this.viewHelperPointerUp);
       this.viewHelper.dispose();
@@ -764,8 +943,8 @@ export class Renderer {
       this.viewHelperPointerUp = undefined;
     }
     if (this.transformControls) {
-      this.renderer.domElement.removeEventListener('pointerdown', this.handleSelectionPointerDown);
-      this.renderer.domElement.removeEventListener('pointerup', this.handleSelectionPointerUp);
+      this.renderer.domElement.removeEventListener('pointerdown', this.handleVisualizationPointerDown);
+      this.renderer.domElement.removeEventListener('pointerup', this.handleVisualizationPointerUp);
       this.transformControls.detach();
       if (this.transformControlsHelper) this.scene.remove(this.transformControlsHelper);
       this.transformControls.dispose();
@@ -776,6 +955,12 @@ export class Renderer {
       this.scene.remove(this.transformProxy);
       this.transformProxy = undefined;
     }
+    if (this.vectorEditProxy) {
+      this.scene.remove(this.vectorEditProxy);
+      this.vectorEditProxy = undefined;
+      this.editingVectorId = undefined;
+    }
+    this.controls.enabled = true;
   }
 
   private disposeVectorHelper(helper: THREE.ArrowHelper) {
@@ -934,6 +1119,8 @@ export class Renderer {
     this.syncInfiniteGrid(false);
     this.clearObjects();
     this.material.dispose();
+    this.pickingMaterial.dispose();
+    this.pickingTarget.dispose();
     this.renderer.dispose();
     if (this.container.contains(this.renderer.domElement)) this.container.removeChild(this.renderer.domElement);
   }

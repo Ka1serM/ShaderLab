@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { Renderer, type Scene, type SceneDefinition, type ViewportCameraPose, type ViewportOverlays, type ViewportShaderError, type ViewportTransform, type ViewportVector } from '$lib/renderer/Renderer';
+  import { Renderer, type Scene, type SceneDefinition, type TransformMode, type ViewportCameraPose, type ViewportOverlays, type ViewportShaderError, type ViewportTransform, type ViewportVector } from '$lib/renderer/Renderer';
   import type { ShaderInput } from '$lib/renderer/ShaderTaskMaterial';
   import type { ShaderReadbackRequest, ShaderReadbackValue } from '$lib/renderer/shaderReadback';
   import { rewriteRowMajorMatrixLiterals } from '$lib/utils/glslMatrixLiterals';
@@ -27,25 +27,35 @@
   export let shaderTemplates: { vertex?: { prefix: string; suffix: string }; fragment?: { prefix: string; suffix: string } } = {};
   export let useShaderTemplates = false;
   export let overlays: ViewportOverlays | undefined = undefined;
-  export let transformMatrix: number[] | undefined = undefined;
+  export let transformState: ViewportTransform | undefined = undefined;
   export let vectorVisualizations: ViewportVector[] = [];
   export let onTransformChange: (transform: ViewportTransform) => void = () => {};
+  export let onVectorChange: (id: string, value: [number, number, number]) => void = () => {};
   export let onCameraChange: ((pose: ViewportCameraPose) => void) | undefined = undefined;
   export let title = '';
   export let panelId = '';
   export let showTimeControl = false;
 
-  let transformMode: 'translate' | 'rotate' | 'scale' = 'translate';
+  let transformMode: TransformMode = 'translate';
   let transformSpace: 'local' | 'world' = 'local';
+  let gizmoSelection: 'object' | 'visualization' | null = null;
   let selectedSceneIndex = 0;
   let timePaused = false;
-  const transformModes = ['translate', 'rotate', 'scale'] as const;
+  const allTransformModes: TransformMode[] = ['translate', 'rotate', 'scale'];
   const transformSpaces = ['local', 'world'] as const;
   const transformModeLabels = {
-    translate: 'Verschieben',
-    rotate: 'Rotieren',
-    scale: 'Skalieren'
+    translate: 'Translate',
+    rotate: 'Rotate',
+    scale: 'Scale'
   } as const;
+  $: transformModes = (() => {
+    const configured = overlays?.transformControls?.modes?.filter(mode => allTransformModes.includes(mode)) ?? [];
+    return configured.length ? configured : allTransformModes;
+  })();
+  $: if (mounted && viewport && !transformModes.includes(transformMode)) {
+    transformMode = transformModes[0] ?? 'translate';
+    viewport.setTransformMode(transformMode);
+  }
 
   let container: HTMLDivElement;
   let viewport: Renderer;
@@ -142,6 +152,8 @@
       container, vertexShader: compiledVertexShader(), fragmentShader: compiledFragmentShader(), inputs, uniformValues, cameraPose, cameraPoseSaved,
       overlays,
       onTransformChange,
+      onVectorChange,
+      onGizmoSelectionChange: selection => gizmoSelection = selection,
       shaderLineOffsets: shaderLineOffsets(),
       reportErrors,
       onCameraChange,
@@ -155,7 +167,7 @@
     // an unrelated camera-store update occurs.
     viewport.setUniformValues(uniformValues);
     viewport.setCameraPose(cameraPose, cameraPoseSaved);
-    viewport.setTransformOverlayMatrix(transformMatrix);
+    viewport.setTransformState(transformState);
     viewport.setVectorVisualizations(vectorVisualizations);
     viewport.setShaderReadbacks(shaderReadbacks);
     mounted = true;
@@ -169,7 +181,7 @@
   $: if (mounted && viewport) {
     viewport.setUniformValues(uniformValues);
     viewport.setCameraPose(cameraPose, cameraPoseSaved);
-    viewport.setTransformOverlayMatrix(transformMatrix);
+    viewport.setTransformState(transformState);
     viewport.setVectorVisualizations(vectorVisualizations);
     viewport.setShaderReadbacks(shaderReadbacks);
   }
@@ -222,7 +234,7 @@
         <ToggleGroup.Root
           type="single"
           value={String(selectedSceneIndex)}
-          class="relative z-10 flex-none gap-0 bg-muted p-0"
+          class="transform-mode-toggle relative z-10 flex-none gap-0 bg-muted p-0"
           onValueChange={value => selectedSceneIndex = Number(value)}
         >
           {#each scenes as definedScene, index}
@@ -233,12 +245,16 @@
           {/each}
         </ToggleGroup.Root>
       {/if}
-      {#if overlays?.transformControls}
+      {#if overlays?.transformControls && gizmoSelection === 'object'}
         <ToggleGroup.Root
           type="single"
-          bind:value={transformMode}
+          value={transformMode}
           class="relative z-10 flex-none gap-0 bg-muted p-0"
-          onValueChange={mode => viewport?.setTransformMode(mode as typeof transformMode)}
+          onValueChange={mode => {
+            if (!transformModes.includes(mode as typeof transformMode)) return;
+            transformMode = mode as typeof transformMode;
+            viewport?.setTransformMode(transformMode);
+          }}
         >
           {#each transformModes as mode}
             <ToggleGroup.Item
@@ -247,18 +263,21 @@
             >{transformModeLabels[mode]}</ToggleGroup.Item>
           {/each}
         </ToggleGroup.Root>
-        <span class="transform-controls-line-break" aria-hidden="true"></span>
         <ToggleGroup.Root
           type="single"
-          bind:value={transformSpace}
-          class="transform-space-toggle relative z-10 flex-none gap-0 bg-muted p-0"
-          onValueChange={space => viewport?.setTransformSpace(space as typeof transformSpace)}
+          value={transformSpace}
+          class="transform-space-toggle absolute right-3 top-3 z-10 flex-none gap-0 bg-muted p-0"
+          onValueChange={space => {
+            if (!transformSpaces.includes(space as typeof transformSpace)) return;
+            transformSpace = space as typeof transformSpace;
+            viewport?.setTransformSpace(transformSpace);
+          }}
         >
           {#each transformSpaces as space}
             <ToggleGroup.Item
               value={space}
               class="h-10 border-none px-4 transition-colors hover:bg-muted/50 data-[state=on]:rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30"
-            >{space === 'local' ? 'Lokal' : 'Global'}</ToggleGroup.Item>
+            >{space === 'local' ? 'Local' : 'World'}</ToggleGroup.Item>
           {/each}
         </ToggleGroup.Root>
       {/if}

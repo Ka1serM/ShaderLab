@@ -45,21 +45,19 @@ in vec3 vPosition;
 out vec4 fragColor;
 // @prefix
 
-// @control ambient color label="Ambient" default="0.05,0.05,0.05"
+// @control display=color label="Ambient" default="0.05,0.05,0.05"
 uniform vec3 uAmbient;
-// @control kd color label="Diffuse Kd" default="0.5,0.5,0.5"
+// @control display=color label="Diffuse Kd" default="0.5,0.5,0.5"
 uniform vec3 uKd;
-// @control ks color label="Specular Ks" default="1,1,1"
+// @control display=color label="Specular Ks" default="1,1,1"
 uniform vec3 uKs;
-// @control shininess slider label="Shininess n" min=1 max=256 step=1 default=32
+// @control label="Shininess n" min=1 max=256 step=1 default=32
 uniform float uShininess;
-// @control lightDir vec3 label="Light Direction" default="1,1,1" visualize=vector
+// @control label="Light Direction" default="1,1,1" visualize=vector
 uniform vec3 uLightDir;
 uniform vec3 cameraPosition;
 
 void main() {
-  // Vertex normals are interpolated across the triangle, so normalize again
-  // per fragment before using them for diffuse or specular lighting.
   vec3 normal = normalize(vNormal);
   vec3 lightDir = normalize(uLightDir);
   vec3 viewDir = normalize(cameraPosition - vPosition);

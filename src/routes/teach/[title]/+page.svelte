@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { get } from 'svelte/store';
   import { teachingStore } from '$lib/stores/teachingStore';
   import { assembleStudentShader, type GLSLError } from '$lib/stores/taskStore';
   import { controlValues, parseShaderControls, type TeachingControl, type TeachingValue } from '$lib/utils/shaderControls';
@@ -10,7 +9,7 @@
   import { maximizedPanel } from '$lib/stores/panelStore';
   import { Splitpanes, Pane } from 'svelte-splitpanes';
   import * as THREE from 'three';
-  import type { ViewportTransform, ViewportVector } from '$lib/renderer/Renderer';
+  import type { TransformMode, ViewportTransform, ViewportVector } from '$lib/renderer/Renderer';
   import type { ShaderReadbackType, ShaderReadbackValue } from '$lib/renderer/shaderReadback';
   import type { PageData } from './$types';
   import { isMobile } from '$lib/hooks/is-mobile.svelte';
@@ -81,7 +80,37 @@
     const type = readbackType(control);
     return control.readback && type ? [{ id: control.id, variable: control.readback, type }] : [];
   });
-  $: transformMatrix = definition?.overlays?.transformControls ? readbackValues.pointMatrix as number[] | undefined : undefined;
+  $: transformControls = Object.fromEntries(
+    controls.filter(control => control.transform).map(control => [control.transform, control])
+  ) as Partial<Record<NonNullable<TeachingControl['transform']>, TeachingControl>>;
+  $: transformModes = (['translate', 'rotate', 'scale'] as TransformMode[]).filter(role => transformControls[role]);
+  $: viewportOverlays = transformModes.length ? {
+    ...definition?.overlays,
+    transformControls: {
+      ...definition?.overlays?.transformControls,
+      modes: transformModes,
+      mode: transformModes.includes(definition?.overlays?.transformControls?.mode ?? 'translate')
+        ? definition?.overlays?.transformControls?.mode ?? 'translate'
+        : transformModes[0]
+    }
+  } : definition?.overlays;
+  $: transformState = transformModes.length ? (() => {
+    const matrix = (role: NonNullable<TeachingControl['transform']>) => {
+      const control = transformControls[role];
+      const value = control ? values[control.id] : undefined;
+      return Array.isArray(value) && value.length === 16 && value.every(Number.isFinite) ? value : undefined;
+    };
+    const translation = matrix('translate') ?? new THREE.Matrix4().identity().toArray();
+    const rotation = matrix('rotate') ?? new THREE.Matrix4().identity().toArray();
+    const scaling = matrix('scale') ?? new THREE.Matrix4().identity().toArray();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    new THREE.Matrix4().fromArray(translation).decompose(position, new THREE.Quaternion(), new THREE.Vector3());
+    new THREE.Matrix4().fromArray(rotation).decompose(new THREE.Vector3(), quaternion, new THREE.Vector3());
+    new THREE.Matrix4().fromArray(scaling).decompose(new THREE.Vector3(), new THREE.Quaternion(), scale);
+    return { position: position.toArray(), quaternion: quaternion.toArray(), scale: scale.toArray() } as ViewportTransform;
+  })() : undefined;
   $: displayedValues = {
     ...values,
     ...readbackValues
@@ -92,7 +121,10 @@
       id: control.id,
       value: displayedValues[control.id] as ViewportVector['value'],
       origin: control.visualizationOrigin,
-      visualization: control.visualization as ViewportVector['visualization']
+      visualization: control.visualization as ViewportVector['visualization'],
+      editable: control.editable,
+      target: control.target,
+      inverse: control.inverse ? displayedValues[control.inverse] as number[] | undefined : undefined
     }));
   function colorToVec3(value: string | number[]): number[] {
     if (Array.isArray(value)) return value;
@@ -109,13 +141,17 @@
   }
 
   function applyTransform(transform: ViewportTransform) {
-    const def = get(teachingStore).definition;
-    if (!def?.overlays?.transformControls) return;
-    teachingStore.setValues({
-      translationMatrix: Array.from(new THREE.Matrix4().makeTranslation(...transform.position).toArray()),
-      rotationMatrix: Array.from(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().fromArray(transform.quaternion)).toArray()),
-      scaleMatrix: Array.from(new THREE.Matrix4().makeScale(...transform.scale).toArray())
-    });
+    if (!transformModes.length) return;
+    const matrices: Record<NonNullable<TeachingControl['transform']>, number[]> = {
+      translate: Array.from(new THREE.Matrix4().makeTranslation(...transform.position).toArray()),
+      rotate: Array.from(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().fromArray(transform.quaternion)).toArray()),
+      scale: Array.from(new THREE.Matrix4().makeScale(...transform.scale).toArray())
+    };
+    const updates = Object.fromEntries(Object.entries(transformControls).map(([role, control]) => [
+      control.id,
+      matrices[role as NonNullable<TeachingControl['transform']>]
+    ]));
+    if (Object.keys(updates).length) teachingStore.setValues(updates);
   }
 
   function uniformValue(control: TeachingControl, value: TeachingValue) {
@@ -157,7 +193,7 @@
   });
 </script>
 
-<svelte:head><title>{$teachingStore.definition?.title ?? 'Lehr-Demo'} · ShaderLab</title></svelte:head>
+<svelte:head><title>{$teachingStore.definition?.title ?? 'Teaching demo'} · ShaderLab</title></svelte:head>
 
 {#key data.title}
 {#if definition}
@@ -186,10 +222,11 @@
                       {uniformValues}
                       {shaderReadbacks}
                       onShaderReadbacks={applyShaderReadbacks}
-                      overlays={definition.overlays}
-                      {transformMatrix}
+                      overlays={viewportOverlays}
+                      {transformState}
                       {vectorVisualizations}
                       onTransformChange={applyTransform}
+                      onVectorChange={(id, value) => teachingStore.setValue(id, value)}
                       reportErrors={true}
                       {errorLineOffsets}
                       onShaderErrors={(errors) => shaderDiagnostics = errors}
@@ -222,10 +259,11 @@
                 {uniformValues}
                 {shaderReadbacks}
                 onShaderReadbacks={applyShaderReadbacks}
-                overlays={definition.overlays}
-                {transformMatrix}
+                overlays={viewportOverlays}
+                {transformState}
                 {vectorVisualizations}
                 onTransformChange={applyTransform}
+                onVectorChange={(id, value) => teachingStore.setValue(id, value)}
                 reportErrors={true}
                 {errorLineOffsets}
                 onShaderErrors={(errors) => shaderDiagnostics = errors}

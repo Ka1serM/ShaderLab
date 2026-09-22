@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ControlResetButton from './ControlResetButton.svelte';
+
   export let value: number[] = [0, 0, 0];
   export let label = '';
   export let min: number | undefined;
@@ -7,6 +9,7 @@
   export let axes = ['X', 'Y', 'Z'];
   export let readOnly = false;
   export let onChange: (value: number[]) => void = () => {};
+  export let onReset: (() => void) | undefined = undefined;
 
   function update(index: number, event: Event) {
     if (readOnly) return;
@@ -16,7 +19,7 @@
   }
 </script>
 
-<div class="teaching-control-body"><div class="teaching-control-heading"><span class="teaching-control-label">{label}</span>{#if readOnly}<span class="teaching-readonly">read-only</span>{/if}</div><div class:teaching-vector-grid--four={axes.length === 4} class="teaching-vector-grid">
+<div class="teaching-control-body"><div class="teaching-control-heading"><span class="teaching-control-label">{label}</span><ControlResetButton {label} {onReset} /></div><div class:teaching-vector-grid--four={axes.length === 4} class="teaching-vector-grid">
   {#each axes as axis, index}
     <label class="teaching-vector-field"><span class={`teaching-axis teaching-axis-${axis.toLowerCase()}`}>{axis}</span>
       <input aria-label={`${label} ${axis}`} type="number" {min} {max} {step} value={value[index]} readonly={readOnly} oninput={(event) => update(index, event)} />
