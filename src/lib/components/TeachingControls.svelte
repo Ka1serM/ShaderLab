@@ -9,6 +9,7 @@
   export let definition: Teach;
   export let controls: TeachingControl[] = [];
   export let values: Record<string, TeachingValue> = {};
+  export let onValueChange = teachingStore.setValue;
 </script>
 
 <div class="teaching-controls">
@@ -18,7 +19,7 @@
   {#each controls.filter(control => !control.hidden) as control (control.id)}
     <!-- Read values inline: a helper call would be untracked and stop reflecting external changes. -->
     {@const current = values[control.id] ?? control.default}
-    {@const reset = control.uniform ? () => teachingStore.resetValue(control.id) : undefined}
+    {@const reset = control.uniform ? () => control.pivot ? onValueChange(control.id, control.default) : teachingStore.resetValue(control.id) : undefined}
     <div class="teaching-control-slot">
       {#if control.type === 'slider'}
         <SliderControl label={control.label} value={current as number} min={control.min ?? 0} max={control.max ?? 1} step={control.step ?? 0.01} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} onReset={reset} />
@@ -29,7 +30,7 @@
       {:else if control.type === 'matrix4'}
         <Matrix4Control label={control.label} value={current as number[]} step={control.step ?? 0.1} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} onReset={reset} />
       {:else}
-        <Vector3Control label={control.label} value={current as number[]} axes={control.type === 'vector4' ? ['L', 'R', 'B', 'T'] : ['X', 'Y', 'Z']} min={control.min} max={control.max} step={control.step ?? 0.1} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} onReset={reset} />
+        <Vector3Control label={control.label} value={current as number[]} axes={control.type === 'vector4' ? ['L', 'R', 'B', 'T'] : ['X', 'Y', 'Z']} min={control.min} max={control.max} step={control.step ?? 0.1} readOnly={control.readOnly ?? false} onChange={(value) => onValueChange(control.id, value)} onReset={reset} />
       {/if}
     </div>
   {/each}

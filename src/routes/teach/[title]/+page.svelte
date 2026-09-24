@@ -3,13 +3,13 @@
   import { teachingStore } from '$lib/stores/teachingStore';
   import { assembleStudentShader, type GLSLError } from '$lib/stores/taskStore';
   import { controlValues, parseShaderControls, type TeachingControl, type TeachingValue } from '$lib/utils/shaderControls';
+  import { bindShaderTransforms } from '$lib/utils/shaderTransforms';
   import TeachingPanel from '$lib/components/TeachingPanel.svelte';
   import MonacoEditor from '$lib/components/MonacoEditor.svelte';
   import Viewport from '$lib/components/Viewport.svelte';
   import { maximizedPanel } from '$lib/stores/panelStore';
   import { Splitpanes, Pane } from 'svelte-splitpanes';
-  import * as THREE from 'three';
-  import type { TransformMode, ViewportTransform, ViewportVector } from '$lib/renderer/Renderer';
+  import type { ViewportTransform, ViewportVector } from '$lib/renderer/Renderer';
   import type { ShaderReadbackType, ShaderReadbackValue } from '$lib/renderer/shaderReadback';
   import type { PageData } from './$types';
   import { isMobile } from '$lib/hooks/is-mobile.svelte';
@@ -80,10 +80,8 @@
     const type = readbackType(control);
     return control.readback && type ? [{ id: control.id, variable: control.readback, type }] : [];
   });
-  $: transformControls = Object.fromEntries(
-    controls.filter(control => control.transform).map(control => [control.transform, control])
-  ) as Partial<Record<NonNullable<TeachingControl['transform']>, TeachingControl>>;
-  $: transformModes = (['translate', 'rotate', 'scale'] as TransformMode[]).filter(role => transformControls[role]);
+  $: transformBinding = bindShaderTransforms(controls, values);
+  $: transformModes = transformBinding.modes;
   $: viewportOverlays = transformModes.length ? {
     ...definition?.overlays,
     transformControls: {
@@ -94,23 +92,7 @@
         : transformModes[0]
     }
   } : definition?.overlays;
-  $: transformState = transformModes.length ? (() => {
-    const matrix = (role: NonNullable<TeachingControl['transform']>) => {
-      const control = transformControls[role];
-      const value = control ? values[control.id] : undefined;
-      return Array.isArray(value) && value.length === 16 && value.every(Number.isFinite) ? value : undefined;
-    };
-    const translation = matrix('translate') ?? new THREE.Matrix4().identity().toArray();
-    const rotation = matrix('rotate') ?? new THREE.Matrix4().identity().toArray();
-    const scaling = matrix('scale') ?? new THREE.Matrix4().identity().toArray();
-    const position = new THREE.Vector3();
-    const quaternion = new THREE.Quaternion();
-    const scale = new THREE.Vector3();
-    new THREE.Matrix4().fromArray(translation).decompose(position, new THREE.Quaternion(), new THREE.Vector3());
-    new THREE.Matrix4().fromArray(rotation).decompose(new THREE.Vector3(), quaternion, new THREE.Vector3());
-    new THREE.Matrix4().fromArray(scaling).decompose(new THREE.Vector3(), new THREE.Quaternion(), scale);
-    return { position: position.toArray(), quaternion: quaternion.toArray(), scale: scale.toArray() } as ViewportTransform;
-  })() : undefined;
+  $: transformState = transformBinding.state;
   $: displayedValues = {
     ...values,
     ...readbackValues
@@ -141,16 +123,12 @@
   }
 
   function applyTransform(transform: ViewportTransform) {
-    if (!transformModes.length) return;
-    const matrices: Record<NonNullable<TeachingControl['transform']>, number[]> = {
-      translate: Array.from(new THREE.Matrix4().makeTranslation(...transform.position).toArray()),
-      rotate: Array.from(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().fromArray(transform.quaternion)).toArray()),
-      scale: Array.from(new THREE.Matrix4().makeScale(...transform.scale).toArray())
-    };
-    const updates = Object.fromEntries(Object.entries(transformControls).map(([role, control]) => [
-      control.id,
-      matrices[role as NonNullable<TeachingControl['transform']>]
-    ]));
+    const updates = transformBinding.transformUpdates(transform);
+    if (Object.keys(updates).length) teachingStore.setValues(updates);
+  }
+
+  function applyControlValue(id: string, value: TeachingValue) {
+    const updates = transformBinding.valueUpdates(id, value);
     if (Object.keys(updates).length) teachingStore.setValues(updates);
   }
 
@@ -203,7 +181,7 @@
         <div class="workspace-layout h-full w-full">
           <Splitpanes class="splitpanes-root" theme="my-theme" on:resized={(event) => handleSplitterResize('outer', event)}>
             <Pane size={splitterSizes.outer}>
-              <TeachingPanel {definition} {controls} values={displayedValues} />
+              <TeachingPanel {definition} {controls} values={displayedValues} onValueChange={applyControlValue} />
             </Pane>
             <Pane size={100 - splitterSizes.outer}>
               <Splitpanes horizontal class="splitpanes-nested" theme="my-theme" on:resized={(event) => handleSplitterResize('inner', event)}>
@@ -226,7 +204,7 @@
                       {transformState}
                       {vectorVisualizations}
                       onTransformChange={applyTransform}
-                      onVectorChange={(id, value) => teachingStore.setValue(id, value)}
+                      onVectorChange={applyControlValue}
                       reportErrors={true}
                       {errorLineOffsets}
                       onShaderErrors={(errors) => shaderDiagnostics = errors}
@@ -242,7 +220,7 @@
       {:else}
         <div class="workspace-layout flex flex-col h-full overflow-auto gap-0">
           <div class="min-h-[400px]">
-            <TeachingPanel {definition} {controls} values={displayedValues} />
+            <TeachingPanel {definition} {controls} values={displayedValues} onValueChange={applyControlValue} />
           </div>
           <div class="min-h-[400px]">
             <MonacoEditor editorId={`${definition.id}-mobile`} workspaceKey={definition.id} sources={editorSources} defaultSources={defaultEditorSources} {visibleSources} activeSource={teachingSource} diagnostics={shaderDiagnostics} onActiveSourceChange={(source) => teachingSource = source} onSourceChange={(source, value) => updateTeachingCode(source, value)} />
@@ -263,7 +241,7 @@
                 {transformState}
                 {vectorVisualizations}
                 onTransformChange={applyTransform}
-                onVectorChange={(id, value) => teachingStore.setValue(id, value)}
+                onVectorChange={applyControlValue}
                 reportErrors={true}
                 {errorLineOffsets}
                 onShaderErrors={(errors) => shaderDiagnostics = errors}

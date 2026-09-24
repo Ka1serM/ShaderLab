@@ -8,6 +8,7 @@ import { ShaderTaskMaterial, type ShaderInput } from './ShaderTaskMaterial';
 import { InfiniteGrid } from './InfiniteGrid';
 import { validateShaderProgram, type ShaderDiagnostic, type ShaderDiagnostics } from './shaderValidation';
 import { readShaderMatrices, type ShaderReadbackRequest, type ShaderReadbackValue } from './shaderReadback';
+import { SelectionOutlinePass } from './SelectionOutlinePass';
 
 // Scene assets must refresh when their Markdown definition changes during authoring.
 THREE.Cache.enabled = false;
@@ -130,6 +131,7 @@ export class Renderer {
     stencilBuffer: false
   });
   private readonly pickingPixel = new Uint8Array(4);
+  private readonly selectionOutline = new SelectionOutlinePass();
 
   private readonly container: HTMLElement;
   private readonly clock = new THREE.Clock();
@@ -509,6 +511,27 @@ export class Renderer {
     if (this.gizmoSelection === selection) return;
     this.gizmoSelection = selection;
     this.onGizmoSelectionChange?.(selection);
+  }
+
+  private renderSelectionIdBuffer() {
+    const previousTarget = this.renderer.getRenderTarget();
+    const previousOverride = this.scene.overrideMaterial;
+    const previousAutoClear = this.renderer.autoClear;
+    const previousLayerMask = this.camera.layers.mask;
+    try {
+      this.pickingMaterial.uniforms = this.material.uniforms;
+      this.camera.layers.set(1);
+      this.scene.overrideMaterial = this.pickingMaterial;
+      this.renderer.autoClear = true;
+      this.renderer.setRenderTarget(this.selectionOutline.idTarget);
+      this.renderer.clear();
+      this.renderer.render(this.scene, this.camera);
+    } finally {
+      this.renderer.setRenderTarget(previousTarget);
+      this.renderer.autoClear = previousAutoClear;
+      this.scene.overrideMaterial = previousOverride;
+      this.camera.layers.mask = previousLayerMask;
+    }
   }
 
   private handleMouseMove = (event: PointerEvent) => {
@@ -1016,6 +1039,8 @@ export class Renderer {
       this.renderedWidth = width;
       this.renderedHeight = height;
       this.renderer.setSize(width, height, false);
+      const drawingSize = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+      this.selectionOutline.setSize(drawingSize.x, drawingSize.y);
     }
     this.updateTransformControlsSize(height);
     this.camera.aspect = width / height;
@@ -1052,6 +1077,11 @@ export class Renderer {
     }
     if (this.shaderRenderable) this.renderer.render(this.scene, this.camera);
     else if (!this.infiniteGrid) this.renderer.clear();
+    if (this.shaderRenderable && this.gizmoSelection === 'object' && this.drawables.length) {
+      this.renderSelectionIdBuffer();
+      this.renderer.autoClear = false;
+      this.selectionOutline.render(this.renderer);
+    }
     this.renderer.autoClear = autoClear;
   }
 
@@ -1121,6 +1151,7 @@ export class Renderer {
     this.material.dispose();
     this.pickingMaterial.dispose();
     this.pickingTarget.dispose();
+    this.selectionOutline.dispose();
     this.renderer.dispose();
     if (this.container.contains(this.renderer.domElement)) this.container.removeChild(this.renderer.domElement);
   }
