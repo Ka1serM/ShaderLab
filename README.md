@@ -5,11 +5,9 @@ binding in `src/lib/utils/shaderTransforms.ts` uses annotations rather than less
 IDs or fixed uniform names:
 
 ```glsl
-// @control pivot=true pivotOffset=meshOffset default=0,0,0
+// @control default=0,0,0
 uniform vec3 pivot;
-// @control hidden=true default=0,0,0
-uniform vec3 meshOffset;
-// @control transform=translate readonly=true
+// @control transform=translate pivot=pivot readonly=true
 uniform mat4 translation;
 // @control transform=rotate readonly=true
 uniform mat4 rotation;
@@ -20,16 +18,14 @@ uniform mat4 scaling;
 The shader owns the vertex calculation:
 
 ```glsl
-vec3 localPosition = (rotation * scaling * vec4(position + meshOffset, 1.0)).xyz;
+vec3 localPosition = (rotation * scaling * vec4(position - pivot, 1.0)).xyz;
 vec4 transformedPosition = translation * vec4(pivot + localPosition, 1.0);
 ```
 
-`pivot=true` places the gizmo at the pivot plus translation. `pivotOffset` names
-the vec3 uniform holding the mesh's position relative to that pivot. When the
-pivot is edited, the shared binding rebases this offset using the inverse of
-rotation and scale, preserving the mesh without altering the local T/R/S controls.
-This edit requires invertible scale. Starting from identity transforms, the offset
-is the negative pivot, giving `pivot + R * S * (position - pivot)`.
+`pivot=<uniform>` on the translate control names a vec3 uniform and places the
+gizmo at `translation * pivot`. It only affects gizmo placement; the pivot is an
+ordinary uniform with no CPU-side compensation, so moving it after rotating or
+scaling moves the mesh exactly as the shader math says.
 
 An optional draggable point uses the existing readback annotations:
 

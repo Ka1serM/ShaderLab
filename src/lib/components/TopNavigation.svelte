@@ -7,7 +7,6 @@
   import House from 'phosphor-svelte/lib/HouseIcon';
   import BookOpen from 'phosphor-svelte/lib/BookOpenIcon';
   import Presentation from 'phosphor-svelte/lib/PresentationIcon';
-  import FlowArrow from 'phosphor-svelte/lib/FlowArrowIcon';
   import { taskCatalog, teachingCatalog } from '$lib/content';
   import { slugify } from '$lib/utils/slugify';
   import LibraryCard from '$lib/components/LibraryCard.svelte';
@@ -76,12 +75,6 @@
         </div>
       </div>
     </div>
-
-    <a
-      class:active={isActive(resolve('/pipeline/'))}
-      class="top-navigation-tab motion-press"
-      href={resolve('/pipeline/')}
-    >Pipeline</a>
   </nav>
 
   <button class="top-navigation-theme motion-press" onclick={toggleMode} title="Toggle colour theme" aria-label="Toggle colour theme">
@@ -102,10 +95,6 @@
   <a class:active={isSectionActive('teach')} class="motion-press" href={resolve('/teach/')}>
     <Presentation class="h-5 w-5" weight="fill" />
     <span>Teaching demos</span>
-  </a>
-  <a class:active={isActive(resolve('/pipeline/'))} class="motion-press" href={resolve('/pipeline/')}>
-    <FlowArrow class="h-5 w-5" weight="fill" />
-    <span>Pipeline</span>
   </a>
 </footer>
 
@@ -273,7 +262,7 @@
       bottom: 0;
       left: 0;
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       border-top: 1px solid var(--app-line);
       background: color-mix(in srgb, var(--background) 94%, transparent);
       box-shadow: 0 -.4rem 1.2rem rgb(0 0 0 / 10%);

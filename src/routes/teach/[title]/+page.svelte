@@ -127,11 +127,6 @@
     if (Object.keys(updates).length) teachingStore.setValues(updates);
   }
 
-  function applyControlValue(id: string, value: TeachingValue) {
-    const updates = transformBinding.valueUpdates(id, value);
-    if (Object.keys(updates).length) teachingStore.setValues(updates);
-  }
-
   function uniformValue(control: TeachingControl, value: TeachingValue) {
     if (control.type === 'color') return colorToVec3(value as string | number[]);
     return typeof value === 'string' ? undefined : value;
@@ -181,7 +176,7 @@
         <div class="workspace-layout h-full w-full">
           <Splitpanes class="splitpanes-root" theme="my-theme" on:resized={(event) => handleSplitterResize('outer', event)}>
             <Pane size={splitterSizes.outer}>
-              <TeachingPanel {definition} {controls} values={displayedValues} onValueChange={applyControlValue} />
+              <TeachingPanel {definition} {controls} values={displayedValues} />
             </Pane>
             <Pane size={100 - splitterSizes.outer}>
               <Splitpanes horizontal class="splitpanes-nested" theme="my-theme" on:resized={(event) => handleSplitterResize('inner', event)}>
@@ -204,7 +199,7 @@
                       {transformState}
                       {vectorVisualizations}
                       onTransformChange={applyTransform}
-                      onVectorChange={applyControlValue}
+                      onVectorChange={teachingStore.setValue}
                       reportErrors={true}
                       {errorLineOffsets}
                       onShaderErrors={(errors) => shaderDiagnostics = errors}
@@ -220,7 +215,7 @@
       {:else}
         <div class="workspace-layout flex flex-col h-full overflow-auto gap-0">
           <div class="min-h-[400px]">
-            <TeachingPanel {definition} {controls} values={displayedValues} onValueChange={applyControlValue} />
+            <TeachingPanel {definition} {controls} values={displayedValues} />
           </div>
           <div class="min-h-[400px]">
             <MonacoEditor editorId={`${definition.id}-mobile`} workspaceKey={definition.id} sources={editorSources} defaultSources={defaultEditorSources} {visibleSources} activeSource={teachingSource} diagnostics={shaderDiagnostics} onActiveSourceChange={(source) => teachingSource = source} onSourceChange={(source, value) => updateTeachingCode(source, value)} />
@@ -241,7 +236,7 @@
                 {transformState}
                 {vectorVisualizations}
                 onTransformChange={applyTransform}
-                onVectorChange={applyControlValue}
+                onVectorChange={teachingStore.setValue}
                 reportErrors={true}
                 {errorLineOffsets}
                 onShaderErrors={(errors) => shaderDiagnostics = errors}

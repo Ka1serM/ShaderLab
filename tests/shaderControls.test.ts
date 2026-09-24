@@ -5,7 +5,7 @@ import { controlValues, parseShaderControls } from '../src/lib/utils/shaderContr
 
 describe('parseShaderControls', () => {
   it.each([
-    ['transformations.md', 7],
+    ['transformations.md', 6],
     ['projection.md', 9],
     ['shading.md', 5],
     ['illumination.md', 5]

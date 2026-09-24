@@ -14,8 +14,7 @@ export interface TeachingControl {
 	hidden?: boolean;
 	target?: string;
 	inverse?: string;
-	pivot?: boolean;
-	pivotOffset?: string;
+	pivot?: string;
 	transform?: 'translate' | 'rotate' | 'scale';
 	default: TeachingValue;
 	uniform?: string;
@@ -169,8 +168,7 @@ export function parseShaderControls(source: string): TeachingControl[] {
 			hidden: attributes.hidden === 'true' || (isReadback && visualization !== undefined && attributes.label === undefined),
 			target,
 			inverse: attributes.inverse,
-			pivot: type === 'vector3' && attributes.pivot === 'true',
-			pivotOffset: attributes.pivotOffset,
+			pivot: transform === 'translate' ? attributes.pivot : undefined,
 			transform,
 			default: isReadback ? readbackInitialValue(type) : parseDefault(type, attributes.default),
 			uniform,

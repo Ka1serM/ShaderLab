@@ -10,6 +10,7 @@
   import { maximizedPanel } from '$lib/stores/panelStore';
   import { maximizable } from '$lib/actions/maximizable';
   import * as ToggleGroup from '$lib/components/ui/toggle-group';
+  import { Toggle } from '$lib/components/ui/toggle';
 
   export let vertexShader: string;
   export let fragmentShader: string;
@@ -38,6 +39,7 @@
 
   let transformMode: TransformMode = 'translate';
   let transformSpace: 'local' | 'world' = 'local';
+  let snapping = false;
   let gizmoSelection: 'object' | 'visualization' | null = null;
   let selectedSceneIndex = 0;
   let timePaused = false;
@@ -263,23 +265,34 @@
             >{transformModeLabels[mode]}</ToggleGroup.Item>
           {/each}
         </ToggleGroup.Root>
-        <ToggleGroup.Root
-          type="single"
-          value={transformSpace}
-          class="transform-space-toggle absolute right-3 top-3 z-10 flex-none gap-0 bg-muted p-0"
-          onValueChange={space => {
-            if (!transformSpaces.includes(space as typeof transformSpace)) return;
-            transformSpace = space as typeof transformSpace;
-            viewport?.setTransformSpace(transformSpace);
-          }}
-        >
-          {#each transformSpaces as space}
-            <ToggleGroup.Item
-              value={space}
-              class="h-10 border-none px-4 transition-colors hover:bg-muted/50 data-[state=on]:rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30"
-            >{space === 'local' ? 'Local' : 'World'}</ToggleGroup.Item>
-          {/each}
-        </ToggleGroup.Root>
+        <div class="absolute right-3 top-3 z-10 flex gap-2">
+          <Toggle
+            pressed={snapping}
+            class="h-10 bg-muted px-4 hover:bg-muted/50 data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30"
+            title="Snap: 0.1 units / 5°"
+            onPressedChange={pressed => {
+              snapping = pressed;
+              viewport?.setSnapping(snapping);
+            }}
+          >Snap</Toggle>
+          <ToggleGroup.Root
+            type="single"
+            value={transformSpace}
+            class="transform-space-toggle flex-none gap-0 bg-muted p-0"
+            onValueChange={space => {
+              if (!transformSpaces.includes(space as typeof transformSpace)) return;
+              transformSpace = space as typeof transformSpace;
+              viewport?.setTransformSpace(transformSpace);
+            }}
+          >
+            {#each transformSpaces as space}
+              <ToggleGroup.Item
+                value={space}
+                class="h-10 border-none px-4 transition-colors hover:bg-muted/50 data-[state=on]:rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30"
+              >{space === 'local' ? 'Local' : 'World'}</ToggleGroup.Item>
+            {/each}
+          </ToggleGroup.Root>
+        </div>
       {/if}
     </div>
   </div>

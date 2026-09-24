@@ -16,6 +16,9 @@ THREE.Cache.enabled = false;
 // TransformControls normally occupy a fixed fraction of the canvas height.
 // Use the size they have in a typical 600px-high viewport as our fixed visual size.
 const TRANSFORM_CONTROLS_REFERENCE_HEIGHT = 600;
+const TRANSLATION_SNAP = 0.1;
+const ROTATION_SNAP = THREE.MathUtils.degToRad(5);
+const SCALE_SNAP = 0.1;
 
 export type ViewportCameraPose = {
   position: [number, number, number];
@@ -188,6 +191,7 @@ export class Renderer {
   private transformScale = new THREE.Vector3(1, 1, 1);
   private transformMode: TransformMode = 'translate';
   private transformSpace: 'local' | 'world' = 'local';
+  private snapping = false;
   private horizontalFov: number;
   private shaderRenderable = false;
   private vertexShader: string;
@@ -419,6 +423,7 @@ export class Renderer {
     this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
     this.transformControls.setSpace(this.transformSpace);
     this.transformControls.setMode(this.transformMode);
+    this.applySnapping();
     this.updateTransformControlsSize();
     this.transformControls.addEventListener('mouseDown', () => {
       this.suppressVisualizationSelection = true;
@@ -466,6 +471,17 @@ export class Renderer {
   setTransformSpace(space: 'local' | 'world') {
     this.transformSpace = space;
     this.syncTransformProxy();
+  }
+
+  setSnapping(enabled: boolean) {
+    this.snapping = enabled;
+    this.applySnapping();
+  }
+
+  private applySnapping() {
+    this.transformControls?.setTranslationSnap(this.snapping ? TRANSLATION_SNAP : null);
+    this.transformControls?.setRotationSnap(this.snapping ? ROTATION_SNAP : null);
+    this.transformControls?.setScaleSnap(this.snapping ? SCALE_SNAP : null);
   }
 
   setTransformState(transform: ViewportTransform | undefined) {

@@ -24,11 +24,9 @@ out vec3 vTransformedPosition;
 out vec3 vTransformedNormal;
 // @prefix
 
-// @control label="Pivot P" pivot=true pivotOffset=uPivotOffset default="0,0,0" step=0.1
+// @control label="Pivot P" default="0,0,0" step=0.1
 uniform vec3 uPivotPoint;
-// @control hidden=true default="0,0,0"
-uniform vec3 uPivotOffset;
-// @control label="Translation T" transform=translate readonly=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
+// @control label="Translation T" transform=translate pivot=uPivotPoint readonly=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
 uniform mat4 uTranslationMatrix;
 // @control label="Rotation R" transform=rotate readonly=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
 uniform mat4 uRotationMatrix;
@@ -38,13 +36,13 @@ uniform mat4 uScaleMatrix;
 void main() {
     mat4 pivotMatrix = mat4(1.0);
     pivotMatrix[3].xyz = uPivotPoint;
-    mat4 meshOffsetMatrix = mat4(1.0);
-    meshOffsetMatrix[3].xyz = uPivotOffset;
+    mat4 inversePivotMatrix = mat4(1.0);
+    inversePivotMatrix[3].xyz = -uPivotPoint;
     // @readback visualize=point target=uPivotPoint inverse=uTranslationMatrix
     vec3 pivotWorld = (uTranslationMatrix * vec4(uPivotPoint, 1.0)).xyz;
     // @readback label="Local transform (T · R · S)"
     mat4 localMatrix = uTranslationMatrix * uRotationMatrix * uScaleMatrix;
-    mat4 pointMatrix = uTranslationMatrix * pivotMatrix * uRotationMatrix * uScaleMatrix * meshOffsetMatrix;
+    mat4 pointMatrix = uTranslationMatrix * pivotMatrix * uRotationMatrix * uScaleMatrix * inversePivotMatrix;
     vec4 transformedPosition = pointMatrix * vec4(position, 1.0);
     vTransformedPosition = transformedPosition.xyz;
     vTransformedNormal = mat3(transpose(inverse(pointMatrix))) * normal;
@@ -117,7 +115,7 @@ s_x&0&0&0\\
 \end{pmatrix}
 $$
 
-The pivot $c$ chooses where the transform gizmo appears. Changing it leaves the mesh in place. Its world position is:
+The pivot $c$ is the center for rotation and scaling, and the transform gizmo appears there. Its world position is:
 
 $$
 c_{world} = T\begin{pmatrix}c_x\\c_y\\c_z\\1\end{pmatrix}.
@@ -126,20 +124,18 @@ $$
 Points are transformed from right to left:
 
 $$
-p' = Mp, \qquad M = TPRS O.
+p' = Mp, \qquad M = TPRSP^{-1}.
 $$
 
-Here $P$ places the pivot and $O$ places the mesh relative to it. The mesh offset stays coupled to the pivot: $O=P^{-1}$.
-
-In vertex coordinates, this is $p' = t + c + RS(p + o)$. When choosing the pivot before rotating or scaling, $o=-c$, so it becomes:
+$P^{-1}$ moves the pivot to the origin, $RS$ rotates and scales there, and $P$ moves it back. In vertex coordinates:
 
 $$
 p' = t + c + RS(p-c).
 $$
 
-Subtract the pivot, rotate and scale, then add the pivot back. If the pivot is moved after transforming, the translation is compensated to preserve the current mesh position. The pivot therefore moves in world space and subsequent rotations and scales use the new center.
+Moving the pivot while $R$ and $S$ are identity leaves the mesh in place, because $c$ and $-c$ cancel. Once the mesh is rotated or scaled they no longer cancel: moving the pivot re-applies the same $R$ and $S$ around the new center, so the mesh moves by $(I-RS)\Delta c$.
 
-The displayed local transform is $TRS$. Rotating changes only $R$, scaling changes only $S$, and translating changes only $T$. Moving the pivot updates $T$ to compensate for the new pivot frame.
+The displayed local transform is $TRS$. Rotating changes only $R$, scaling changes only $S$, and translating changes only $T$.
 
 Normals are directions, so translation does not affect them. Their linear transformation is $A=RS$.
 

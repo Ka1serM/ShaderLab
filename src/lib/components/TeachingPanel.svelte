@@ -10,7 +10,6 @@
   export let definition: Teach;
   export let controls: TeachingControl[] = [];
   export let values: Record<string, TeachingValue> = {};
-  export let onValueChange = teachingStore.setValue;
 
   const panelId = 'controls';
   let activeTab = 'parameters';
@@ -42,7 +41,7 @@
     </div>
 
     <Tabs.Content value="parameters" class="mt-0 h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto p-0 data-[state=inactive]:hidden">
-      <TeachingControls {definition} {controls} {values} {onValueChange} />
+      <TeachingControls {definition} {controls} {values} />
     </Tabs.Content>
 
     <Tabs.Content value="theory" class="mt-0 h-0 flex-1 overflow-x-hidden overflow-y-auto p-0 data-[state=inactive]:hidden">
