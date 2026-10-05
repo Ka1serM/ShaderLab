@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js';
@@ -9,6 +8,7 @@ import { InfiniteGrid } from './InfiniteGrid';
 import { validateShaderProgram, type ShaderDiagnostic, type ShaderDiagnostics } from './shaderValidation';
 import { readShaderMatrices, type ShaderReadbackRequest, type ShaderReadbackValue } from './shaderReadback';
 import { SelectionOutlinePass } from './SelectionOutlinePass';
+import { loadModel } from './assetCache';
 
 // Scene assets must refresh when their Markdown definition changes during authoring.
 THREE.Cache.enabled = false;
@@ -19,6 +19,8 @@ const TRANSFORM_CONTROLS_REFERENCE_HEIGHT = 600;
 const TRANSLATION_SNAP = 0.1;
 const ROTATION_SNAP = THREE.MathUtils.degToRad(5);
 const SCALE_SNAP = 0.1;
+// Free space kept around the framed scene, as a factor on the field of view.
+const FRAME_MARGIN = 1.1;
 
 export type ViewportCameraPose = {
   position: [number, number, number];
@@ -45,6 +47,11 @@ export type Object = {
 
 export type Scene = {
   objects: Object[];
+  /**
+   * World-space box `[min, max]` that the default camera must frame. Needed when
+   * a vertex shader moves geometry outside the bounds of its source meshes.
+   */
+  frameBox?: [[number, number, number], [number, number, number]];
 };
 
 /** A named scene that can be selected from the viewport. */
@@ -140,7 +147,6 @@ export class Renderer {
   private readonly clock = new THREE.Clock();
   private shaderTime = 0;
   private timePaused = false;
-  private readonly loader = new GLTFLoader();
   private readonly onCameraChange?: RendererOptions['onCameraChange'];
   private readonly onTransformChange?: RendererOptions['onTransformChange'];
   private readonly onVectorChange?: RendererOptions['onVectorChange'];
@@ -163,6 +169,10 @@ export class Renderer {
   private cameraPoseSaved: boolean;
   private transformDragging = false;
   private sceneGeneration = 0;
+  // The default view is refitted on resize until the user moves the camera, and
+  // is never persisted: a fit depends on the viewport size of the current visit.
+  private autoFrame = false;
+  private frameBox?: Scene['frameBox'];
   private drawables: Drawable[] = [];
   private objectGroups: THREE.Group[] = [];
   private uniformValues: Record<string, number | number[] | boolean>;
@@ -285,6 +295,7 @@ export class Renderer {
     this.controls.maxDistance = 100;
     this.controls.maxPolarAngle = Math.PI;
     this.controls.addEventListener('change', () => this.saveCamera());
+    this.controls.addEventListener('start', () => { this.autoFrame = false; });
     this.applyCameraPose(options.cameraPose);
     this.setOverlays(options.overlays);
 
@@ -360,6 +371,8 @@ export class Renderer {
     this.setShaderLineOffsets(state.shaderLineOffsets);
     this.updateShaders(state.vertexShader, state.fragmentShader);
     await this.setScene(state.scene);
+    await this.material.texturesLoaded();
+    if (!this.disposed) this.renderScene();
   }
 
   private updateShaderReadbacks() {
@@ -400,6 +413,7 @@ export class Renderer {
       this.viewHelper.setLabels('X', 'Y', 'Z');
       this.viewHelperPointerUp = event => {
         if (!this.viewHelper?.handleClick(event)) return;
+        this.autoFrame = false;
         this.controls.enabled = false;
         event.preventDefault();
         event.stopPropagation();
@@ -733,6 +747,8 @@ export class Renderer {
 
   async setScene(sceneDefinition: Scene) {
     const generation = ++this.sceneGeneration;
+    this.frameBox = sceneDefinition.frameBox;
+    this.autoFrame = !this.cameraPoseSaved;
     this.editingVectorId = undefined;
     this.transformControls?.detach();
     this.setGizmoSelection(null);
@@ -753,12 +769,14 @@ export class Renderer {
     this.material.depthWrite = true;
     this.material.forceSinglePass = false;
     this.material.needsUpdate = true;
+    // Load every object concurrently and add them together, so a slow model
+    // never leaves the scene partially drawn.
+    const loadedObjects = await Promise.all(sceneDefinition.objects.map(object => this.loadGeometries(object)));
+    if (this.disposed || generation !== this.sceneGeneration) {
+      loadedObjects.flat().forEach(loaded => loaded.geometry.dispose());
+      return;
+    }
     for (const [objectIndex, object] of sceneDefinition.objects.entries()) {
-      const geometries = await this.loadGeometries(object);
-      if (this.disposed || generation !== this.sceneGeneration) {
-        geometries.forEach(loaded => loaded.geometry.dispose());
-        return;
-      }
       const group = new THREE.Group();
       const objectId = `object-${objectIndex}`;
       group.name = objectId;
@@ -767,72 +785,65 @@ export class Renderer {
       group.scale.fromArray(object.scale ?? [1, 1, 1]);
       this.objectGroups.push(group);
       this.scene.add(group);
-      geometries.forEach((loaded, index) => this.addDrawable(object, group, loaded, `${objectId}-${index}`));
+      loadedObjects[objectIndex].forEach((loaded, index) => this.addDrawable(object, group, loaded, `${objectId}-${index}`));
     }
-    if (!this.cameraPoseSaved) this.fitCameraToScene();
+    if (this.autoFrame) this.fitCameraToScene();
     this.renderScene();
   }
 
   private fitCameraToScene() {
-    if (!this.drawables.length) return;
+    const bounds = this.frameBounds();
+    if (bounds.isEmpty()) return;
+    const center = bounds.getCenter(new THREE.Vector3());
+    const view = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
+    if (view.lengthSq() < Number.EPSILON) view.set(1, 1, 1);
+    view.normalize();
 
+    this.applyingCamera = true;
+    this.controls.target.copy(center);
+    this.camera.position.copy(center).addScaledVector(view, this.fitDistance(bounds, center, view));
+    this.camera.lookAt(center);
+    this.controls.update();
+    this.applyingCamera = false;
+  }
+
+  private frameBounds() {
+    if (this.frameBox) return new THREE.Box3(new THREE.Vector3(...this.frameBox[0]), new THREE.Vector3(...this.frameBox[1]));
+    // Groups are created moments before this fit and have not been rendered yet.
+    this.scene.updateMatrixWorld(true);
     const bounds = new THREE.Box3().makeEmpty();
     for (const drawable of this.drawables) {
       if (drawable instanceof THREE.InstancedMesh) drawable.computeBoundingBox();
       bounds.expandByObject(drawable);
     }
-    if (bounds.isEmpty()) return;
+    return bounds;
+  }
 
-    const center = bounds.getCenter(new THREE.Vector3());
-    const size = bounds.getSize(new THREE.Vector3());
-    // The orbit pivot is always the world origin. Include the scene's offset
-    // in the fit radius so off-origin objects remain fully visible.
-    const radius = Math.max(size.length() * 0.5 + center.length(), 0.05);
-    const viewDirection = new THREE.Vector3().subVectors(this.camera.position, this.controls.target);
-    if (viewDirection.lengthSq() < Number.EPSILON) viewDirection.set(1, 1, 1);
-    viewDirection.normalize();
-
-    const verticalFov = THREE.MathUtils.degToRad(this.camera.fov);
-    const horizontalFov = 2 * Math.atan(Math.tan(verticalFov * 0.5) * Math.max(this.camera.aspect, Number.EPSILON));
-    const limitingFov = Math.min(verticalFov, horizontalFov);
-    const distance = radius / Math.sin(limitingFov * 0.5) * 1.15;
-
-    this.camera.position.copy(this.controls.target.set(0, 0, 0)).addScaledVector(viewDirection, distance);
-    this.camera.lookAt(0, 0, 0);
-    this.controls.update();
-    this.cameraKey = '';
-    this.saveCamera();
+  /** Distance along `view` from `center` at which `bounds` fits the frustum. */
+  private fitDistance(bounds: THREE.Box3, center: THREE.Vector3, view: THREE.Vector3) {
+    const tanVertical = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) / FRAME_MARGIN;
+    const tanHorizontal = tanVertical * this.camera.aspect;
+    this.camera.position.copy(center).add(view);
+    this.camera.lookAt(center);
+    this.camera.updateMatrixWorld();
+    const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0);
+    const up = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 1);
+    let distance = 0;
+    for (const x of [bounds.min.x, bounds.max.x]) for (const y of [bounds.min.y, bounds.max.y]) for (const z of [bounds.min.z, bounds.max.z]) {
+      const corner = new THREE.Vector3(x, y, z).sub(center);
+      const depthOffset = corner.dot(view);
+      distance = Math.max(distance, depthOffset + Math.abs(corner.dot(right)) / tanHorizontal, depthOffset + Math.abs(corner.dot(up)) / tanVertical);
+    }
+    return Math.max(distance, 0.5);
   }
 
   private async loadGeometries(object: Object): Promise<Geometry[]> {
     try {
-      const gltf = await this.loader.loadAsync(this.resolvePath(object.source));
-      gltf.scene.updateMatrixWorld(true);
-      const geometries: Geometry[] = [];
-      gltf.scene.traverse(child => {
-        if ((child as THREE.Mesh).isMesh) {
-          let geometry = (child as THREE.Mesh).geometry.clone();
-          if (object.wireframe) geometry = this.createQuadWireframeGeometry(geometry);
-          const loaded = {
-            geometry,
-            position: new THREE.Vector3(),
-            quaternion: new THREE.Quaternion(),
-            scale: new THREE.Vector3()
-          };
-          child.matrixWorld.decompose(loaded.position, loaded.quaternion, loaded.scale);
-          geometries.push(loaded);
-        }
-      });
-      // Drawables use cloned geometry, so the loader-owned graph can be released
-      // immediately instead of surviving until the next scene transition.
-      gltf.scene.traverse(child => {
-        const mesh = child as THREE.Mesh;
-        if (!mesh.isMesh) return;
-        mesh.geometry.dispose();
-        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        materials.forEach(material => material.dispose());
-      });
-      return geometries;
+      const parts = await loadModel(this.resolvePath(object.source));
+      return parts.map(part => ({
+        ...part,
+        geometry: object.wireframe ? this.createQuadWireframeGeometry(part.geometry) : part.geometry.clone()
+      }));
     } catch (error) {
       console.error(`Failed to load viewport model ${object.source}:`, error);
       return [];
@@ -847,7 +858,6 @@ export class Renderer {
    */
   private createQuadWireframeGeometry(source: THREE.BufferGeometry) {
     const geometry = source.index ? source.toNonIndexed() : source.clone();
-    if (geometry !== source) source.dispose();
 
     const position = geometry.getAttribute('position');
     if (!position) return geometry;
@@ -1062,6 +1072,7 @@ export class Renderer {
     this.camera.aspect = width / height;
     this.camera.fov = 2 * Math.atan(Math.tan(this.horizontalFov * Math.PI / 360) / this.camera.aspect) * 180 / Math.PI;
     this.camera.updateProjectionMatrix();
+    if (this.autoFrame && sizeChanged) this.fitCameraToScene();
     if (sizeChanged) this.material.setInput('iResolution', [this.renderer.domElement.width, this.renderer.domElement.height]);
     // Paint immediately after changing the drawing buffer. This keeps the
     // viewport responsive while a split pane is being dragged.

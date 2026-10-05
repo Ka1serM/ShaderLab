@@ -4,14 +4,22 @@
   import BookOpen from 'phosphor-svelte/lib/BookOpenIcon';
   import Code2 from 'phosphor-svelte/lib/CodeIcon';
   import GraduationCap from 'phosphor-svelte/lib/GraduationCapIcon';
+  import { onMount } from 'svelte';
   import { resolve } from '$app/paths';
   import { taskCatalog, teachingCatalog } from '$lib/content';
-  import HomeViewport from '$lib/components/HomeViewport.svelte';
   import ShaderLabLogo from '$lib/components/ShaderLabLogo.svelte';
+  import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
   import { reveal, scramble, tilt, writeIn } from '$lib/actions/motion';
 
-  $: taskCount = $taskCatalog.length;
-  $: teachingCount = $teachingCatalog.length;
+  $: taskCount = $taskCatalog?.length ?? '–';
+  $: teachingCount = $teachingCatalog?.length ?? '–';
+
+  // three.js is loaded after hydration so the page's text is interactive and
+  // visible without waiting for the renderer bundle.
+  let HomeViewport: typeof import('$lib/components/HomeViewport.svelte').default | undefined;
+  onMount(async () => {
+    HomeViewport = (await import('$lib/components/HomeViewport.svelte')).default;
+  });
 </script>
 
 <svelte:head>
@@ -39,7 +47,7 @@
       <div class="hero-visual motion-reveal" use:reveal aria-label="Animated view of a rendered shader object">
         <div class="visual-heading">GPU / REAL TIME <i></i></div>
         <div class="visual-frame">
-          <HomeViewport />
+          {#if HomeViewport}<svelte:component this={HomeViewport} />{:else}<LoadingOverlay label="Loading 3D view" />{/if}
         </div>
         <div class="visual-footer"><span>LIVE VIEW</span><span>GLSL / 3D</span></div>
       </div>

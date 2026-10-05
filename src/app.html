@@ -21,8 +21,10 @@
 			document.documentElement.dataset.motion = 'on';
 		</script>
 		<script>
+			// Installing the worker precaches several MB. Start only after the page has
+			// loaded so that download never competes with the first render.
 			if ('serviceWorker' in navigator && location.protocol === 'https:') {
-				navigator.serviceWorker.register('%sveltekit.assets%/sw.js').catch(() => {});
+				addEventListener('load', () => navigator.serviceWorker.register('%sveltekit.assets%/sw.js').catch(() => {}), { once: true });
 			}
 		</script>
 		%sveltekit.head%

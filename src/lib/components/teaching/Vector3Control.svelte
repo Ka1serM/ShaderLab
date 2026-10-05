@@ -1,5 +1,6 @@
 <script lang="ts">
   import ControlResetButton from './ControlResetButton.svelte';
+  import { enteredNumber, mirrorNumber } from '$lib/actions/mirrorNumber';
 
   export let value: number[] = [0, 0, 0];
   export let label = '';
@@ -13,8 +14,10 @@
 
   function update(index: number, event: Event) {
     if (readOnly) return;
+    const entry = enteredNumber(event.currentTarget as HTMLInputElement);
+    if (entry === null) return;
     const next = [...value];
-    next[index] = Number((event.currentTarget as HTMLInputElement).value);
+    next[index] = entry;
     onChange(next);
   }
 </script>
@@ -22,7 +25,7 @@
 <div class="teaching-control-body"><div class="teaching-control-heading"><span class="teaching-control-label">{label}</span><ControlResetButton {label} {onReset} /></div><div class:teaching-vector-grid--four={axes.length === 4} class="teaching-vector-grid">
   {#each axes as axis, index}
     <label class="teaching-vector-field"><span class={`teaching-axis teaching-axis-${axis.toLowerCase()}`}>{axis}</span>
-      <input aria-label={`${label} ${axis}`} type="number" {min} {max} {step} value={value[index]} readonly={readOnly} oninput={(event) => update(index, event)} />
+      <input aria-label={`${label} ${axis}`} type="number" {min} {max} {step} use:mirrorNumber={{ value: value[index] ?? 0 }} readonly={readOnly} oninput={(event) => update(index, event)} />
     </label>
   {/each}
 </div></div>

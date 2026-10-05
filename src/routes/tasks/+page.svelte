@@ -5,12 +5,13 @@ import { resolve } from "$app/paths";
 import { taskCatalog } from '$lib/content';
 import { slugify } from '$lib/utils/slugify';
 import LibraryCard from '$lib/components/LibraryCard.svelte';
+import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
 import { reveal, writeIn } from '$lib/actions/motion';
 
 let query = $state("");
 
 const filteredTasks = $derived(
-  $taskCatalog.filter(
+  ($taskCatalog ?? []).filter(
     (task) =>
       task.title.toLowerCase().includes(query.toLowerCase()) ||
       task.category?.toLowerCase().includes(query.toLowerCase()) ||
@@ -45,7 +46,9 @@ function getPreview(html: string, maxLength: number = 90): string {
 
   <main class="library-content">
     <div class="library-grid">
-      {#if filteredTasks.length > 0}
+      {#if $taskCatalog === null}
+        <div class="relative col-span-full min-h-40"><LoadingOverlay label="Loading tasks" /></div>
+      {:else if filteredTasks.length > 0}
         {#each filteredTasks as task (task.title)}
           <LibraryCard
             href={resolve(`/task/${slugify(task.title)}/`)}

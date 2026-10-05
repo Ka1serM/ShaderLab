@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { afterNavigate } from '$app/navigation';
+  import { navigating } from '$app/state';
   import TopNavigation from '$lib/components/TopNavigation.svelte';
   import { ModeWatcher } from "mode-watcher";
   import { checkStorageVersion } from '$lib/config';
@@ -73,6 +74,7 @@
 </script>
 
 <ModeWatcher defaultMode="dark" />
+{#if navigating.to}<div class="navigation-progress" role="progressbar" aria-label="Loading page"></div>{/if}
 <Toaster />
 <div class="app-shell flex flex-col overflow-hidden">
   <a class="skip-link" href="#main-content">Skip to main content</a>

@@ -9,7 +9,8 @@ camera:
   target: [0, 0, 0]
   fov: 30
 scenes:
-  - objects:
+  - frameBox: [[-4.8, -0.7, -4.8], [4.8, 0.7, 4.8]]
+    objects:
       - source: models/Sphere.glb
         instanceCount: 6
 ---

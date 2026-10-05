@@ -4,7 +4,8 @@ category: Projection
 shader stages:
   - vertex
 scenes:
-  - objects:
+  - frameBox: [[-8.0, -6.0, -6.0], [8.0, 6.0, 0.0]]
+    objects:
       - source: models/ProjectionEdges.glb
         wireframe: true
         lineWidth: 5

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import ControlResetButton from './ControlResetButton.svelte';
+  import { enteredNumber, mirrorNumber } from '$lib/actions/mirrorNumber';
 
   export let value: number[] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
   export let label = '';
@@ -12,43 +13,16 @@
   let recentlyChanged = new Set<number>();
   let clearChangeHighlight: ReturnType<typeof setTimeout> | undefined;
 
-  function format(entry: number) {
-    return String(Math.round(entry * 1000) / 1000);
-  }
-
-  /** Mirrors external changes (gizmo drags, presets) into the input without overwriting what is being typed. */
   function markChanged(index: number) {
     recentlyChanged = new Set([...recentlyChanged, index]);
     if (clearChangeHighlight) clearTimeout(clearChangeHighlight);
     clearChangeHighlight = setTimeout(() => recentlyChanged = new Set(), 700);
   }
 
-  function sync(node: HTMLInputElement, { entry, index }: { entry: number; index: number }) {
-    let current = entry;
-    const apply = () => {
-      if (document.activeElement === node) return;
-      const text = format(current);
-      if (node.value !== text) node.value = text;
-    };
-    node.addEventListener('blur', apply);
-    apply();
-    return {
-      update(next: { entry: number; index: number }) {
-        if (Math.abs(next.entry - current) >= 0.0005) markChanged(next.index);
-        current = next.entry;
-        apply();
-      },
-      destroy() {
-        node.removeEventListener('blur', apply);
-      }
-    };
-  }
-
   function update(row: number, column: number, event: Event) {
     if (readOnly) return;
-    const entry = Number((event.currentTarget as HTMLInputElement).value);
-    // Intermediate input like "-" parses to NaN and would poison the gizmo transform.
-    if (!Number.isFinite(entry)) return;
+    const entry = enteredNumber(event.currentTarget as HTMLInputElement);
+    if (entry === null) return;
     const next = [...value];
     next[column * 4 + row] = entry;
     onChange(next);
@@ -70,7 +44,7 @@
           type="number"
           {step}
           readonly={readOnly}
-          use:sync={{ entry: value[column * 4 + row] ?? 0, index: column * 4 + row }}
+          use:mirrorNumber={{ value: value[column * 4 + row] ?? 0, onValueChange: () => markChanged(column * 4 + row) }}
           oninput={(event) => update(row, column, event)}
           class="teaching-matrix-input"
           class:teaching-matrix-input--changed={recentlyChanged.has(column * 4 + row)}

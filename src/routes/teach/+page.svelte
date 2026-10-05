@@ -4,10 +4,11 @@
   import { resolve } from '$app/paths';
   import { teachingCatalog } from '$lib/content';
   import LibraryCard from '$lib/components/LibraryCard.svelte';
+  import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
   import { reveal, writeIn } from '$lib/actions/motion';
 
   let query = $state('');
-  const filteredTeaching = $derived($teachingCatalog.filter(demo =>
+  const filteredTeaching = $derived(($teachingCatalog ?? []).filter(demo =>
     demo.title.toLowerCase().includes(query.toLowerCase()) ||
     demo.category?.toLowerCase().includes(query.toLowerCase()) ||
     demo.overview.toLowerCase().includes(query.toLowerCase())
@@ -35,7 +36,9 @@
 
   <main class="library-content">
     <div class="library-grid">
-      {#if filteredTeaching.length}
+      {#if $teachingCatalog === null}
+        <div class="relative col-span-full min-h-40"><LoadingOverlay label="Loading teaching demos" /></div>
+      {:else if filteredTeaching.length}
         {#each filteredTeaching as demo (demo.id)}
           <LibraryCard
             href={resolve(`/teach/${demo.id}/`)}

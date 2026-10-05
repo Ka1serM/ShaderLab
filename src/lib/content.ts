@@ -151,12 +151,13 @@ async function loadCatalog<T>(kind: 'tasks' | 'teaching', parse: (raw: string) =
   return Promise.all(entries.map(async entry => parse(await fetchMarkdown(entry.path))));
 }
 
-export const taskCatalog = readable<Task[]>([], set => {
+/** `null` until the catalog has loaded, so pages can tell loading from empty. */
+export const taskCatalog = readable<Task[] | null>(null, set => {
   if (!browser) return;
   void loadCatalog('tasks', parseTask).then(set).catch(error => console.error('Failed to load task catalog:', error));
 });
 
-export const teachingCatalog = readable<Teach[]>([], set => {
+export const teachingCatalog = readable<Teach[] | null>(null, set => {
   if (!browser) return;
   void loadCatalog('teaching', parseTeaching).then(set).catch(error => console.error('Failed to load teaching catalog:', error));
 });

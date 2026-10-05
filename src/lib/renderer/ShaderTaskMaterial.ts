@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { base } from '$app/paths';
+import { loadRawFile } from './assetCache';
 
 const ATLAS_GRID_SIZE = 32;
 
@@ -46,6 +47,11 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 
 	override customProgramCacheKey() {
 		return `shaderlab-${this.shaderRevision}`;
+	}
+
+	/** Resolves once every texture input requested so far has finished loading or failed. */
+	async texturesLoaded() {
+		await Promise.all([...this.pendingTextureLoads.values()].map(load => load.promise));
 	}
 
 	addInput(input: ShaderInput) {
@@ -165,9 +171,7 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 				let format: THREE.PixelFormat = THREE.RedFormat;
 
 				if (resolvedPath.toLowerCase().endsWith('.raw')) {
-					const response = await fetch(resolvedPath, { signal: controller.signal });
-					if (!response.ok) throw new Error(`HTTP ${response.status} while loading ${resolvedPath}`);
-					const buffer = await response.arrayBuffer();
+					const buffer = await loadRawFile(resolvedPath);
 					if (buffer.byteLength < 16) throw new Error('Raw texture file is missing its 16-byte header');
 					const view = new DataView(buffer);
 					width = view.getUint32(0, true);

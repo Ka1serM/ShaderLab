@@ -3,7 +3,8 @@ category: Computer Animation
 shaderStages:
   - fragment
 scenes:
-  - objects:
+  - frameBox: [[-0.1, -0.1, -0.1], [0.1, 0.1, 0.1]]
+    objects:
       - source: models/Canvas.glb
 camera:
   position: [1.5, 1.5, 1.5]
@@ -106,7 +107,7 @@ uniform vec3 cameraDirection;
 uniform sampler3D volumeTexture;
 uniform ivec2 iResolution;
 
-const float maxDistance = 1.0;
+const float maxDistance = 4.0;
 const int   maxSteps = 1024;
 const float stepSize = maxDistance / float(maxSteps);
 const vec3  lightDir = normalize(vec3(1.0, 1.0, 0.0));
@@ -248,7 +249,7 @@ uniform vec3 cameraDirection;
 uniform sampler3D volumeTexture;
 uniform ivec2 iResolution;
 
-const float maxDistance = 1.0;
+const float maxDistance = 4.0;
 const int   maxSteps = 1024;
 const float stepSize = maxDistance / float(maxSteps);
 const vec3  lightDir = normalize(vec3(1.0, 1.0, 0.0));

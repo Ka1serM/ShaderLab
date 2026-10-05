@@ -112,15 +112,17 @@ function loadSaved(definition: Teach) {
   }
 }
 
-function persist(definition: Teach, values: Record<string, TeachingValue>, userCode: TeachingState['userCode'], cameraPose: CameraPose) {
-  if (!browser) return;
+/** A camera the user never moved is not saved: it would pin the view and disable the automatic framing. */
+function persisted(state: TeachingState) {
+  if (!browser || !state.definition) return state;
   try {
-    localStorage.setItem(`${STORAGE_PREFIX}${definition.id}:${definition.contentVersion}`, JSON.stringify({
-      userCode,
-      parameters: values,
-      cameraPose
+    localStorage.setItem(`${STORAGE_PREFIX}${state.definition.id}:${state.definition.contentVersion}`, JSON.stringify({
+      userCode: state.userCode,
+      parameters: state.values,
+      cameraPose: state.cameraPoseSaved ? state.cameraPose : undefined
     } satisfies TeachingUserWorkspace));
   } catch { /* storage is optional */ }
+  return state;
 }
 
 function createTeachingStore() {
@@ -155,9 +157,7 @@ function createTeachingStore() {
     setValue(id: string, value: TeachingValue) {
       store.update(state => {
         if (!state.definition) return state;
-        const values = { ...state.values, [id]: value };
-        persist(state.definition, values, state.userCode, state.cameraPose);
-        return { ...state, values };
+        return persisted({ ...state, values: { ...state.values, [id]: value } });
       });
     },
     resetValue(id: string) {
@@ -165,32 +165,26 @@ function createTeachingStore() {
         if (!state.definition || !(id in state.values)) return state;
         const values = { ...state.values };
         delete values[id];
-        persist(state.definition, values, state.userCode, state.cameraPose);
-        return { ...state, values };
+        return persisted({ ...state, values });
       });
     },
     setValues(nextValues: Record<string, TeachingValue>) {
       store.update(state => {
         if (!state.definition) return state;
-        const values = { ...state.values, ...nextValues };
-        persist(state.definition, values, state.userCode, state.cameraPose);
-        return { ...state, values };
+        return persisted({ ...state, values: { ...state.values, ...nextValues } });
       });
     },
     applyPreset(values: Record<string, TeachingValue>) {
       store.update(state => {
         if (!state.definition) return state;
-        const nextValues = { ...values };
-        persist(state.definition, nextValues, state.userCode, state.cameraPose);
-        return { ...state, values: nextValues };
+        return persisted({ ...state, values: { ...values } });
       });
     },
     /** Drops every override so each control falls back to the default in its @control annotation. */
     resetValues() {
       store.update(state => {
         if (!state.definition) return state;
-        persist(state.definition, {}, state.userCode, state.cameraPose);
-        return { ...state, values: {} };
+        return persisted({ ...state, values: {} });
       });
     },
     setCode(source: 'vertex' | 'fragment', code: string) {
@@ -200,15 +194,13 @@ function createTeachingStore() {
         const userCode = { ...state.userCode };
         if (code === (defaultCode ?? '')) delete userCode[source];
         else userCode[source] = code;
-        persist(state.definition, state.values, userCode, state.cameraPose);
-        return { ...state, userCode };
+        return persisted({ ...state, userCode });
       });
     },
     setCameraPose(cameraPose: CameraPose) {
       store.update(state => {
         if (!state.definition || (state.cameraPoseSaved && JSON.stringify(state.cameraPose) === JSON.stringify(cameraPose))) return state;
-        persist(state.definition, state.values, state.userCode, cameraPose);
-        return { ...state, cameraPose, cameraPoseSaved: true };
+        return persisted({ ...state, cameraPose, cameraPoseSaved: true });
       });
     }
   };

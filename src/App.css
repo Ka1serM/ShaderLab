@@ -994,3 +994,18 @@ body {
     flex-basis: auto;
   }
 }
+
+.navigation-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 200;
+  height: 3px;
+  transform-origin: left;
+  background: var(--app-red);
+  animation: navigation-progress 8s cubic-bezier(.1, .6, .2, 1) both;
+}
+
+@keyframes navigation-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(.9); }
+}

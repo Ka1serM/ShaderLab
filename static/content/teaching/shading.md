@@ -7,14 +7,17 @@ shaderStages:
   - fragment
 scenes:
   - label: Sphere
+    frameBox: [[-3.3, -1.05, -1.05], [3.3, 1.05, 1.05]]
     objects:
       - source: models/SphereLowPoly.glb
         instanceCount: 3
   - label: Teapot
+    frameBox: [[-3.3, -1.05, -1.05], [3.3, 1.05, 1.05]]
     objects:
       - source: models/Teapot.glb
         instanceCount: 3
   - label: David
+    frameBox: [[-3.3, -1.05, -1.05], [3.3, 1.05, 1.05]]
     objects:
       - source: models/HeadDavid.glb
         instanceCount: 3

@@ -9,7 +9,8 @@ camera:
   target: [0, 0, 0]
   fov: 30
 scenes:
-  - objects:
+  - frameBox: [[-1.4, -1.3, -0.3], [1.4, 4.95, 0.3]]
+    objects:
       - source: models/Gear.glb
         instanceCount: 3
 ---

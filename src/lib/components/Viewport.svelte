@@ -5,6 +5,7 @@
   import type { ShaderReadbackRequest, ShaderReadbackValue } from '$lib/renderer/shaderReadback';
   import { rewriteRowMajorMatrixLiterals } from '$lib/utils/glslMatrixLiterals';
   import MaximizeButton from './MaximizeButton.svelte';
+  import LoadingOverlay from './LoadingOverlay.svelte';
   import Play from 'phosphor-svelte/lib/PlayIcon';
   import Pause from 'phosphor-svelte/lib/PauseIcon';
   import { maximizedPanel } from '$lib/stores/panelStore';
@@ -62,6 +63,9 @@
   let container: HTMLDivElement;
   let viewport: Renderer;
   let mounted = false;
+  let loading = true;
+  let webglUnavailable = false;
+  let loadToken = 0;
   let previousRenderKey = '';
   let previousSceneIndex = 0;
   let previousVertexShader = '';
@@ -138,6 +142,8 @@
 
   function replaceTaskState() {
     clearTimeout(shaderUpdateTimer);
+    loading = true;
+    const token = ++loadToken;
     void viewport.replaceTaskState({
       inputs,
       uniformValues,
@@ -146,23 +152,32 @@
       vertexShader: compiledVertexShader(),
       fragmentShader: compiledFragmentShader(),
       scene: resolvedScene()
+    }).finally(() => {
+      if (token === loadToken) loading = false;
     });
   }
 
   onMount(() => {
-    viewport = new Renderer({
-      container, vertexShader: compiledVertexShader(), fragmentShader: compiledFragmentShader(), inputs, uniformValues, cameraPose, cameraPoseSaved,
-      overlays,
-      onTransformChange,
-      onVectorChange,
-      onGizmoSelectionChange: selection => gizmoSelection = selection,
-      shaderLineOffsets: shaderLineOffsets(),
-      reportErrors,
-      onCameraChange,
-      onShaderErrors: reportShaderErrors,
-      shaderReadbacks,
-      onShaderReadbacks
-    });
+    try {
+      viewport = new Renderer({
+        container, vertexShader: compiledVertexShader(), fragmentShader: compiledFragmentShader(), inputs, uniformValues, cameraPose, cameraPoseSaved,
+        overlays,
+        onTransformChange,
+        onVectorChange,
+        onGizmoSelectionChange: selection => gizmoSelection = selection,
+        shaderLineOffsets: shaderLineOffsets(),
+        reportErrors,
+        onCameraChange,
+        onShaderErrors: reportShaderErrors,
+        shaderReadbacks,
+        onShaderReadbacks
+      });
+    } catch (error) {
+      console.error('Viewport could not be created:', error);
+      webglUnavailable = true;
+      loading = false;
+      return;
+    }
     // Apply every prop explicitly on mount. Teaching initializes its shader
     // controls in the same update that mounts the viewport, so relying on a
     // later reactive run can leave its material in an incomplete state until
@@ -232,6 +247,8 @@
     {/if}
     <div class="viewport-overlay-controls relative flex min-h-0 flex-1 items-start gap-2 p-3">
       <div bind:this={container} class="absolute inset-0 h-full w-full overflow-hidden rounded-md" style="background: var(--viewport-background);"></div>
+      {#if loading}<LoadingOverlay label="Loading scene" />{/if}
+      {#if webglUnavailable}<p class="absolute inset-0 z-10 flex items-center justify-center p-6 text-center text-sm text-muted-foreground" role="alert">WebGL is unavailable, so this viewport cannot render.</p>{/if}
       {#if scenes.length > 1}
         <ToggleGroup.Root
           type="single"

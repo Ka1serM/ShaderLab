@@ -52,7 +52,7 @@
       >Tasks</a>
       <div class="top-navigation-dropdown" aria-label="Tasks">
         <div class="top-navigation-card-grid">
-          {#each $taskCatalog as task}
+          {#each $taskCatalog ?? [] as task}
             {@const path = resolve(`/task/${slugify(task.title)}/`)}
             <LibraryCard href={path} category={task.category} title={task.title} description={preview(task.task)} kind="task" compact active={isActive(path)} />
           {/each}
@@ -68,7 +68,7 @@
       >Teaching demos</a>
       <div class="top-navigation-dropdown" aria-label="Teaching demos">
         <div class="top-navigation-card-grid">
-          {#each $teachingCatalog as demo}
+          {#each $teachingCatalog ?? [] as demo}
             {@const path = resolve(`/teach/${demo.id}/`)}
             <LibraryCard href={path} category={demo.category} title={demo.title} description={preview(demo.overview)} kind="teaching" compact active={isActive(path)} />
           {/each}
