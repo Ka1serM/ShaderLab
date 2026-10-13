@@ -1,5 +1,6 @@
 <script lang="ts">
-  import ControlResetButton from './ControlResetButton.svelte';
+  import ControlField from './ControlField.svelte';
+  import { Slider } from '$lib/components/ui/slider';
 
   export let value = 0;
   export let label = '';
@@ -11,9 +12,9 @@
   export let onReset: (() => void) | undefined = undefined;
 </script>
 
-<div class="teaching-control-body">
-  <div class="teaching-control-heading"><span class="teaching-control-label">{label}</span><div class="teaching-control-heading-actions"><output class="teaching-control-value">{value.toFixed(step < 1 ? 2 : 0)}</output><ControlResetButton {label} {onReset} /></div></div>
+<ControlField {label} {onReset}>
   {#if !readOnly}
-    <input aria-label={label} type="range" {min} {max} {step} {value} oninput={(event) => onChange(Number((event.currentTarget as HTMLInputElement).value))} class="teaching-range" />
+    <Slider type="single" aria-label={label} {min} {max} {step} {value} onValueChange={onChange} class="py-1.5 [&_[data-slot=slider-range]]:bg-foreground [&_[data-slot=slider-thumb]]:border-foreground [&_[data-slot=slider-thumb]]:ring-foreground/15" />
   {/if}
-</div>
+  <output class="teaching-control-value">{value.toFixed(step < 1 ? 2 : 0)}</output>
+</ControlField>

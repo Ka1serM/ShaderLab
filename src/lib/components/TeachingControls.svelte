@@ -5,6 +5,7 @@
   import Vector3Control from './teaching/Vector3Control.svelte';
   import CheckboxControl from './teaching/CheckboxControl.svelte';
   import Matrix4Control from './teaching/Matrix4Control.svelte';
+  import OptionsControl from './teaching/OptionsControl.svelte';
 
   export let definition: Teach;
   export let controls: TeachingControl[] = [];
@@ -19,13 +20,15 @@
     <!-- Read values inline: a helper call would be untracked and stop reflecting external changes. -->
     {@const current = values[control.id] ?? control.default}
     {@const reset = control.uniform ? () => teachingStore.resetValue(control.id) : undefined}
-    <div class="teaching-control-slot">
+    <div>
       {#if control.type === 'slider'}
         <SliderControl label={control.label} value={current as number} min={control.min ?? 0} max={control.max ?? 1} step={control.step ?? 0.01} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} onReset={reset} />
       {:else if control.type === 'color'}
         <ColorControl label={control.label} value={current as string | number[]} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} onReset={reset} />
       {:else if control.type === 'checkbox'}
         <CheckboxControl label={control.label} value={current as boolean} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} onReset={reset} />
+      {:else if control.type === 'options'}
+        <OptionsControl label={control.label} value={current as number} options={control.options ?? []} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} onReset={reset} />
       {:else if control.type === 'matrix4'}
         <Matrix4Control label={control.label} value={current as number[]} step={control.step ?? 0.1} readOnly={control.readOnly ?? false} onChange={(value) => teachingStore.setValue(control.id, value)} onReset={reset} />
       {:else}

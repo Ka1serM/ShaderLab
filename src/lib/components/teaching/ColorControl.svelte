@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ControlResetButton from './ControlResetButton.svelte';
+  import ControlField from './ControlField.svelte';
 
   export let value: string | number[] = [0, 0, 0];
   export let label = '';
@@ -19,15 +19,11 @@
   }
 
   $: hex = toHex(value);
-  $: displayRgb = typeof value === 'string'
-    ? value
-    : `rgb(${value.map(n => Math.round(n * 255)).join(', ')})`;
 </script>
 
-<div class="teaching-control-body">
-  <div class="teaching-control-heading"><span class="teaching-control-label">{label}</span><div class="teaching-control-heading-actions"><output class="teaching-control-value">{hex}</output><ControlResetButton {label} {onReset} /></div></div>
+<ControlField {label} {onReset}>
   <label class="teaching-color-picker">
+    <span class="teaching-color-hex">{hex}</span>
     <input aria-label={label} type="color" value={hex} disabled={readOnly} oninput={(event) => onChange(fromHex((event.currentTarget as HTMLInputElement).value))} />
-    <span class="teaching-color-rgb">{displayRgb}</span>
   </label>
-</div>
+</ControlField>

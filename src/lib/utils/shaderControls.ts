@@ -3,7 +3,7 @@ export type TeachingValue = number | number[] | string | boolean;
 export interface TeachingControl {
 	id: string;
 	label: string;
-	type: 'slider' | 'vector3' | 'vector4' | 'color' | 'checkbox' | 'matrix4';
+	type: 'slider' | 'vector3' | 'vector4' | 'color' | 'checkbox' | 'matrix4' | 'options';
 	min?: number;
 	max?: number;
 	step?: number;
@@ -16,6 +16,10 @@ export interface TeachingControl {
 	inverse?: string;
 	pivot?: string;
 	transform?: 'translate' | 'rotate' | 'scale';
+	/** Scene object index that a `transform` control belongs to. Without it, the transform belongs to every object. */
+	object?: number;
+	/** Labels of an `options` control; its int uniform holds the index of the selected label. */
+	options?: string[];
 	default: TeachingValue;
 	uniform?: string;
 	readback?: string;
@@ -135,9 +139,14 @@ export function parseShaderControls(source: string): TeachingControl[] {
 		const attributes = parseAttributes(attributeSource);
 		if (!attributes) continue;
 		const declaredType = declarationMatch[1];
-		const type = attributes.display === undefined
-			? TYPES[declaredType]
-			: attributes.display === 'color' && declaredType === 'vec3' ? 'color' : undefined;
+		const options = !isReadback && declaredType === 'int' && attributes.options
+			? attributes.options.split(',').map(option => option.trim())
+			: undefined;
+		const type = options
+			? 'options'
+			: attributes.display === undefined
+				? TYPES[declaredType]
+				: attributes.display === 'color' && declaredType === 'vec3' ? 'color' : undefined;
 		// Half-typed annotations and unsupported declarations are skipped rather than rendered broken.
 		if (!type || (isReadback && !READBACK_DECLARATIONS[type])) continue;
 		const uniform = isReadback ? undefined : id;
@@ -170,6 +179,8 @@ export function parseShaderControls(source: string): TeachingControl[] {
 			inverse: attributes.inverse,
 			pivot: transform === 'translate' ? attributes.pivot : undefined,
 			transform,
+			object: transform && Number.isInteger(finiteAttribute('object')) ? finiteAttribute('object') : undefined,
+			options,
 			default: isReadback ? readbackInitialValue(type) : parseDefault(type, attributes.default),
 			uniform,
 			readback
@@ -187,6 +198,7 @@ function fits(type: TeachingControl['type'], value: TeachingValue | undefined) {
 		case 'color': return (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)) || (Array.isArray(value) && value.length === 3 && value.every(Number.isFinite));
 		case 'checkbox': return typeof value === 'boolean';
 		case 'slider': return typeof value === 'number';
+		case 'options': return Number.isInteger(value);
 		default: return value !== undefined;
 	}
 }

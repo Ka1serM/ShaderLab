@@ -28,7 +28,6 @@
   let defaultEditorSources: Partial<Record<TeachingShaderSource, string>> = {};
   let displayedValues: Record<string, TeachingValue> = {};
   let readbackValues: Record<string, ShaderReadbackValue> = {};
-  let readbackValuesKey = '';
   let shaderDiagnostics: { vertex: GLSLError[]; fragment: GLSLError[] } = { vertex: [], fragment: [] };
   let splitterSizes: SplitterSizes = { ...defaultSplitterSizes };
   let loadedSplitterKey = '';
@@ -80,18 +79,14 @@
     const type = readbackType(control);
     return control.readback && type ? [{ id: control.id, variable: control.readback, type }] : [];
   });
-  $: transformBinding = bindShaderTransforms(controls, values);
-  $: transformModes = transformBinding.modes;
-  $: viewportOverlays = transformModes.length ? {
-    ...definition?.overlays,
-    transformControls: {
-      ...definition?.overlays?.transformControls,
-      modes: transformModes,
-      mode: transformModes.includes(definition?.overlays?.transformControls?.mode ?? 'translate')
-        ? definition?.overlays?.transformControls?.mode ?? 'translate'
-        : transformModes[0]
-    }
-  } : definition?.overlays;
+  // The object that the last click selected. The gizmo edits its transform controls.
+  let selectedObject = 0;
+  $: transformBinding = bindShaderTransforms(controls, displayedValues, selectedObject);
+  // Transform controls enable the gizmo. A page can also enable it with `overlays.transformControls`.
+  $: hasTransformControls = controls.some(control => control.transform);
+  $: viewportOverlays = hasTransformControls && !definition?.overlays?.transformControls
+    ? { ...definition?.overlays, transformControls: {} }
+    : definition?.overlays;
   $: transformState = transformBinding.state;
   $: displayedValues = {
     ...values,
@@ -122,6 +117,10 @@
     return undefined;
   }
 
+  function selectObject(objectIndex: number | undefined) {
+    if (objectIndex !== undefined) selectedObject = objectIndex;
+  }
+
   function applyTransform(transform: ViewportTransform) {
     const updates = transformBinding.transformUpdates(transform);
     if (Object.keys(updates).length) teachingStore.setValues(updates);
@@ -135,15 +134,19 @@
   function updateTeachingCode(source: TeachingShaderSource, value: string) {
     shaderDiagnostics = { vertex: [], fragment: [] };
     readbackValues = {};
-    readbackValuesKey = '';
     teachingStore.setCode(source, value);
   }
 
+  function sameReadbackValue(previous: ShaderReadbackValue | undefined, next: ShaderReadbackValue) {
+    if (!Array.isArray(previous) || !Array.isArray(next)) return previous === next;
+    return previous.length === next.length && next.every((component, index) => component === previous[index]);
+  }
+
   function applyShaderReadbacks(values: Record<string, ShaderReadbackValue>) {
-    const key = JSON.stringify(values);
-    if (key === readbackValuesKey) return;
-    readbackValuesKey = key;
-    readbackValues = values;
+    const ids = Object.keys(values);
+    const unchanged = ids.length === Object.keys(readbackValues).length
+      && ids.every(id => sameReadbackValue(readbackValues[id], values[id]));
+    if (!unchanged) readbackValues = values;
   }
 
   $: uniformValues = Object.fromEntries(
@@ -199,6 +202,7 @@
                       {transformState}
                       {vectorVisualizations}
                       onTransformChange={applyTransform}
+                      onObjectSelect={selectObject}
                       onVectorChange={teachingStore.setValue}
                       reportErrors={true}
                       {errorLineOffsets}
@@ -236,6 +240,7 @@
                 {transformState}
                 {vectorVisualizations}
                 onTransformChange={applyTransform}
+                onObjectSelect={selectObject}
                 onVectorChange={teachingStore.setValue}
                 reportErrors={true}
                 {errorLineOffsets}

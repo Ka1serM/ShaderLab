@@ -34,6 +34,7 @@ precision highp float;
 // @prefix
 
 in vec3 vNormal;
+
 out vec4 fragColor;
 
 void main() {
@@ -44,7 +45,6 @@ void main() {
 
 # Reference Vertex Shader
 ```glsl
-
 precision highp float;
 
 in vec3 position;
@@ -58,24 +58,27 @@ out vec3 vNormal;
 
 void main() {
   vNormal = normalize(normalMatrix * normal);
+
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 ```
 
 # Reference Fragment Shader
 ```glsl
-
 precision highp float;
 
 in vec3 vNormal;
+
 out vec4 fragColor;
 
 void main() {
   vec3 normal = normalize(vNormal);
   vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));
   vec3 baseColor = vec3(0.8, 0.4, 0.2);
+
   float diffuse = max(dot(normal, lightDir), 0.0);
   vec3 color = baseColor * diffuse;
+
   fragColor = vec4(color, 1.0);
 }
 ```

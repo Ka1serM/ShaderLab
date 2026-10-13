@@ -17,10 +17,13 @@
   import ResetButton from './ResetButton.svelte';
   import LoadingOverlay from './LoadingOverlay.svelte';
   import { maximizedPanel } from '$lib/stores/panelStore';
+  import { editorFontSize, DEFAULT_EDITOR_FONT_SIZE } from '$lib/stores/editorStore';
   import { maximizable } from '$lib/actions/maximizable';
   import Users from 'phosphor-svelte/lib/UsersIcon';
   import Copy from 'phosphor-svelte/lib/CopyIcon';
   import SignOut from 'phosphor-svelte/lib/SignOutIcon';
+  import ZoomIn from 'phosphor-svelte/lib/MagnifyingGlassPlusIcon';
+  import ZoomOut from 'phosphor-svelte/lib/MagnifyingGlassMinusIcon';
   import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker';
   import { toast } from 'svelte-sonner';
 
@@ -60,6 +63,15 @@
   let collaborationLifecycle = 0;
   let currentWorkspaceKey = workspaceKey;
   const PUBLIC_SIGNALING_SERVERS = ['wss://y-webrtc-eu.fly.dev'];
+
+  // Registered manually: the listener must be non-passive to stop the browser
+  // page zoom, and capturing so Monaco does not also scroll the content.
+  function handleZoomWheel(event: WheelEvent) {
+    if (!event.ctrlKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+    editorFontSize.set($editorFontSize + (event.deltaY < 0 ? 1 : -1));
+  }
 
   function updateTheme() {
     if (!editor || !monaco) return;
@@ -293,13 +305,16 @@
     createSourceModels();
     const initialModel = models[activeSource] ?? models[visibleSources[0]];
     if (!initialModel) return;
-    editor = monaco.editor.create(container, { model: initialModel, minimap: { enabled: false }, fontSize: 14, lineNumbers: 'on', automaticLayout: true, scrollBeyondLastLine: true, renderWhitespace: 'selection', tabSize: 2, glyphMargin: true });
+    editor = monaco.editor.create(container, { model: initialModel, minimap: { enabled: false }, fontSize: $editorFontSize, lineNumbers: 'on', automaticLayout: true, scrollBeyondLastLine: true, renderWhitespace: 'selection', tabSize: 2, glyphMargin: true });
+    container.addEventListener('wheel', handleZoomWheel, { capture: true, passive: false });
     updateTheme();
     observer = new MutationObserver(updateTheme); observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     applyDiagnostics();
     const token = collaborationParameters();
     if (token) await startCollaboration(await roomNameFromToken(token), token, false);
   }
+
+  $: editor?.updateOptions({ fontSize: $editorFontSize });
 
   $: if (editor && monaco) {
     // Keep diagnostics as an explicit dependency of this reactive block. Svelte
@@ -338,13 +353,13 @@
     else onSourceChange(activeSource, value);
   }
   onMount(setup);
-  onDestroy(() => { destroyed = true; disconnectCollaboration(false, false); for (const listener of modelListeners) listener.dispose(); editor?.dispose(); for (const sourceModel of Object.values(models)) sourceModel?.dispose(); decoration?.clear(); observer?.disconnect(); });
+  onDestroy(() => { destroyed = true; container?.removeEventListener('wheel', handleZoomWheel, { capture: true }); disconnectCollaboration(false, false); for (const listener of modelListeners) listener.dispose(); editor?.dispose(); for (const sourceModel of Object.values(models)) sourceModel?.dispose(); decoration?.clear(); observer?.disconnect(); });
 </script>
 
 <div use:maximizable={{ active: $maximizedPanel === editorId }} class="workspace-panel">
   <Tabs.Root data-tutorial="editor" value={activeSource} onValueChange={(value) => handleSourceChange(value as ShaderSource)} class="app-editor flex h-full flex-col overflow-hidden rounded-md bg-background">
-    <div class="flex shrink-0 items-center justify-between"><Tabs.List class="h-10 justify-start gap-0 bg-muted/25 p-0">{#each visibleSources as source}<Tabs.Trigger value={source} class="h-10 border-none px-4 transition-colors hover:bg-muted/50 data-[state=active]:bg-background">{source}.glsl</Tabs.Trigger>{/each}</Tabs.List><div class="flex items-center gap-1">{#if collaborationRoom}<span class="collaboration-status" title={collaborationConnected ? 'Live collaboration active' : 'Connecting'}><Users class="h-3.5 w-3.5" />Live</span><button class="collaboration-button" title="Copy invite link" onclick={copyCollaborationLink}><Copy class="h-4 w-4" /></button><button class="collaboration-button" title="Leave collaboration and continue locally" onclick={leaveCollaboration}><SignOut class="h-4 w-4" /></button>{:else}<button class="collaboration-button" title="Collaborate" onclick={createCollaboration}><Users class="h-4 w-4" /></button>{/if}<MaximizeButton isMaximized={$maximizedPanel === editorId} onClick={() => $maximizedPanel = $maximizedPanel === editorId ? null : editorId} /><ResetButton description={`Reset ${activeSource}.glsl to its starter code?`} onReset={resetCurrentSource} /></div></div>
-    <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">{#if !editor}<LoadingOverlay label="Loading editor" />{/if}<div bind:this={container} class="relative min-h-0 w-full flex-1 overflow-hidden rounded-md"></div>{#if showErrorConsole}<div class="shader-error-console shrink-0 p-2 font-mono text-xs"><div class="mb-1 flex items-center justify-between"><span class="shader-error-title font-semibold">SHADER-FEHLER ({errorList.length})</span><button class="shader-error-close" onclick={() => showErrorConsole = false}>✕</button></div><div class="max-h-48 space-y-1 overflow-auto">{#each errorList as error}<button class="shader-error-entry flex w-full gap-2 rounded px-1 text-left" onclick={() => jumpToError(error)}><span class="shader-error-location">[{error.type}:{error.line}]</span><span>{error.message}</span></button>{/each}</div></div>{/if}</div>
+    <div class="flex shrink-0 items-center justify-between"><Tabs.List class="h-10 justify-start gap-0 bg-muted/25 p-0">{#each visibleSources as source}<Tabs.Trigger value={source} class="h-10 border-none px-4 transition-colors hover:bg-muted/50 data-[state=active]:bg-background">{source}.glsl</Tabs.Trigger>{/each}</Tabs.List><div class="flex items-center gap-1">{#if collaborationRoom}<span class="collaboration-status" title={collaborationConnected ? 'Live collaboration active' : 'Connecting'}><Users class="h-3.5 w-3.5" />Live</span><button class="collaboration-button" title="Copy invite link" onclick={copyCollaborationLink}><Copy class="h-4 w-4" /></button><button class="collaboration-button" title="Leave collaboration and continue locally" onclick={leaveCollaboration}><SignOut class="h-4 w-4" /></button>{:else}<button class="collaboration-button" title="Collaborate" onclick={createCollaboration}><Users class="h-4 w-4" /></button>{/if}<button class="collaboration-button" title="Decrease font size (Ctrl + scroll)" onclick={() => editorFontSize.set($editorFontSize - 1)}><ZoomOut class="h-4 w-4" /></button><button class="font-size-label" title="Reset font size" onclick={() => editorFontSize.set(DEFAULT_EDITOR_FONT_SIZE)}>{$editorFontSize}px</button><button class="collaboration-button" title="Increase font size (Ctrl + scroll)" onclick={() => editorFontSize.set($editorFontSize + 1)}><ZoomIn class="h-4 w-4" /></button><MaximizeButton isMaximized={$maximizedPanel === editorId} onClick={() => $maximizedPanel = $maximizedPanel === editorId ? null : editorId} /><ResetButton description={`Reset ${activeSource}.glsl to its starter code?`} onReset={resetCurrentSource} /></div></div>
+    <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">{#if !editor}<LoadingOverlay label="Loading editor" />{/if}<div bind:this={container} class="relative min-h-0 w-full flex-1 overflow-hidden rounded-md"></div>{#if showErrorConsole}<div class="shader-error-console shrink-0 p-2 font-mono text-xs"><div class="mb-1 flex items-center justify-between"><span class="shader-error-title font-semibold">SHADER ERRORS ({errorList.length})</span><button class="shader-error-close" onclick={() => showErrorConsole = false}>✕</button></div><div class="max-h-48 space-y-1 overflow-auto">{#each errorList as error}<button class="shader-error-entry flex w-full gap-2 rounded px-1 text-left" onclick={() => jumpToError(error)}><span class="shader-error-location">[{error.type}:{error.line}]</span><span>{error.message}</span></button>{/each}</div></div>{/if}</div>
   </Tabs.Root>
 </div>
 
@@ -357,6 +372,8 @@
   .collaboration-button { display: flex; width: 1.75rem; height: 1.75rem; flex: none; align-items: center; justify-content: center; border-radius: .375rem; color: var(--muted-foreground); transition: color .15s, background .15s; }
   .collaboration-button:hover { color: #bf2732; background: rgb(191 39 50 / 10%); }
   .collaboration-status { display: inline-flex; height: 1.5rem; align-items: center; justify-content: center; gap: .25rem; border: 1px solid #bf2732; border-radius: 999px; padding: 0 .5rem; color: #bf2732; font-size: .6875rem; white-space: nowrap; }
+  .font-size-label { min-width: 2.5rem; height: 1.75rem; border-radius: .375rem; color: var(--muted-foreground); font-size: .6875rem; font-variant-numeric: tabular-nums; transition: color .15s, background .15s; }
+  .font-size-label:hover { color: #bf2732; background: rgb(191 39 50 / 10%); }
   :global(.yRemoteSelection) { background: rgb(191 39 50 / 18%); }
   :global(.yRemoteSelectionHead) { border-left: 2px solid #bf2732; }
 </style>

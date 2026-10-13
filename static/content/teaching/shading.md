@@ -39,14 +39,19 @@ uniform float time;
 
 // @control display=color label="Ambient" default="0.05,0.05,0.05"
 uniform vec3 uAmbient;
+
 // @control display=color label="Diffuse Kd" default="0.5,0.5,0.5"
 uniform vec3 uKd;
+
 // @control display=color label="Specular Ks" default="1,1,1"
 uniform vec3 uKs;
+
 // @control label="Shininess n" min=1 max=256 step=1 default=32
 uniform float uShininess;
+
 // @control label="Light Direction" default="1,1,1" visualize=vector
 uniform vec3 uLightDir;
+
 uniform vec3 cameraPosition;
 
 flat out int vShadingMode;
@@ -58,6 +63,7 @@ vec3 phongIllumination(vec3 worldPosition, vec3 worldNormal) {
     worldNormal = normalize(worldNormal);
     vec3 lightDir = normalize(uLightDir);
     vec3 viewDir = normalize(cameraPosition - worldPosition);
+
     float nDotL = dot(worldNormal, lightDir);
     float diffuseFactor = 0.0;
     if (nDotL > 0.0) {
@@ -73,16 +79,18 @@ vec3 phongIllumination(vec3 worldPosition, vec3 worldNormal) {
 
     vec3 diffuse = uKd * diffuseFactor;
     vec3 specular = uKs * specularFactor;
+
     return uAmbient + diffuse + specular;
 }
 
 mat4 rotationYMatrix(float angle) {
     float c = cos(angle);
     float s = sin(angle);
+
     return mat4(
-        c, 0.0, -s, 0.0,
+          c, 0.0,  -s, 0.0,
         0.0, 1.0, 0.0, 0.0,
-        s, 0.0, c, 0.0,
+          s, 0.0,   c, 0.0,
         0.0, 0.0, 0.0, 1.0
     );
 }
@@ -102,13 +110,19 @@ void main() {
     mat4 shadingMatrix = translationMatrix(vec3(float(gl_InstanceID - 1) * 2.2, 0.0, 0.0));
     mat4 localRotation = rotationYMatrix(time * 0.1);
     mat4 instanceModelMatrix = modelMatrix * instanceMatrix * shadingMatrix * localRotation;
+
     vec4 worldPosition = instanceModelMatrix * vec4(position, 1.0);
     vWorldPosition = worldPosition.xyz;
     vWorldNormal = normalize(mat3(transpose(inverse(instanceModelMatrix))) * normal);
 
     vColor = phongIllumination(vWorldPosition, vWorldNormal);
 
-    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * shadingMatrix * localRotation * vec4(position, 1.0);
+    gl_Position = projectionMatrix
+                * modelViewMatrix
+                * instanceMatrix
+                * shadingMatrix
+                * localRotation
+                * vec4(position, 1.0);
 }
 ```
 
@@ -135,6 +149,7 @@ vec3 phongIllumination(vec3 worldPosition, vec3 worldNormal) {
     worldNormal = normalize(worldNormal);
     vec3 lightDir = normalize(uLightDir);
     vec3 viewDir = normalize(cameraPosition - worldPosition);
+
     float nDotL = dot(worldNormal, lightDir);
     float diffuseFactor = 0.0;
     if (nDotL > 0.0) {
@@ -150,6 +165,7 @@ vec3 phongIllumination(vec3 worldPosition, vec3 worldNormal) {
 
     vec3 diffuse = uKd * diffuseFactor;
     vec3 specular = uKs * specularFactor;
+
     return uAmbient + diffuse + specular;
 }
 
@@ -159,11 +175,13 @@ vec3 faceNormal() {
 
 void main() {
     vec3 color = vColor;
+
     if (vShadingMode == 0) {
         color = phongIllumination(vWorldPosition, faceNormal());
     } else if (vShadingMode == 2) {
         color = phongIllumination(vWorldPosition, normalize(vWorldNormal));
     }
+
     fragColor = vec4(color, 1.0);
 }
 ```

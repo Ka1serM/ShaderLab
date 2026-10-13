@@ -13,7 +13,7 @@ camera:
 inputs:
   - name: volumeTexture
     type: texture3D
-    init: textures/CTVolumeAtlas.raw
+    init: textures/CTVolumeAtlas.rawz
 title: Volumetric Raymarching
 ---
 
@@ -90,6 +90,7 @@ out vec2 vUv;
 
 void main() {
     vUv = uv * 2.0 - 1.0;
+
     gl_Position = vec4(position, 1.0);
 }
 ```
@@ -100,12 +101,13 @@ precision highp float;
 precision highp sampler3D;
 
 in vec2 vUv;
-out vec4 fragColor;
 
 uniform vec3 cameraPosition;
 uniform vec3 cameraDirection;
 uniform sampler3D volumeTexture;
 uniform ivec2 iResolution;
+
+out vec4 fragColor;
 
 const float maxDistance = 4.0;
 const int   maxSteps = 1024;
@@ -114,19 +116,20 @@ const vec3  lightDir = normalize(vec3(1.0, 1.0, 0.0));
 const float orthoScale = 0.5;
 
 vec3 ComputeGradient(vec3 samplePosition) {
-    vec3 H = 1.0 / vec3(textureSize(volumeTexture, 0)); 
+    vec3 H = 1.0 / vec3(textureSize(volumeTexture, 0));
+
     float Fx1 = texture(volumeTexture, clamp(samplePosition + vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
     float Fx2 = texture(volumeTexture, clamp(samplePosition - vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
     float Fy1 = texture(volumeTexture, clamp(samplePosition + vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
     float Fy2 = texture(volumeTexture, clamp(samplePosition - vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
     float Fz1 = texture(volumeTexture, clamp(samplePosition + vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
     float Fz2 = texture(volumeTexture, clamp(samplePosition - vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
+
     vec3 grad = vec3((Fx1 - Fx2), (Fy1 - Fy2), (Fz1 - Fz2)) / (2.0 * H);
     return grad;
 }
 
-vec4 TransferFunction(float density, float gradientMagnitude)
-{
+vec4 TransferFunction(float density, float gradientMagnitude) {
     const float huAir    = -800.0;
     const float huTissue =   50.0;
     const float huBone   =  700.0;
@@ -141,22 +144,19 @@ vec4 TransferFunction(float density, float gradientMagnitude)
 
     float alpha;
     vec3  color;
-    
+
     if (density <= huAir) {
         alpha = alphaAir;
         color = colorAir;
-    } 
-    else if (density < huTissue) {
+    } else if (density < huTissue) {
         float t = (density - huAir) / (huTissue - huAir);
         alpha = mix(alphaAir, alphaTissue, t);
         color = mix(colorAir, colorTissue, t);
-    } 
-    else if (density < huBone) {
+    } else if (density < huBone) {
         float t = (density - huTissue) / (huBone - huTissue);
         alpha = mix(alphaTissue, alphaBone, t);
         color = mix(colorTissue, colorBone, t);
-    } 
-    else {
+    } else {
         alpha = alphaBone;
         color = colorBone;
     }
@@ -167,66 +167,69 @@ vec4 TransferFunction(float density, float gradientMagnitude)
 }
 
 vec3 PhongShade(vec3 N, vec3 BaseColor, vec3 ViewDir, vec3 lightDir) {
-    const vec3 Ka = vec3(0.01); 
-    const vec3 Kd = vec3(1.0); 
-    const vec3 Ks = vec3(0.3); 
-    const float NExp = 120.0; 
+    const vec3 Ka = vec3(0.01);
+    const vec3 Kd = vec3(1.0);
+    const vec3 Ks = vec3(0.3);
+    const float NExp = 120.0;
 
-    vec3 H = normalize(ViewDir + lightDir); 
-    float Diff = max(dot(N, lightDir), 0.0); 
-    float Spec = pow(max(dot(N, H), 0.0), NExp); 
+    vec3 H = normalize(ViewDir + lightDir);
+    float Diff = max(dot(N, lightDir), 0.0);
+    float Spec = pow(max(dot(N, H), 0.0), NExp);
 
     return BaseColor * (Ka + Kd * Diff) + Ks * Spec;
 }
 
 void GenerateRay(out vec3 rayOrigin, out vec3 rayDirection) {
-    float Aspect = float(iResolution.x) / float(iResolution.y); 
+    float Aspect = float(iResolution.x) / float(iResolution.y);
     vec2 pixelPos = vUv;
-    pixelPos.x *= Aspect; 
+    pixelPos.x *= Aspect;
 
     vec3 forward = normalize(cameraDirection);
     vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
     vec3 up = cross(right, forward);
 
     rayDirection = forward;
-    rayOrigin = cameraPosition + pixelPos.x * right * orthoScale + pixelPos.y * up * orthoScale; 
+    rayOrigin = cameraPosition + pixelPos.x * right * orthoScale + pixelPos.y * up * orthoScale;
 }
 
 vec4 SampleVolume(vec3 textureCoord, vec3 rayDirection) {
     float rawValue = texture(volumeTexture, textureCoord).r;
     float density = rawValue - 1100.0;
-    
-    vec3 gradient = ComputeGradient(textureCoord); 
+
+    vec3 gradient = ComputeGradient(textureCoord);
     float gradMag = length(gradient);
 
-    vec4 material = TransferFunction(density, gradMag); 
-    
-    vec3 shadedColor = PhongShade(normalize(-gradient), material.rgb, normalize(-rayDirection), lightDir); 
+    vec4 material = TransferFunction(density, gradMag);
 
-    return vec4(shadedColor, material.a); 
+    vec3 shadedColor = PhongShade(normalize(-gradient), material.rgb, normalize(-rayDirection), lightDir);
+
+    return vec4(shadedColor, material.a);
 }
 
 vec3 Raymarch(vec3 rayOrigin, vec3 rayDirection) {
     vec3 accumulatedColor = vec3(0.0);
     int totalSteps = min(int(maxDistance / stepSize), maxSteps);
 
-    for (int i = totalSteps - 1; i >= 0; --i) {     
-        float t = float(i) * stepSize;         
+    for (int i = totalSteps - 1; i >= 0; --i) {
+        float t = float(i) * stepSize;
         vec3 currentPosition = rayOrigin + rayDirection * t;
         vec3 textureCoord = currentPosition + 0.5;
 
-        if (textureCoord.x < 0.0 || textureCoord.y < 0.0 || textureCoord.z < 0.0 || 
-            textureCoord.x > 1.0 || textureCoord.y > 1.0 || textureCoord.z > 1.0)
+        if (textureCoord.x < 0.0 || textureCoord.y < 0.0 || textureCoord.z < 0.0 ||
+            textureCoord.x > 1.0 || textureCoord.y > 1.0 || textureCoord.z > 1.0) {
             continue;
+        }
 
         vec4 src = SampleVolume(textureCoord, rayDirection);
         accumulatedColor = src.rgb * src.a + accumulatedColor * (1.0 - src.a);
     }
+
     return accumulatedColor;
 }
 
 void main() {
     vec3 rayOrigin, rayDirection;
+
     GenerateRay(rayOrigin, rayDirection);
 
     vec3 finalColor = Raymarch(rayOrigin, rayDirection);
@@ -242,12 +245,13 @@ precision highp float;
 precision highp sampler3D;
 
 in vec2 vUv;
-out vec4 fragColor;
 
 uniform vec3 cameraPosition;
 uniform vec3 cameraDirection;
 uniform sampler3D volumeTexture;
 uniform ivec2 iResolution;
+
+out vec4 fragColor;
 
 const float maxDistance = 4.0;
 const int   maxSteps = 1024;
@@ -257,18 +261,25 @@ const float orthoScale = 0.5;
 
 vec3 ComputeGradient(vec3 samplePosition) {
     vec3 H = 1.0 / vec3(textureSize(volumeTexture, 0));
+
     float Fx1 = texture(volumeTexture, clamp(samplePosition + vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
     float Fx2 = texture(volumeTexture, clamp(samplePosition - vec3(H.x, 0.0, 0.0), 0.0, 1.0)).r;
     float Fy1 = texture(volumeTexture, clamp(samplePosition + vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
     float Fy2 = texture(volumeTexture, clamp(samplePosition - vec3(0.0, H.y, 0.0), 0.0, 1.0)).r;
     float Fz1 = texture(volumeTexture, clamp(samplePosition + vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
     float Fz2 = texture(volumeTexture, clamp(samplePosition - vec3(0.0, 0.0, H.z), 0.0, 1.0)).r;
+
     return vec3((Fx1 - Fx2), (Fy1 - Fy2), (Fz1 - Fz2)) / (2.0 * H);
 }
 
 vec3 PhongShade(vec3 N, vec3 BaseColor, vec3 ViewDir) {
-    const vec3 Ka = vec3(0.01); const vec3 Kd = vec3(1.0); const vec3 Ks = vec3(0.3); float NExp = 120.0;
+    const vec3 Ka = vec3(0.01);
+    const vec3 Kd = vec3(1.0);
+    const vec3 Ks = vec3(0.3);
+    float NExp = 120.0;
+
     vec3 H = normalize(ViewDir + lightDir);
+
     return BaseColor * (Ka + Kd * max(dot(N, lightDir), 0.0)) + Ks * pow(max(dot(N, H), 0.0), NExp);
 }
 
@@ -277,10 +288,13 @@ vec4 TransferFunction(float density, float gradientMagnitude);
 vec4 SampleVolume(vec3 samplePosition, vec3 rayDirection) {
     float rawValue = texture(volumeTexture, samplePosition).r;
     float density = rawValue - 1100.0;
+
     vec3 gradient = ComputeGradient(samplePosition);
     vec4 material = TransferFunction(density, length(gradient));
     material.a *= (1.0 - exp(-5.0 * length(gradient)));
+
     vec3 shadedColor = PhongShade(normalize(-gradient), material.rgb, -rayDirection);
+
     return vec4(shadedColor, material.a);
 }
 // @prefix
@@ -298,27 +312,20 @@ vec4 TransferFunction(float density, float gradientMagnitude) {
     vec3 color = vec3(1.0);
     float alpha = 0.0;
 
-
     if (density <= huAir) {
         alpha = 0.0;
         color = vec3(0.0);
-    }
-
-
-    else {
+    } else {
         alpha = alphaBone;
         color = colorBone;
     }
 
-    if (alpha == 0.0 && density > huAir) { alpha = 0.1; } 
+    if (alpha == 0.0 && density > huAir) {
+        alpha = 0.1;
+    }
 
     return vec4(color, alpha);
 }
-
-
-
-
-
 
 vec3 Raymarch(vec3 rayOrigin, vec3 rayDirection) {
     int totalSteps = min(int(maxDistance / stepSize), maxSteps);
@@ -328,17 +335,18 @@ vec3 Raymarch(vec3 rayOrigin, vec3 rayDirection) {
         float t = float(i) * stepSize;
         vec3 currentPosition = rayOrigin + rayDirection * t;
         vec3 textureCoord = currentPosition + 0.5;
-        if (any(lessThan(textureCoord, vec3(0.0))) || any(greaterThan(textureCoord, vec3(1.0)))) continue;
+
+        if (any(lessThan(textureCoord, vec3(0.0))) || any(greaterThan(textureCoord, vec3(1.0)))) {
+            continue;
+        }
 
         vec4 sourceSample = SampleVolume(textureCoord, rayDirection);
         // Compose sourceSample over accumulatedColor here.
     }
+
     // Keep the ray-coordinate fallback visible until compositing is complete.
     return vec3(-1.0);
 }
-
-
-
 
 void GenerateRay(out vec3 rayOrigin, out vec3 rayDirection) {
     float Aspect = float(iResolution.x) / float(iResolution.y);
@@ -353,37 +361,20 @@ void GenerateRay(out vec3 rayOrigin, out vec3 rayDirection) {
     rayOrigin = vec3(0.0);
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // @suffix
 void main() {
     vec3 rayOrigin, rayDirection;
+
     GenerateRay(rayOrigin, rayDirection);
 
     vec3 resultColor = Raymarch(rayOrigin, rayDirection);
 
     if (resultColor.x >= 0.0) {
         fragColor = vec4(resultColor, 1.0);
-    } 
-    else if (length(rayDirection) > 0.0) {
+    } else if (length(rayDirection) > 0.0) {
         fragColor = vec4(rayOrigin * 0.5 + 0.5, 1.0);
-    } 
-    else {
-        fragColor = vec4(vUv * 0.5 + 0.5, 0.0, 1.0); 
+    } else {
+        fragColor = vec4(vUv * 0.5 + 0.5, 0.0, 1.0);
     }
 }
 // @suffix

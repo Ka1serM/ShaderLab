@@ -2,11 +2,16 @@ import { Matrix4, Quaternion, Vector3 } from 'three';
 import type { TeachingControl, TeachingValue } from './shaderControls';
 import type { TransformMode, ViewportTransform } from '../renderer/Renderer';
 
-/** Shared annotation binding; no lesson IDs or uniform names are assumed. */
-export function bindShaderTransforms(controls: TeachingControl[], values: Record<string, TeachingValue>) {
-  const transforms = Object.fromEntries(controls.filter(control => control.transform).map(control => [control.transform, control])) as Partial<Record<TransformMode, TeachingControl>>;
+/**
+ * Shared annotation binding; no lesson IDs or uniform names are assumed.
+ * Binds the transform controls of the scene object `objectIndex`.
+ */
+export function bindShaderTransforms(controls: TeachingControl[], values: Record<string, TeachingValue>, objectIndex: number) {
+  const objectTransforms = controls.filter(control => control.transform && (control.object === undefined || control.object === objectIndex));
+  const transforms = Object.fromEntries(objectTransforms.map(control => [control.transform, control])) as Partial<Record<TransformMode, TeachingControl>>;
   const modes = (['translate', 'rotate', 'scale'] as TransformMode[]).filter(role => transforms[role]);
-  const pivotControl = controls.find(control => control.type === 'vector3' && control.uniform === transforms.translate?.pivot);
+  // The pivot can be a vec3 uniform or a vec3 readback that the shader derives.
+  const pivotControl = controls.find(control => control.type === 'vector3' && control.id === transforms.translate?.pivot);
   const pivot = new Vector3().fromArray(pivotControl ? values[pivotControl.id] as number[] : [0, 0, 0]);
   const matrix = (role: TransformMode) => {
     const control = transforms[role];

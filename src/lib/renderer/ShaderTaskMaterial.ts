@@ -170,7 +170,7 @@ export class ShaderTaskMaterial extends THREE.RawShaderMaterial {
 				let dataType: THREE.TextureDataType = THREE.FloatType;
 				let format: THREE.PixelFormat = THREE.RedFormat;
 
-				if (resolvedPath.toLowerCase().endsWith('.raw')) {
+				if (resolvedPath.toLowerCase().endsWith('.rawz')) {
 					const buffer = await loadRawFile(resolvedPath);
 					if (buffer.byteLength < 16) throw new Error('Raw texture file is missing its 16-byte header');
 					const view = new DataView(buffer);

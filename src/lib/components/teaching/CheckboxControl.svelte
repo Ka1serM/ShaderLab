@@ -1,5 +1,6 @@
 <script lang="ts">
-  import ControlResetButton from './ControlResetButton.svelte';
+  import ControlField from './ControlField.svelte';
+  import { Switch } from '$lib/components/ui/switch';
 
   export let value = false;
   export let label = '';
@@ -8,11 +9,6 @@
   export let onReset: (() => void) | undefined = undefined;
 </script>
 
-<div class="teaching-checkbox-row">
-  <label class="teaching-checkbox-control">
-    <input aria-label={label} type="checkbox" checked={value} disabled={readOnly} oninput={(event) => onChange((event.currentTarget as HTMLInputElement).checked)} />
-    <span class="teaching-checkbox-label">{label}</span>
-    <span class="teaching-checkbox-status">{value ? 'Active' : 'Inactive'}</span>
-  </label>
-  <ControlResetButton {label} {onReset} />
-</div>
+<ControlField {label} {onReset}>
+  <Switch aria-label={label} checked={value} disabled={readOnly} onCheckedChange={onChange} />
+</ControlField>

@@ -6,8 +6,7 @@ import { base } from '$app/paths';
 import { ShaderTaskMaterial, type ShaderInput } from './ShaderTaskMaterial';
 import { InfiniteGrid } from './InfiniteGrid';
 import { validateShaderProgram, type ShaderDiagnostic, type ShaderDiagnostics } from './shaderValidation';
-import { readShaderMatrices, type ShaderReadbackRequest, type ShaderReadbackValue } from './shaderReadback';
-import { SelectionOutlinePass } from './SelectionOutlinePass';
+import { ShaderReadback, type ShaderReadbackRequest, type ShaderReadbackValue } from './shaderReadback';
 import { loadModel } from './assetCache';
 
 // Scene assets must refresh when their Markdown definition changes during authoring.
@@ -16,11 +15,36 @@ THREE.Cache.enabled = false;
 // TransformControls normally occupy a fixed fraction of the canvas height.
 // Use the size they have in a typical 600px-high viewport as our fixed visual size.
 const TRANSFORM_CONTROLS_REFERENCE_HEIGHT = 600;
-const TRANSLATION_SNAP = 0.1;
-const ROTATION_SNAP = THREE.MathUtils.degToRad(5);
-const SCALE_SNAP = 0.1;
+// Point and vector edit gizmos sit on small helpers and must not hide the object.
+const VISUALIZATION_GIZMO_SCALE = .55;
 // Free space kept around the framed scene, as a factor on the field of view.
 const FRAME_MARGIN = 1.1;
+// Inset view size as a fraction of the viewport, and its placement in CSS pixels.
+const INSET_VIEW_SCALE = 0.3;
+const INSET_VIEW_MIN_SCALE = 0.15;
+const INSET_VIEW_MAX_SCALE = 0.9;
+const INSET_VIEW_MARGIN = 12;
+const INSET_VIEW_BORDER = 2;
+const INSET_VIEW_HANDLE = 12;
+
+type UniformValue = number | number[] | boolean;
+
+function sameUniformValue(a: UniformValue | undefined, b: UniformValue) {
+  if (!Array.isArray(a) || !Array.isArray(b)) return a === b;
+  return a.length === b.length && a.every((component, index) => component === b[index]);
+}
+
+function readsInput(name: string, vertexShader: string, fragmentShader: string) {
+  const pattern = new RegExp(`\\b${name}\\b`);
+  return pattern.test(vertexShader) || pattern.test(fragmentShader);
+}
+
+
+function sameUniformValues(previous: Record<string, UniformValue>, next: Record<string, UniformValue>) {
+  const names = Object.keys(next);
+  if (names.length !== Object.keys(previous).length) return false;
+  return names.every(name => sameUniformValue(previous[name], next[name]));
+}
 
 export type ViewportCameraPose = {
   position: [number, number, number];
@@ -52,6 +76,12 @@ export type Scene = {
    * a vertex shader moves geometry outside the bounds of its source meshes.
    */
   frameBox?: [[number, number, number], [number, number, number]];
+  /**
+   * Draw the scene a second time in a corner of the viewport with `uInsetView`
+   * set. The shader decides what this view shows, for example a virtual camera.
+   * The inset takes its width-to-height ratio from the float uniform `aspectUniform`.
+   */
+  insetView?: { aspectUniform: string };
 };
 
 /** A named scene that can be selected from the viewport. */
@@ -71,9 +101,12 @@ export type TransformMode = 'translate' | 'rotate' | 'scale';
 export type ViewportOverlays = {
   infiniteGrid?: boolean;
   viewHelper?: boolean;
+  /**
+   * The object gizmo always offers translate, rotate and scale. A mode without
+   * a transform for the selected object leaves the object unchanged.
+   */
   transformControls?: {
     mode?: TransformMode;
-    modes?: TransformMode[];
   };
 };
 
@@ -100,8 +133,9 @@ export type RendererOptions = {
   reportErrors?: boolean;
   onCameraChange?: (pose: ViewportCameraPose) => void;
   onTransformChange?: (transform: ViewportTransform) => void;
+  /** Index of the scene object that a click selects, or undefined when a click hits no object. */
+  onObjectSelect?: (objectIndex: number | undefined) => void;
   onVectorChange?: (id: string, value: [number, number, number]) => void;
-  onGizmoSelectionChange?: (selection: 'object' | 'visualization' | null) => void;
   onShaderErrors?: (errors: ShaderDiagnostics) => void;
   shaderReadbacks?: ShaderReadbackRequest[];
   onShaderReadbacks?: (values: Record<string, ShaderReadbackValue>) => void;
@@ -115,6 +149,7 @@ export type RendererTaskState = {
   shaderLineOffsets: { vertex: number; fragment: number };
   vertexShader: string;
   fragmentShader: string;
+  shaderReadbacks: ShaderReadbackRequest[];
   scene: Scene;
 };
 
@@ -141,7 +176,6 @@ export class Renderer {
     stencilBuffer: false
   });
   private readonly pickingPixel = new Uint8Array(4);
-  private readonly selectionOutline = new SelectionOutlinePass();
 
   private readonly container: HTMLElement;
   private readonly clock = new THREE.Clock();
@@ -149,8 +183,8 @@ export class Renderer {
   private timePaused = false;
   private readonly onCameraChange?: RendererOptions['onCameraChange'];
   private readonly onTransformChange?: RendererOptions['onTransformChange'];
+  private readonly onObjectSelect?: RendererOptions['onObjectSelect'];
   private readonly onVectorChange?: RendererOptions['onVectorChange'];
-  private readonly onGizmoSelectionChange?: RendererOptions['onGizmoSelectionChange'];
   private readonly onShaderErrors?: RendererOptions['onShaderErrors'];
   private readonly reportErrors: boolean;
   private resizeObserver: ResizeObserver;
@@ -161,12 +195,20 @@ export class Renderer {
   private settledResizeFrame = 0;
   private resizeRetryFrame = 0;
   private resizeRetries = 0;
+  private insetView?: Scene['insetView'];
+  /** The last transform state from the owner, also while a drag ignores it. */
+  private acceptedTransform?: ViewportTransform;
+  private insetScale = INSET_VIEW_SCALE;
+  private insetAspectReported = false;
+  private insetResizing = false;
   private renderedWidth = 0;
   private renderedHeight = 0;
   private disposed = false;
   private applyingCamera = false;
   private cameraKey = '';
   private cameraPoseSaved: boolean;
+  // The pose is reported once the camera stops moving, not on every damped orbit frame.
+  private cameraSavePending = false;
   private transformDragging = false;
   private sceneGeneration = 0;
   // The default view is refitted on resize until the user moves the camera, and
@@ -175,7 +217,8 @@ export class Renderer {
   private frameBox?: Scene['frameBox'];
   private drawables: Drawable[] = [];
   private objectGroups: THREE.Group[] = [];
-  private uniformValues: Record<string, number | number[] | boolean>;
+  private uniformValues: Record<string, number | number[] | boolean> = {};
+  private readonly shaderReadback: ShaderReadback;
   private taskInputNames = new Set<string>();
   private uniformValueNames = new Set<string>();
   private shaderLineOffsets: { vertex: number; fragment: number };
@@ -201,9 +244,14 @@ export class Renderer {
   private transformScale = new THREE.Vector3(1, 1, 1);
   private transformMode: TransformMode = 'translate';
   private transformSpace: 'local' | 'world' = 'local';
-  private snapping = false;
   private horizontalFov: number;
   private shaderRenderable = false;
+  // Frames are scheduled only for a visible change, camera damping, a view helper animation,
+  // a pending readback, or a shader that reads `time`. An idle viewport runs no frame callback.
+  private renderRequested = true;
+  private looping = false;
+  private shaderReadsTime = false;
+  private shaderReadsMouse = false;
   private vertexShader: string;
   private shaderReadbacks: ShaderReadbackRequest[];
   private readonly onShaderReadbacks?: RendererOptions['onShaderReadbacks'];
@@ -219,14 +267,13 @@ export class Renderer {
     this.cameraPoseSaved = options.cameraPoseSaved ?? false;
     this.onCameraChange = options.onCameraChange;
     this.onTransformChange = options.onTransformChange;
+    this.onObjectSelect = options.onObjectSelect;
     this.onVectorChange = options.onVectorChange;
-    this.onGizmoSelectionChange = options.onGizmoSelectionChange;
     this.onShaderErrors = options.onShaderErrors;
     this.onShaderReadbacks = options.onShaderReadbacks;
     this.shaderReadbacks = options.shaderReadbacks ?? [];
     this.vertexShader = options.vertexShader;
     this.reportErrors = options.reportErrors ?? false;
-    this.uniformValues = options.uniformValues ?? {};
     this.shaderLineOffsets = options.shaderLineOffsets ?? { vertex: 0, fragment: 0 };
 
     const width = Math.max(1, this.container.clientWidth);
@@ -239,6 +286,7 @@ export class Renderer {
     this.camera = new THREE.PerspectiveCamera(verticalFov, width / height, 0.1, 1_000);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setClearColor(0x000000, 0);
+    this.shaderReadback = new ShaderReadback(this.renderer.getContext() as WebGL2RenderingContext, values => this.onShaderReadbacks?.(values));
     // Unbounded DPR makes two side-by-side teaching viewports prohibitively
     // expensive on modern mobile/retina displays without a visible benefit.
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -265,36 +313,49 @@ export class Renderer {
         { type: 'float', name: 'cameraFov', init: this.horizontalFov * Math.PI / 180 },
         { type: 'vec3', name: 'cameraPosition', init: [0, 0, 1] },
         { type: 'vec3', name: 'cameraDirection', init: [0, 0, -1] },
-        // This renderer-owned uniform must exist before any projection shader
-        // can compile. Scene changes only alter its value.
+        // These renderer-owned uniforms must exist before a shader that
+        // declares them can compile. Scene changes only alter their values.
         { type: 'float', name: 'uWireframeLineWidth', init: 3.5 },
+        { type: 'int', name: 'uWireframe', init: 0 },
+        { type: 'int', name: 'uInsetView', init: 0 },
+        { type: 'int', name: 'uObjectIndex', init: 0 },
         ...(options.inputs ?? [])
       ]
     });
     this.pickingMaterial = new THREE.RawShaderMaterial({
       vertexShader: initialValidation.valid ? options.vertexShader : fallbackVertex,
-      fragmentShader: 'precision highp float; out vec4 fragColor; void main() { fragColor = vec4(1.0, 0.0, 0.0, 1.0); }',
+      // The red channel holds the object index + 1, so 0 means that no object was hit.
+      fragmentShader: 'precision highp float; uniform int uObjectIndex; out vec4 fragColor; void main() { fragColor = vec4(float(uObjectIndex + 1) / 255.0, 0.0, 0.0, 1.0); }',
       uniforms: this.material.uniforms,
       glslVersion: THREE.GLSL3,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      // The ID pass only hits the depth that the visible material wrote first. See pickDrawable().
+      depthFunc: THREE.EqualDepth,
+      depthWrite: false
     });
     this.taskInputNames = new Set((options.inputs ?? []).map(input => input.name));
     // Teaching shaders supply their control uniforms at construction time.
     // Apply them before the first draw; otherwise WebGL uses zero-valued
     // uniforms until a later reactive update or interaction occurs.
-    this.setUniformValues(this.uniformValues);
+    this.setUniformValues(options.uniformValues ?? {});
 
-    this.renderer.domElement.addEventListener('pointerenter', this.handleMouseMove);
-    this.renderer.domElement.addEventListener('pointermove', this.handleMouseMove);
-    this.renderer.domElement.addEventListener('pointerleave', this.handleMouseLeave);
+    if (initialValidation.valid) this.trackShaderInputs(options.vertexShader, options.fragmentShader);
 
+    // Capture listeners run before OrbitControls and TransformControls, so a
+    // pointer on the inset never orbits the camera or picks an object.
+    this.renderer.domElement.addEventListener('pointerdown', this.handleInsetPointerDown, { capture: true });
+    this.renderer.domElement.addEventListener('pointermove', this.handleInsetPointerMove, { capture: true });
+    this.renderer.domElement.addEventListener('pointerup', this.handleInsetPointerUp, { capture: true });
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
     this.controls.minDistance = 0;
     this.controls.maxDistance = 100;
     this.controls.maxPolarAngle = Math.PI;
-    this.controls.addEventListener('change', () => this.saveCamera());
+    this.controls.addEventListener('change', () => {
+      this.requestRender();
+      if (!this.applyingCamera) this.cameraSavePending = true;
+    });
     this.controls.addEventListener('start', () => { this.autoFrame = false; });
     this.applyCameraPose(options.cameraPose);
     this.setOverlays(options.overlays);
@@ -303,13 +364,15 @@ export class Renderer {
     this.resizeObserver.observe(this.container);
     this.visibilityObserver = new IntersectionObserver(entries => {
       this.visible = entries[0]?.isIntersecting ?? true;
+      this.requestRender();
     });
     this.visibilityObserver.observe(this.container);
     this.resize();
-    this.animate();
+    this.requestRender();
   }
 
   setUniformValues(values: Record<string, number | number[] | boolean>) {
+    if (sameUniformValues(this.uniformValues, values)) return;
     const nextNames = new Set(Object.keys(values));
     for (const name of this.uniformValueNames) {
       if (!nextNames.has(name) && !this.taskInputNames.has(name)) this.material.removeInput(name);
@@ -317,11 +380,7 @@ export class Renderer {
     this.uniformValues = values;
     Object.entries(values).forEach(([name, value]) => this.material.setInput(name, value));
     this.uniformValueNames = nextNames;
-    this.updateShaderReadbacks();
-  }
-
-  setShaderReadbacks(readbacks: ShaderReadbackRequest[] = []) {
-    this.shaderReadbacks = readbacks;
+    this.requestRender();
     this.updateShaderReadbacks();
   }
 
@@ -332,6 +391,9 @@ export class Renderer {
     }
     inputs.forEach(input => this.material.addInput(input));
     this.taskInputNames = nextNames;
+    // Adding or removing an input can reset a uniform, so the next uniform update must apply every value.
+    this.uniformValues = {};
+    this.requestRender();
   }
 
   setCameraPose(pose: ViewportCameraPose, saved = this.cameraPoseSaved) {
@@ -339,7 +401,9 @@ export class Renderer {
     this.applyCameraPose(pose);
   }
 
-  updateShaders(vertexShader: string, fragmentShader: string) {
+  /** The readbacks belong to this vertex shader, so both are replaced together. */
+  updateShaders(vertexShader: string, fragmentShader: string, shaderReadbacks: ShaderReadbackRequest[]) {
+    this.shaderReadbacks = shaderReadbacks;
     const validation = this.validateShaders(vertexShader, fragmentShader);
     this.shaderRenderable = validation.valid;
     this.publishDiagnostics(validation.diagnostics);
@@ -348,6 +412,7 @@ export class Renderer {
       return;
     }
     this.material.updateShaders(vertexShader, fragmentShader);
+    this.trackShaderInputs(vertexShader, fragmentShader);
     this.pickingMaterial.vertexShader = vertexShader;
     this.pickingMaterial.needsUpdate = true;
     this.vertexShader = vertexShader;
@@ -365,31 +430,40 @@ export class Renderer {
    */
   async replaceTaskState(state: RendererTaskState) {
     this.setInputs(state.inputs);
-    this.setWireframeLineWidth(state.scene);
     this.setUniformValues(state.uniformValues ?? {});
     this.setOverlays(state.overlays);
     this.setShaderLineOffsets(state.shaderLineOffsets);
-    this.updateShaders(state.vertexShader, state.fragmentShader);
-    await this.setScene(state.scene);
+    // The synchronous part of setScene() removes the previous objects and
+    // scene options, so the new shader never draws them.
+    const sceneLoaded = this.setScene(state.scene);
+    this.updateShaders(state.vertexShader, state.fragmentShader, state.shaderReadbacks);
+    await sceneLoaded;
     await this.material.texturesLoaded();
     if (!this.disposed) this.renderScene();
   }
 
   private updateShaderReadbacks() {
     if (!this.shaderRenderable || !this.shaderReadbacks.length) return;
-    try {
-      const values = readShaderMatrices(
-        this.renderer.getContext() as WebGL2RenderingContext,
-        this.vertexShader,
-        this.shaderReadbacks,
-        this.uniformValues
-      );
-      if (Object.keys(values).length) this.onShaderReadbacks?.(values);
-    } catch (error) {
-      console.warn('Shader readback failed:', error);
-    } finally {
-      this.renderer.resetState();
+    this.shaderReadback.request(this.vertexShader, this.shaderReadbacks, this.uniformValues);
+    this.renderer.resetState();
+    this.scheduleFrame();
+  }
+
+  private trackShaderInputs(vertexShader: string, fragmentShader: string) {
+    this.shaderReadsTime = readsInput('time', vertexShader, fragmentShader);
+    const readsMouse = readsInput('iMouse', vertexShader, fragmentShader);
+    if (readsMouse === this.shaderReadsMouse) return;
+    this.shaderReadsMouse = readsMouse;
+    const canvas = this.renderer.domElement;
+    if (readsMouse) {
+      canvas.addEventListener('pointerenter', this.handleMouseMove);
+      canvas.addEventListener('pointermove', this.handleMouseMove);
+      canvas.addEventListener('pointerleave', this.handleMouseLeave);
+      return;
     }
+    canvas.removeEventListener('pointerenter', this.handleMouseMove);
+    canvas.removeEventListener('pointermove', this.handleMouseMove);
+    canvas.removeEventListener('pointerleave', this.handleMouseLeave);
   }
 
   setShaderLineOffsets(offsets: { vertex: number; fragment: number }) {
@@ -398,9 +472,11 @@ export class Renderer {
 
   setTimePaused(paused: boolean) {
     this.timePaused = paused;
+    this.requestRender();
   }
 
   setOverlays(overlays: ViewportOverlays | undefined) {
+    this.requestRender();
     this.syncInfiniteGrid(overlays?.infiniteGrid !== false);
     const key = JSON.stringify(overlays ?? {});
     if (key === this.overlaysKey) return;
@@ -415,6 +491,7 @@ export class Renderer {
         if (!this.viewHelper?.handleClick(event)) return;
         this.autoFrame = false;
         this.controls.enabled = false;
+        this.requestRender();
         event.preventDefault();
         event.stopPropagation();
       };
@@ -422,9 +499,7 @@ export class Renderer {
     }
 
     if (overlays?.transformControls) {
-      const modes = overlays.transformControls.modes?.filter(mode => ['translate', 'rotate', 'scale'].includes(mode)) ?? [];
-      const requestedMode = overlays.transformControls.mode ?? 'translate';
-      this.transformMode = modes.includes(requestedMode) ? requestedMode : modes[0] ?? requestedMode;
+      this.transformMode = overlays.transformControls.mode ?? 'translate';
       this.transformSpace = 'local';
       this.ensureTransformControls();
     }
@@ -437,7 +512,6 @@ export class Renderer {
     this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
     this.transformControls.setSpace(this.transformSpace);
     this.transformControls.setMode(this.transformMode);
-    this.applySnapping();
     this.updateTransformControlsSize();
     this.transformControls.addEventListener('mouseDown', () => {
       this.suppressVisualizationSelection = true;
@@ -452,7 +526,11 @@ export class Renderer {
     this.transformControls.addEventListener('dragging-changed', event => {
       this.transformDragging = Boolean(event.value);
       this.controls.enabled = !this.transformDragging && !this.viewHelper?.animating;
+      // The gizmo moves freely during a drag. Afterwards, show what the owner
+      // accepted, so a mode that the object does not support snaps back.
+      if (!this.transformDragging && this.gizmoSelection === 'object') this.setTransformState(this.acceptedTransform);
     });
+    this.transformControls.addEventListener('change', () => this.requestRender());
     this.transformControls.addEventListener('objectChange', () => this.editingVectorId ? this.saveVectorEdit() : this.saveTransform());
     this.transformControlsHelper = this.transformControls.getHelper();
     this.scene.add(this.transformControlsHelper);
@@ -480,31 +558,43 @@ export class Renderer {
     this.transformControls?.setMode(this.transformMode);
     this.syncTransformProxy();
     if (this.gizmoSelection === 'object') this.attachObjectGizmo();
+    this.requestRender();
+  }
+
+  /** Shows the object gizmo, as a click on the object does. */
+  selectObject() {
+    this.editingVectorId = undefined;
+    this.transformControls?.setMode(this.transformMode);
+    this.gizmoSelection = 'object';
+    this.updateTransformControlsSize();
+    this.syncTransformProxy();
+    this.requestRender();
   }
 
   setTransformSpace(space: 'local' | 'world') {
     this.transformSpace = space;
     this.syncTransformProxy();
+    this.requestRender();
   }
 
-  setSnapping(enabled: boolean) {
-    this.snapping = enabled;
-    this.applySnapping();
-  }
-
-  private applySnapping() {
-    this.transformControls?.setTranslationSnap(this.snapping ? TRANSLATION_SNAP : null);
-    this.transformControls?.setRotationSnap(this.snapping ? ROTATION_SNAP : null);
-    this.transformControls?.setScaleSnap(this.snapping ? SCALE_SNAP : null);
-  }
-
+  /** `undefined` means that the selected object has no transform, so the object gizmo hides. */
   setTransformState(transform: ViewportTransform | undefined) {
+    this.acceptedTransform = transform;
     if (!this.transformProxy) return;
     if (this.transformDragging && this.gizmoSelection === 'object') return;
-    this.transformPosition.fromArray(transform?.position ?? [0, 0, 0]);
-    this.transformQuaternion.fromArray(transform?.quaternion ?? [0, 0, 0, 1]).normalize();
-    this.transformScale.fromArray(transform?.scale ?? [1, 1, 1]);
+    if (!transform) {
+      if (this.gizmoSelection === 'object') {
+        this.transformControls?.detach();
+        this.gizmoSelection = null;
+      }
+      this.requestRender();
+      return;
+    }
+    this.transformPosition.fromArray(transform.position);
+    this.transformQuaternion.fromArray(transform.quaternion).normalize();
+    this.transformScale.fromArray(transform.scale);
     this.syncTransformProxy();
+    this.requestRender();
   }
 
   private syncTransformProxy() {
@@ -537,54 +627,31 @@ export class Renderer {
     this.transformControlsHelper?.updateMatrixWorld(true);
   }
 
-  private setGizmoSelection(selection: 'object' | 'visualization' | null) {
-    if (this.gizmoSelection === selection) return;
-    this.gizmoSelection = selection;
-    this.onGizmoSelectionChange?.(selection);
-  }
-
-  private renderSelectionIdBuffer() {
-    const previousTarget = this.renderer.getRenderTarget();
-    const previousOverride = this.scene.overrideMaterial;
-    const previousAutoClear = this.renderer.autoClear;
-    const previousLayerMask = this.camera.layers.mask;
-    try {
-      this.pickingMaterial.uniforms = this.material.uniforms;
-      this.camera.layers.set(1);
-      this.scene.overrideMaterial = this.pickingMaterial;
-      this.renderer.autoClear = true;
-      this.renderer.setRenderTarget(this.selectionOutline.idTarget);
-      this.renderer.clear();
-      this.renderer.render(this.scene, this.camera);
-    } finally {
-      this.renderer.setRenderTarget(previousTarget);
-      this.renderer.autoClear = previousAutoClear;
-      this.scene.overrideMaterial = previousOverride;
-      this.camera.layers.mask = previousLayerMask;
-    }
-  }
-
+  // Uses the CSS size cached by resize(), so a pointer move never forces a layout query.
   private handleMouseMove = (event: PointerEvent) => {
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    this.mousePositionArray[0] = Math.min(this.renderer.domElement.width, Math.max(0, (event.clientX - rect.left) * this.renderer.domElement.width / rect.width));
-    this.mousePositionArray[1] = Math.min(this.renderer.domElement.height, Math.max(0, (event.clientY - rect.top) * this.renderer.domElement.height / rect.height));
+    if (this.renderedWidth <= 0 || this.renderedHeight <= 0) return;
+    const canvas = this.renderer.domElement;
+    this.mousePositionArray[0] = Math.min(canvas.width, Math.max(0, event.offsetX * canvas.width / this.renderedWidth));
+    this.mousePositionArray[1] = Math.min(canvas.height, Math.max(0, event.offsetY * canvas.height / this.renderedHeight));
     this.mousePositionArray[2] = 1;
     this.material.setInput('iMouse', this.mousePositionArray);
+    this.requestRender();
   };
 
   private handleMouseLeave = () => {
     this.mousePositionArray[2] = 0;
     this.material.setInput('iMouse', this.mousePositionArray);
+    this.requestRender();
   };
 
   setVectorVisualizations(vectors: ViewportVector[] = []) {
+    this.requestRender();
     if (vectors.some(vector => vector.editable)) this.ensureTransformControls();
     this.vectorDefinitions = new Map(vectors.map(vector => [vector.id, vector]));
     if (this.editingVectorId && !this.vectorDefinitions.get(this.editingVectorId)?.editable) {
       this.editingVectorId = undefined;
       this.transformControls?.detach();
-      this.setGizmoSelection(null);
+      this.gizmoSelection = null;
     }
     const activeVectorIds = new Set(vectors.filter(vector => vector.visualization === 'vector').map(vector => vector.id));
     const activePointIds = new Set(vectors.filter(vector => vector.visualization === 'point').map(vector => vector.id));
@@ -607,7 +674,7 @@ export class Renderer {
         let point = this.pointHelpers.get(vector.id);
         if (!point) {
           point = new THREE.Mesh(
-            new THREE.SphereGeometry(.1, 20, 12),
+            new THREE.SphereGeometry(.06, 20, 12),
             new THREE.MeshBasicMaterial({ color: 0xbf2732, side: THREE.DoubleSide, depthTest: false, depthWrite: false })
           );
           this.pointHelpers.set(vector.id, point);
@@ -650,6 +717,7 @@ export class Renderer {
     const distance = this.visualizationPointerStart.distanceTo(new THREE.Vector2(event.clientX, event.clientY));
     this.visualizationPointerStart = undefined;
     if (distance > 4) return;
+    this.requestRender();
     const rect = this.renderer.domElement.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
     const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
@@ -660,10 +728,12 @@ export class Renderer {
     const candidates: Array<{ id: string; object: THREE.Object3D }> = [];
     for (const [id, point] of this.pointHelpers) if (this.vectorDefinitions.get(id)?.editable) candidates.push({ id, object: point });
     for (const [id, arrow] of this.vectorHelpers) if (this.vectorDefinitions.get(id)?.editable) candidates.push({ id, object: arrow });
-    const hit = candidates
-      .map(candidate => ({ ...candidate, distance: raycaster.intersectObject(candidate.object, true)[0]?.distance ?? Infinity }))
-      .sort((a, b) => a.distance - b.distance)[0];
-    if (hit && Number.isFinite(hit.distance)) {
+    let hit: { id: string; distance: number } | undefined;
+    for (const candidate of candidates) {
+      const distance = raycaster.intersectObject(candidate.object, true)[0]?.distance ?? Infinity;
+      if (distance < (hit?.distance ?? Infinity)) hit = { id: candidate.id, distance };
+    }
+    if (hit) {
       const definition = this.vectorDefinitions.get(hit.id)!;
       this.editingVectorId = hit.id;
       if (!this.vectorEditProxy) {
@@ -676,29 +746,36 @@ export class Renderer {
       this.transformControls.setMode('translate');
       this.transformControls.setSpace('world');
       this.transformControls.attach(this.vectorEditProxy);
-      this.setGizmoSelection('visualization');
+      this.gizmoSelection = 'visualization';
+      this.updateTransformControlsSize();
       return;
     }
 
-    const objectHit = this.overlays?.transformControls && this.pickDrawable(event);
+    const objectHit = this.overlays?.transformControls ? this.pickDrawable(event) : undefined;
     this.editingVectorId = undefined;
-    if (objectHit) {
+    // Attach first: the selection callback replaces the transform state before the next frame.
+    if (objectHit !== undefined) {
       this.attachObjectGizmo();
       this.transformControls.setMode(this.transformMode);
       this.transformControls.setSpace(this.transformSpace);
-      this.setGizmoSelection('object');
+      this.gizmoSelection = 'object';
+      this.updateTransformControlsSize();
     } else {
       this.transformControls.detach();
-      this.setGizmoSelection(null);
+      this.gizmoSelection = null;
     }
+    this.onObjectSelect?.(objectHit);
   };
 
   /** GPU picking uses the active vertex shader, so shader-side transforms and
-   * deformations have exactly the same silhouette as the visible object. */
-  private pickDrawable(event: PointerEvent) {
-    if (!this.shaderRenderable || !this.drawables.length) return false;
+   * deformations have exactly the same silhouette as the visible object.
+   * The first pass draws the visible material, so fragments that its shader
+   * discards write no depth. The second pass writes object IDs only where its
+   * depth equals that visible depth. */
+  private pickDrawable(event: PointerEvent): number | undefined {
+    if (!this.shaderRenderable || !this.drawables.length) return undefined;
     const rect = this.renderer.domElement.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return false;
+    if (rect.width <= 0 || rect.height <= 0) return undefined;
     const drawingSize = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     const x = Math.min(drawingSize.x - 1, Math.max(0, Math.floor((event.clientX - rect.left) * drawingSize.x / rect.width)));
     const y = Math.min(drawingSize.y - 1, Math.max(0, Math.floor((event.clientY - rect.top) * drawingSize.y / rect.height)));
@@ -713,13 +790,16 @@ export class Renderer {
       this.camera.layers.set(1);
       this.camera.setViewOffset(drawingSize.x, drawingSize.y, x, y, 1, 1);
       this.camera.updateProjectionMatrix();
-      this.scene.overrideMaterial = this.pickingMaterial;
-      this.renderer.autoClear = true;
+      this.renderer.autoClear = false;
       this.renderer.setRenderTarget(this.pickingTarget);
       this.renderer.clear();
+      this.scene.overrideMaterial = null;
+      this.renderer.render(this.scene, this.camera);
+      this.renderer.clear(true, false, false);
+      this.scene.overrideMaterial = this.pickingMaterial;
       this.renderer.render(this.scene, this.camera);
       this.renderer.readRenderTargetPixels(this.pickingTarget, 0, 0, 1, 1, this.pickingPixel);
-      return this.pickingPixel[0] > 0;
+      return this.pickingPixel[0] > 0 ? this.pickingPixel[0] - 1 : undefined;
     } finally {
       this.renderer.setRenderTarget(previousTarget);
       this.renderer.autoClear = previousAutoClear;
@@ -748,10 +828,11 @@ export class Renderer {
   async setScene(sceneDefinition: Scene) {
     const generation = ++this.sceneGeneration;
     this.frameBox = sceneDefinition.frameBox;
+    this.insetView = sceneDefinition.insetView;
     this.autoFrame = !this.cameraPoseSaved;
     this.editingVectorId = undefined;
     this.transformControls?.detach();
-    this.setGizmoSelection(null);
+    this.gizmoSelection = null;
     this.setWireframeLineWidth(sceneDefinition);
     this.clearObjects();
     // A viewport instance is reused when navigating between tasks/teaching
@@ -785,7 +866,7 @@ export class Renderer {
       group.scale.fromArray(object.scale ?? [1, 1, 1]);
       this.objectGroups.push(group);
       this.scene.add(group);
-      loadedObjects[objectIndex].forEach((loaded, index) => this.addDrawable(object, group, loaded, `${objectId}-${index}`));
+      loadedObjects[objectIndex].forEach((loaded, index) => this.addDrawable(object, objectIndex, group, loaded, `${objectId}-${index}`));
     }
     if (this.autoFrame) this.fitCameraToScene();
     this.renderScene();
@@ -893,7 +974,7 @@ export class Renderer {
     this.material.setInput('uWireframeLineWidth', wireframeObject ? this.getWireframeLineWidth(wireframeObject) : 3.5);
   }
 
-  private addDrawable(object: Object, group: THREE.Group, loaded: Geometry, id: string) {
+  private addDrawable(object: Object, objectIndex: number, group: THREE.Group, loaded: Geometry, id: string) {
     const count = Math.max(1, Math.floor(object.instanceCount ?? 1));
     // Use one consistent drawable type. This keeps the attribute/program path
     // identical for ordinary and instanced tasks, including count === 1.
@@ -906,12 +987,16 @@ export class Renderer {
     drawable.position.copy(loaded.position);
     drawable.quaternion.copy(loaded.quaternion);
     drawable.scale.copy(loaded.scale);
-    if (object.wireframe) {
-      const lineWidth = this.getWireframeLineWidth(object);
-      drawable.onBeforeRender = () => {
-        this.material.uniforms.uWireframeLineWidth.value = lineWidth;
-      };
-    }
+    // All drawables share one material, so three.js does not upload its
+    // uniforms again between them unless `uniformsNeedUpdate` requests it.
+    const lineWidth = this.getWireframeLineWidth(object);
+    const wireframe = object.wireframe ? 1 : 0;
+    drawable.onBeforeRender = (_renderer, _scene, _camera, _geometry, material) => {
+      this.material.uniforms.uWireframeLineWidth.value = lineWidth;
+      this.material.uniforms.uWireframe.value = wireframe;
+      this.material.uniforms.uObjectIndex.value = objectIndex;
+      (material as THREE.ShaderMaterial).uniformsNeedUpdate = true;
+    };
 
     if (drawable instanceof THREE.InstancedMesh) {
       for (let index = 0; index < count; index++) {
@@ -951,6 +1036,7 @@ export class Renderer {
     this.controls.update();
     this.cameraKey = key;
     this.applyingCamera = false;
+    this.requestRender();
   }
 
   private saveCamera() {
@@ -981,7 +1067,7 @@ export class Renderer {
   }
 
   private disposeOverlays() {
-    this.setGizmoSelection(null);
+    this.gizmoSelection = null;
     this.transformDragging = false;
     this.suppressVisualizationSelection = false;
     this.visualizationPointerStart = undefined;
@@ -1065,8 +1151,6 @@ export class Renderer {
       this.renderedWidth = width;
       this.renderedHeight = height;
       this.renderer.setSize(width, height, false);
-      const drawingSize = this.renderer.getDrawingBufferSize(new THREE.Vector2());
-      this.selectionOutline.setSize(drawingSize.x, drawingSize.y);
     }
     this.updateTransformControlsSize(height);
     this.camera.aspect = width / height;
@@ -1077,12 +1161,6 @@ export class Renderer {
     // Paint immediately after changing the drawing buffer. This keeps the
     // viewport responsive while a split pane is being dragged.
     this.renderScene();
-    if (this.viewHelper) {
-      const autoClear = this.renderer.autoClear;
-      this.renderer.autoClear = false;
-      this.viewHelper.render(this.renderer);
-      this.renderer.autoClear = autoClear;
-    }
   }
 
   /**
@@ -1092,10 +1170,17 @@ export class Renderer {
    */
   private updateTransformControlsSize(height = this.container.clientHeight) {
     if (height < 1) return;
-    this.transformControls?.setSize(TRANSFORM_CONTROLS_REFERENCE_HEIGHT / height);
+    const scale = this.gizmoSelection === 'visualization' ? VISUALIZATION_GIZMO_SCALE : 1;
+    this.transformControls?.setSize(scale * TRANSFORM_CONTROLS_REFERENCE_HEIGHT / height);
   }
 
   private renderScene() {
+    this.renderRequested = false;
+    this.camera.position.toArray(this.cameraPositionArray);
+    this.camera.getWorldDirection(this.cameraDirection).toArray(this.cameraDirectionArray);
+    this.material.setInput('cameraPosition', this.cameraPositionArray);
+    this.material.setInput('cameraDirection', this.cameraDirectionArray);
+    this.material.setInput('cameraFov', this.horizontalFov * Math.PI / 180);
     const autoClear = this.renderer.autoClear;
     if (this.infiniteGrid) {
       this.renderer.autoClear = true;
@@ -1104,41 +1189,164 @@ export class Renderer {
     }
     if (this.shaderRenderable) this.renderer.render(this.scene, this.camera);
     else if (!this.infiniteGrid) this.renderer.clear();
-    if (this.shaderRenderable && this.gizmoSelection === 'object' && this.drawables.length) {
-      this.renderSelectionIdBuffer();
+    const insetAspect = this.shaderRenderable ? this.insetAspect() : undefined;
+    if (insetAspect !== undefined) this.renderInsetView(insetAspect);
+    if (this.viewHelper) {
+      // ViewHelper performs its own renderer.render() call. Prevent that
+      // second pass from clearing the full viewport before drawing its corner.
       this.renderer.autoClear = false;
-      this.selectionOutline.render(this.renderer);
+      this.viewHelper.render(this.renderer);
     }
     this.renderer.autoClear = autoClear;
   }
 
-  private animate = () => {
-    if (this.disposed) return;
-    this.animationFrame = requestAnimationFrame(this.animate);
+  /** Undefined when the scene has no inset or the shader does not supply a valid aspect ratio. */
+  private insetAspect() {
+    if (!this.insetView) return undefined;
+    const { aspectUniform } = this.insetView;
+    const aspect = this.uniformValues[aspectUniform];
+    const valid = typeof aspect === 'number' && aspect > 0;
+    // Shader edits can remove the uniform. Report it once and draw no inset until it is valid again.
+    if (!valid && !this.insetAspectReported) console.error(`Inset view aspect uniform ${aspectUniform} must be a positive float, got ${aspect}.`);
+    this.insetAspectReported = !valid;
+    return valid ? aspect : undefined;
+  }
+
+  /** The inset fits a box of `insetScale` times the viewport. Its corner is at the bottom left, in CSS pixels. */
+  private insetSize(aspect: number) {
+    const size = this.renderer.getSize(new THREE.Vector2());
+    const boxWidth = size.x * this.insetScale;
+    const boxHeight = size.y * this.insetScale;
+    return new THREE.Vector2(Math.round(Math.min(boxWidth, boxHeight * aspect)), Math.round(Math.min(boxHeight, boxWidth / aspect)));
+  }
+
+  /** Pointer position in CSS pixels, measured from the bottom-left corner like the WebGL viewport. */
+  private viewportPointer(event: PointerEvent) {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return new THREE.Vector2(event.clientX - rect.left, rect.bottom - event.clientY);
+  }
+
+  private insetHit(event: PointerEvent): 'handle' | 'view' | undefined {
+    const aspect = this.insetAspect();
+    if (aspect === undefined || !this.shaderRenderable) return undefined;
+    const inset = this.insetSize(aspect);
+    const pointer = this.viewportPointer(event);
+    const right = INSET_VIEW_MARGIN + inset.x;
+    const top = INSET_VIEW_MARGIN + inset.y;
+    if (Math.abs(pointer.x - right) <= INSET_VIEW_HANDLE && Math.abs(pointer.y - top) <= INSET_VIEW_HANDLE) return 'handle';
+    if (pointer.x >= INSET_VIEW_MARGIN && pointer.x <= right && pointer.y >= INSET_VIEW_MARGIN && pointer.y <= top) return 'view';
+    return undefined;
+  }
+
+  private handleInsetPointerDown = (event: PointerEvent) => {
+    const hit = this.insetHit(event);
+    if (!hit) return;
+    event.stopImmediatePropagation();
+    if (hit !== 'handle') return;
+    this.insetResizing = true;
+    this.renderer.domElement.setPointerCapture(event.pointerId);
+  };
+
+  /** Drags the top-right corner of the inset. The bottom-left corner stays in place. */
+  private handleInsetPointerMove = (event: PointerEvent) => {
+    if (!this.insetResizing) {
+      this.renderer.domElement.style.cursor = this.insetHit(event) === 'handle' ? 'nesw-resize' : '';
+      return;
+    }
+    event.stopImmediatePropagation();
+    const aspect = this.insetAspect();
+    if (aspect === undefined) return;
+    const size = this.renderer.getSize(new THREE.Vector2());
+    const pointer = this.viewportPointer(event).subScalar(INSET_VIEW_MARGIN);
+    // At scale 1 the inset is min(W, H · aspect) wide and min(H, W / aspect) high.
+    const scale = Math.max(pointer.x / Math.min(size.x, size.y * aspect), pointer.y / Math.min(size.y, size.x / aspect));
+    this.insetScale = THREE.MathUtils.clamp(scale, INSET_VIEW_MIN_SCALE, INSET_VIEW_MAX_SCALE);
+    this.requestRender();
+  };
+
+  private handleInsetPointerUp = (event: PointerEvent) => {
+    if (!this.insetResizing) return;
+    event.stopImmediatePropagation();
+    this.insetResizing = false;
+    this.renderer.domElement.releasePointerCapture(event.pointerId);
+  };
+
+  /** Draws the inset in the bottom-left corner, framed by a border that is visible in both themes. */
+  private renderInsetView(aspect: number) {
+    const { x: width, y: height } = this.insetSize(aspect);
+    const size = this.renderer.getSize(new THREE.Vector2());
+    const autoClear = this.renderer.autoClear;
+    this.renderer.setScissorTest(true);
+    this.renderer.setScissor(INSET_VIEW_MARGIN - INSET_VIEW_BORDER, INSET_VIEW_MARGIN - INSET_VIEW_BORDER, width + 2 * INSET_VIEW_BORDER, height + 2 * INSET_VIEW_BORDER);
+    this.renderer.setClearColor(0x808080, 0.6);
+    this.renderer.clear();
+    this.renderer.setScissor(INSET_VIEW_MARGIN, INSET_VIEW_MARGIN, width, height);
+    this.renderer.setViewport(INSET_VIEW_MARGIN, INSET_VIEW_MARGIN, width, height);
+    this.renderer.setClearColor(0x000000, 0);
+    this.renderer.clear();
+    this.renderer.autoClear = false;
+    // Overlays such as gizmos and helpers belong to the main view only.
+    // Layer 1 holds just the shader drawables.
+    const layerMask = this.camera.layers.mask;
+    this.camera.layers.set(1);
+    this.material.uniforms.uInsetView.value = 1;
+    this.renderer.render(this.scene, this.camera);
+    this.material.uniforms.uInsetView.value = 0;
+    this.camera.layers.mask = layerMask;
+    // The resize handle covers the top-right corner of the inset.
+    this.renderer.setScissor(INSET_VIEW_MARGIN + width - INSET_VIEW_HANDLE, INSET_VIEW_MARGIN + height - INSET_VIEW_HANDLE, INSET_VIEW_HANDLE + INSET_VIEW_BORDER, INSET_VIEW_HANDLE + INSET_VIEW_BORDER);
+    this.renderer.setClearColor(0x808080, 0.6);
+    this.renderer.clear();
+    this.renderer.setClearColor(0x000000, 0);
+    this.renderer.autoClear = autoClear;
+    this.renderer.setScissorTest(false);
+    this.renderer.setViewport(0, 0, size.x, size.y);
+  }
+
+  private requestRender() {
+    this.renderRequested = true;
+    this.scheduleFrame();
+  }
+
+  private scheduleFrame() {
+    if (this.animationFrame || this.disposed) return;
+    // Restart the clock after an idle period, so `time` does not jump by the idle duration.
+    if (!this.looping) this.clock.getDelta();
+    this.looping = true;
+    this.animationFrame = requestAnimationFrame(this.frame);
+  }
+
+  private frame = () => {
+    this.animationFrame = 0;
     const delta = this.clock.getDelta();
-    if (!this.visible || document.hidden) return;
+    // The visibility observer requests a frame again when the viewport becomes visible.
+    if (!this.visible) {
+      this.looping = false;
+      return;
+    }
     this.controls.enabled = !this.transformDragging && !this.viewHelper?.animating;
-    this.controls.update();
-    if (this.viewHelper?.animating) {
-      this.viewHelper.update(delta);
-      if (!this.viewHelper.animating) this.saveCamera();
+    const cameraMoving = this.controls.update();
+    if (!cameraMoving && this.cameraSavePending) {
+      this.cameraSavePending = false;
+      this.saveCamera();
     }
-    if (!this.timePaused) this.shaderTime += delta;
-    this.material.setInput('time', this.shaderTime);
-    this.camera.position.toArray(this.cameraPositionArray);
-    this.camera.getWorldDirection(this.cameraDirection).toArray(this.cameraDirectionArray);
-    this.material.setInput('cameraPosition', this.cameraPositionArray);
-    this.material.setInput('cameraDirection', this.cameraDirectionArray);
-    this.material.setInput('cameraFov', this.horizontalFov * Math.PI / 180);
-    this.renderScene();
-    if (this.viewHelper) {
-      // ViewHelper performs its own renderer.render() call. Prevent that
-      // second pass from clearing the full viewport before drawing its corner.
-      const autoClear = this.renderer.autoClear;
-      this.renderer.autoClear = false;
-      this.viewHelper.render(this.renderer);
-      this.renderer.autoClear = autoClear;
+    const viewHelperAnimating = Boolean(this.viewHelper?.animating);
+    if (viewHelperAnimating) {
+      this.viewHelper!.update(delta);
+      this.renderRequested = true;
+      if (!this.viewHelper!.animating) this.saveCamera();
     }
+    const timeRunning = this.shaderReadsTime && !this.timePaused;
+    if (timeRunning) {
+      this.shaderTime += delta;
+      this.material.setInput('time', this.shaderTime);
+      this.renderRequested = true;
+    }
+    if (this.renderRequested) this.renderScene();
+    const readbackPending = this.shaderReadback.collect();
+    const keepRunning = cameraMoving || viewHelperAnimating || timeRunning || readbackPending;
+    if (keepRunning && !this.animationFrame) this.animationFrame = requestAnimationFrame(this.frame);
+    this.looping = this.animationFrame !== 0;
   };
 
   private validateShaders(vertexShader: string, fragmentShader: string) {
@@ -1152,7 +1360,12 @@ export class Renderer {
 
   private publishDiagnostics(diagnostics: ShaderDiagnostics) {
     if (this.reportErrors) this.onShaderErrors?.(diagnostics);
-    else if (diagnostics.vertex.length || diagnostics.fragment.length) console.error('Shader validation failed', diagnostics);
+    const lines = (['vertex', 'fragment'] as const).flatMap(stage =>
+      diagnostics[stage].map(diagnostic => `[${stage} ${diagnostic.type}, line ${diagnostic.line}] ${diagnostic.message}`));
+    if (!lines.length) return;
+    const failed = diagnostics.vertex.some(diagnostic => diagnostic.type === 'error') || diagnostics.fragment.some(diagnostic => diagnostic.type === 'error');
+    if (failed) console.error(`Shader compilation failed:\n${lines.join('\n')}`);
+    else console.warn(`Shader compilation warnings:\n${lines.join('\n')}`);
   }
 
   dispose() {
@@ -1167,6 +1380,9 @@ export class Renderer {
     this.renderer.domElement.removeEventListener('pointerenter', this.handleMouseMove);
     this.renderer.domElement.removeEventListener('pointermove', this.handleMouseMove);
     this.renderer.domElement.removeEventListener('pointerleave', this.handleMouseLeave);
+    this.renderer.domElement.removeEventListener('pointerdown', this.handleInsetPointerDown, { capture: true });
+    this.renderer.domElement.removeEventListener('pointermove', this.handleInsetPointerMove, { capture: true });
+    this.renderer.domElement.removeEventListener('pointerup', this.handleInsetPointerUp, { capture: true });
     this.controls.dispose();
     this.disposeOverlays();
     this.vectorHelpers.forEach(helper => this.disposeVectorHelper(helper));
@@ -1178,7 +1394,7 @@ export class Renderer {
     this.material.dispose();
     this.pickingMaterial.dispose();
     this.pickingTarget.dispose();
-    this.selectionOutline.dispose();
+    this.shaderReadback.dispose();
     this.renderer.dispose();
     if (this.container.contains(this.renderer.domElement)) this.container.removeChild(this.renderer.domElement);
   }

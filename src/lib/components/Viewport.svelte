@@ -10,8 +10,7 @@
   import Pause from 'phosphor-svelte/lib/PauseIcon';
   import { maximizedPanel } from '$lib/stores/panelStore';
   import { maximizable } from '$lib/actions/maximizable';
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
-  import { Toggle } from '$lib/components/ui/toggle';
+  import SegmentedControl from './SegmentedControl.svelte';
 
   export let vertexShader: string;
   export let fragmentShader: string;
@@ -32,6 +31,7 @@
   export let transformState: ViewportTransform | undefined = undefined;
   export let vectorVisualizations: ViewportVector[] = [];
   export let onTransformChange: (transform: ViewportTransform) => void = () => {};
+  export let onObjectSelect: (objectIndex: number | undefined) => void = () => {};
   export let onVectorChange: (id: string, value: [number, number, number]) => void = () => {};
   export let onCameraChange: ((pose: ViewportCameraPose) => void) | undefined = undefined;
   export let title = '';
@@ -40,24 +40,29 @@
 
   let transformMode: TransformMode = 'translate';
   let transformSpace: 'local' | 'world' = 'local';
-  let snapping = false;
-  let gizmoSelection: 'object' | 'visualization' | null = null;
   let selectedSceneIndex = 0;
   let timePaused = false;
-  const allTransformModes: TransformMode[] = ['translate', 'rotate', 'scale'];
+  const transformModes: TransformMode[] = ['translate', 'rotate', 'scale'];
+  // Keys as in common 3D editors.
+  const transformModeKeys: Record<string, TransformMode> = { w: 'translate', e: 'rotate', r: 'scale' };
   const transformSpaces = ['local', 'world'] as const;
   const transformModeLabels = {
     translate: 'Translate',
     rotate: 'Rotate',
     scale: 'Scale'
   } as const;
-  $: transformModes = (() => {
-    const configured = overlays?.transformControls?.modes?.filter(mode => allTransformModes.includes(mode)) ?? [];
-    return configured.length ? configured : allTransformModes;
-  })();
-  $: if (mounted && viewport && !transformModes.includes(transformMode)) {
-    transformMode = transformModes[0] ?? 'translate';
-    viewport.setTransformMode(transformMode);
+
+  function handleTransformModeKey(event: KeyboardEvent) {
+    if (!overlays?.transformControls || event.ctrlKey || event.metaKey || event.altKey) return;
+    const target = event.target as HTMLElement | null;
+    // Typing in the shader editor or a field must not switch the gizmo.
+    // Monaco types into a role="textbox" element, not into a textarea.
+    if (target?.isContentEditable || target?.closest('input, textarea, select, [role="textbox"]')) return;
+    const mode = transformModeKeys[event.key.toLowerCase()];
+    if (!mode) return;
+    event.preventDefault();
+    transformMode = mode;
+    viewport?.setTransformMode(mode);
   }
 
   let container: HTMLDivElement;
@@ -136,7 +141,7 @@
     clearTimeout(shaderUpdateTimer);
     shaderUpdateTimer = setTimeout(() => {
       if (!viewport) return;
-      viewport.updateShaders(compiledVertexShader(), compiledFragmentShader());
+      viewport.updateShaders(compiledVertexShader(), compiledFragmentShader(), shaderReadbacks);
     }, 120);
   }
 
@@ -151,6 +156,7 @@
       shaderLineOffsets: shaderLineOffsets(),
       vertexShader: compiledVertexShader(),
       fragmentShader: compiledFragmentShader(),
+      shaderReadbacks,
       scene: resolvedScene()
     }).finally(() => {
       if (token === loadToken) loading = false;
@@ -163,8 +169,8 @@
         container, vertexShader: compiledVertexShader(), fragmentShader: compiledFragmentShader(), inputs, uniformValues, cameraPose, cameraPoseSaved,
         overlays,
         onTransformChange,
+        onObjectSelect,
         onVectorChange,
-        onGizmoSelectionChange: selection => gizmoSelection = selection,
         shaderLineOffsets: shaderLineOffsets(),
         reportErrors,
         onCameraChange,
@@ -186,7 +192,7 @@
     viewport.setCameraPose(cameraPose, cameraPoseSaved);
     viewport.setTransformState(transformState);
     viewport.setVectorVisualizations(vectorVisualizations);
-    viewport.setShaderReadbacks(shaderReadbacks);
+    window.addEventListener('keydown', handleTransformModeKey);
     mounted = true;
     previousRenderKey = currentRenderKey();
     previousSceneIndex = selectedSceneIndex;
@@ -195,13 +201,11 @@
     replaceTaskState();
   });
 
-  $: if (mounted && viewport) {
-    viewport.setUniformValues(uniformValues);
-    viewport.setCameraPose(cameraPose, cameraPoseSaved);
-    viewport.setTransformState(transformState);
-    viewport.setVectorVisualizations(vectorVisualizations);
-    viewport.setShaderReadbacks(shaderReadbacks);
-  }
+  // Separate statements keep a camera orbit from pushing every other prop again.
+  $: if (mounted && viewport) viewport.setUniformValues(uniformValues);
+  $: if (mounted && viewport) viewport.setCameraPose(cameraPose, cameraPoseSaved);
+  $: if (mounted && viewport) viewport.setTransformState(transformState);
+  $: if (mounted && viewport) viewport.setVectorVisualizations(vectorVisualizations);
 
   $: if (mounted && viewport && (currentRenderKey() !== previousRenderKey || selectedSceneIndex !== previousSceneIndex)) {
     previousRenderKey = currentRenderKey();
@@ -217,6 +221,7 @@
   }
 
   onDestroy(() => {
+    if (typeof window !== 'undefined') window.removeEventListener('keydown', handleTransformModeKey);
     clearTimeout(shaderUpdateTimer);
     viewport?.dispose();
   });
@@ -250,66 +255,33 @@
       {#if loading}<LoadingOverlay label="Loading scene" />{/if}
       {#if webglUnavailable}<p class="absolute inset-0 z-10 flex items-center justify-center p-6 text-center text-sm text-muted-foreground" role="alert">WebGL is unavailable, so this viewport cannot render.</p>{/if}
       {#if scenes.length > 1}
-        <ToggleGroup.Root
-          type="single"
+        <SegmentedControl
+          class="transform-mode-toggle absolute right-3 top-3 z-10 flex-none"
           value={String(selectedSceneIndex)}
-          class="transform-mode-toggle relative z-10 flex-none gap-0 bg-muted p-0"
-          onValueChange={value => selectedSceneIndex = Number(value)}
-        >
-          {#each scenes as definedScene, index}
-            <ToggleGroup.Item
-              value={String(index)}
-              class="h-10 border-none px-4 transition-colors hover:bg-muted/50 data-[state=on]:rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30"
-            >{sceneLabel(definedScene, index)}</ToggleGroup.Item>
-          {/each}
-        </ToggleGroup.Root>
+          options={scenes.map((definedScene, index) => ({ value: String(index), label: sceneLabel(definedScene, index) }))}
+          onChange={value => selectedSceneIndex = Number(value)}
+        />
       {/if}
-      {#if overlays?.transformControls && gizmoSelection === 'object'}
-        <ToggleGroup.Root
-          type="single"
+      {#if overlays?.transformControls}
+        <SegmentedControl
+          class="relative z-10 flex-none"
           value={transformMode}
-          class="relative z-10 flex-none gap-0 bg-muted p-0"
-          onValueChange={mode => {
-            if (!transformModes.includes(mode as typeof transformMode)) return;
-            transformMode = mode as typeof transformMode;
-            viewport?.setTransformMode(transformMode);
+          options={transformModes.map(mode => ({ value: mode, label: transformModeLabels[mode] }))}
+          onChange={mode => {
+            transformMode = mode;
+            viewport?.setTransformMode(mode);
+            viewport?.selectObject();
           }}
-        >
-          {#each transformModes as mode}
-            <ToggleGroup.Item
-              value={mode}
-              class="h-10 border-none px-4 transition-colors hover:bg-muted/50 data-[state=on]:rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30"
-            >{transformModeLabels[mode]}</ToggleGroup.Item>
-          {/each}
-        </ToggleGroup.Root>
-        <div class="absolute right-3 top-3 z-10 flex gap-2">
-          <Toggle
-            pressed={snapping}
-            class="h-10 bg-muted px-4 hover:bg-muted/50 data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30"
-            title="Snap: 0.1 units / 5°"
-            onPressedChange={pressed => {
-              snapping = pressed;
-              viewport?.setSnapping(snapping);
-            }}
-          >Snap</Toggle>
-          <ToggleGroup.Root
-            type="single"
-            value={transformSpace}
-            class="transform-space-toggle flex-none gap-0 bg-muted p-0"
-            onValueChange={space => {
-              if (!transformSpaces.includes(space as typeof transformSpace)) return;
-              transformSpace = space as typeof transformSpace;
-              viewport?.setTransformSpace(transformSpace);
-            }}
-          >
-            {#each transformSpaces as space}
-              <ToggleGroup.Item
-                value={space}
-                class="h-10 border-none px-4 transition-colors hover:bg-muted/50 data-[state=on]:rounded-md data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30"
-              >{space === 'local' ? 'Local' : 'World'}</ToggleGroup.Item>
-            {/each}
-          </ToggleGroup.Root>
-        </div>
+        />
+        <SegmentedControl
+          class="transform-space-toggle relative z-10 flex-none"
+          value={transformSpace}
+          options={transformSpaces.map(space => ({ value: space, label: space === 'local' ? 'Local' : 'World' }))}
+          onChange={space => {
+            transformSpace = space;
+            viewport?.setTransformSpace(space);
+          }}
+        />
       {/if}
     </div>
   </div>

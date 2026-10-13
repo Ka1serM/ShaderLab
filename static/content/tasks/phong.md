@@ -42,9 +42,9 @@ precision highp float;
 in vec3 vNormal;
 in vec3 vPosition;
 
-out vec4 fragColor;
-
 uniform vec3 cameraPosition;
+
+out vec4 fragColor;
 
 void main() {
     fragColor = vec4(0.18, 0.18, 0.18, 1.0);
@@ -53,7 +53,6 @@ void main() {
 
 # Reference Vertex Shader
 ```glsl
-
 precision highp float;
 
 in vec3 position;
@@ -69,21 +68,21 @@ out vec3 vPosition;
 void main() {
     vNormal = normalize(mat3(transpose(inverse(modelMatrix))) * normal);
     vPosition = vec3(modelMatrix * vec4(position, 1.0));
+
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 ```
 
 # Reference Fragment Shader
 ```glsl
-
 precision highp float;
 
 in vec3 vNormal;
 in vec3 vPosition;
 
-out vec4 fragColor;
-
 uniform vec3 cameraPosition;
+
+out vec4 fragColor;
 
 void main() {
     vec3 normal = normalize(vNormal);
@@ -94,13 +93,15 @@ void main() {
     float diffuse = max(dot(normal, lightDir), 0.0);
 
     vec3 reflectDir = 2.0 * dot(normal, lightDir) * normal - lightDir;
-    float specular = diffuse > 0.0
-        ? pow(max(dot(reflectDir, viewDir), 0.0), 32.0)
-        : 0.0;
+    float specular = 0.0;
+    if (diffuse > 0.0) {
+        specular = pow(max(dot(reflectDir, viewDir), 0.0), 32.0);
+    }
 
     vec3 ambient = vec3(0.1);
 
     vec3 color = ambient + baseColor * diffuse + specular * vec3(1.0);
+
     fragColor = vec4(color, 1.0);
 }
 ```

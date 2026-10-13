@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import ControlResetButton from './ControlResetButton.svelte';
+  import ControlField from './ControlField.svelte';
   import { enteredNumber, mirrorNumber } from '$lib/actions/mirrorNumber';
 
   export let value: number[] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -31,11 +31,7 @@
   onDestroy(() => clearChangeHighlight && clearTimeout(clearChangeHighlight));
 </script>
 
-<div class="teaching-control-body">
-  <div class="teaching-control-heading">
-    <span class="teaching-control-label">{label}</span>
-    <ControlResetButton {label} {onReset} />
-  </div>
+<ControlField {label} {onReset} stacked>
   <div class="teaching-matrix-grid">
     {#each [0, 1, 2, 3] as row}
       {#each [0, 1, 2, 3] as column}
@@ -52,4 +48,4 @@
       {/each}
     {/each}
   </div>
-</div>
+</ControlField>

@@ -100,10 +100,30 @@ function isTeachingUserWorkspace(value: unknown): value is TeachingUserWorkspace
     && (value.cameraPose === undefined || isCameraPose(value.cameraPose));
 }
 
+const storageKey = (definition: Teach) => `${STORAGE_PREFIX}${definition.id}:${definition.contentVersion}`;
+
+// Writes are collected per lesson and flushed after a short delay, so a slider drag does not write on every input event.
+const pendingWorkspaces = new Map<string, TeachingUserWorkspace>();
+let saveTimeout: ReturnType<typeof setTimeout> | undefined;
+
+function flushWorkspaces() {
+  clearTimeout(saveTimeout);
+  saveTimeout = undefined;
+  for (const [key, workspace] of pendingWorkspaces) {
+    try {
+      localStorage.setItem(key, JSON.stringify(workspace));
+    } catch { /* storage is optional */ }
+  }
+  pendingWorkspaces.clear();
+}
+
+if (browser) window.addEventListener('pagehide', flushWorkspaces);
+
 function loadSaved(definition: Teach) {
   if (!browser) return { values: {}, userCode: {}, cameraPose: undefined };
+  const key = storageKey(definition);
   try {
-    const saved = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}${definition.id}:${definition.contentVersion}`) ?? 'null');
+    const saved = pendingWorkspaces.get(key) ?? JSON.parse(localStorage.getItem(key) ?? 'null');
     return isTeachingUserWorkspace(saved)
       ? { values: { ...saved.parameters }, userCode: { ...saved.userCode }, cameraPose: saved.cameraPose }
       : { values: {}, userCode: {}, cameraPose: undefined };
@@ -115,13 +135,13 @@ function loadSaved(definition: Teach) {
 /** A camera the user never moved is not saved: it would pin the view and disable the automatic framing. */
 function persisted(state: TeachingState) {
   if (!browser || !state.definition) return state;
-  try {
-    localStorage.setItem(`${STORAGE_PREFIX}${state.definition.id}:${state.definition.contentVersion}`, JSON.stringify({
-      userCode: state.userCode,
-      parameters: state.values,
-      cameraPose: state.cameraPoseSaved ? state.cameraPose : undefined
-    } satisfies TeachingUserWorkspace));
-  } catch { /* storage is optional */ }
+  pendingWorkspaces.set(storageKey(state.definition), {
+    userCode: state.userCode,
+    parameters: state.values,
+    cameraPose: state.cameraPoseSaved ? state.cameraPose : undefined
+  });
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(flushWorkspaces, 300);
   return state;
 }
 

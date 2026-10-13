@@ -5,10 +5,10 @@ import { controlValues, parseShaderControls } from '../src/lib/utils/shaderContr
 
 describe('parseShaderControls', () => {
   it.each([
-    ['transformations.md', 6],
-    ['projection.md', 9],
+    ['transformations.md', 8],
+    ['projection.md', 16],
     ['shading.md', 5],
-    ['illumination.md', 5]
+    ['illumination.md', 6]
   ])('parses every annotation in %s', (file, expectedCount) => {
     const source = readFileSync(resolve('static/content/teaching', file), 'utf8');
     const annotationCount = source.match(/^\s*\/\/\s*@(control|readback)\b/gm)?.length ?? 0;
@@ -30,6 +30,19 @@ describe('parseShaderControls', () => {
       { id: 'lightDirection', uniform: 'lightDirection', type: 'vector3', default: [1, 2, 3], min: undefined },
       { id: 'strength', uniform: 'strength', default: 0.5, min: 0, max: 1 }
     ]);
+  });
+
+  it('binds a bool uniform to a checkbox', () => {
+    const controls = parseShaderControls('// @control label="Extra lights" default=true\nuniform bool uExtraLights;');
+    expect(controls).toMatchObject([{ id: 'uExtraLights', type: 'checkbox', uniform: 'uExtraLights', default: true }]);
+    expect(controlValues(controls, { uExtraLights: false })).toEqual({ uExtraLights: false });
+  });
+
+  it('binds an int uniform with options to an options control', () => {
+    const controls = parseShaderControls('// @control label="Pivot" options="Center, Right" default=1\nuniform int uPivot;');
+    expect(controls).toMatchObject([{ id: 'uPivot', type: 'options', options: ['Center', 'Right'], default: 1 }]);
+    expect(controlValues(controls, { uPivot: 0 })).toEqual({ uPivot: 0 });
+    expect(controlValues(controls, { uPivot: 0.5 })).toEqual({ uPivot: 1 });
   });
 
   it('does not cross another annotation while searching for a declaration', () => {

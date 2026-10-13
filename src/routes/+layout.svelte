@@ -6,12 +6,10 @@
   import { ModeWatcher } from "mode-watcher";
   import { checkStorageVersion } from '$lib/config';
   import { Toaster } from '$lib/components/ui/sonner';
-  import { toast } from 'svelte-sonner';
   import '../App.css';
 
   checkStorageVersion();
 
-  let isPreparingOfflineCache = false;
   let mainElement: HTMLElement;
   let pageReplay = 0;
 
@@ -41,34 +39,9 @@
     };
     window.addEventListener('shaderlab:replay-page', replayPage);
     document.addEventListener('click', replayCurrentLink, true);
-    const isStandaloneApp = window.matchMedia('(display-mode: standalone)').matches
-      || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-    if (!isStandaloneApp || !('serviceWorker' in navigator) || navigator.serviceWorker.controller) {
-      return () => {
-        window.removeEventListener('shaderlab:replay-page', replayPage);
-        document.removeEventListener('click', replayCurrentLink, true);
-      };
-    }
-    isPreparingOfflineCache = true;
-    let completed = false;
-    const timeout = window.setTimeout(() => {
-      if (!completed) toast.error('Offline content could not be downloaded completely.');
-    }, 90_000);
-    navigator.serviceWorker.ready.then(() => {
-      completed = true;
-      window.clearTimeout(timeout);
-      isPreparingOfflineCache = false;
-      toast.success('ShaderLab’s core interface is ready offline. Large assets are cached when first opened.');
-    }).catch(() => {
-      completed = true;
-      window.clearTimeout(timeout);
-      isPreparingOfflineCache = false;
-      toast.error('Offline content could not be downloaded completely.');
-    });
     return () => {
       window.removeEventListener('shaderlab:replay-page', replayPage);
       document.removeEventListener('click', replayCurrentLink, true);
-      window.clearTimeout(timeout);
     };
   });
 </script>
@@ -85,10 +58,3 @@
     {/key}
   </main>
 </div>
-
-{#if isPreparingOfflineCache}
-  <div class="offline-cache-status" role="status" aria-live="polite">
-    <span class="offline-cache-spinner" aria-hidden="true"></span>
-    Offline-Inhalte werden heruntergeladen …
-  </div>
-{/if}

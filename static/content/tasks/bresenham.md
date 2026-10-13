@@ -51,10 +51,11 @@ Beide Schreibweisen treffen dieselbe Mittelpunktentscheidung und benötigen in d
 precision highp float;
 
 in vec2 vUV;
-out vec4 fragColor;
 
 uniform vec2 iResolution;
 uniform vec3 iMouse;
+
+out vec4 fragColor;
 
 const int GRID_SIZE = 64;
 
@@ -102,9 +103,11 @@ void main() {
     int y0 = 0;
     int x1 = gridWidth - 1;
     int y1 = min(gridHeight - 1, int(0.75 * float(gridWidth)));
+
     if (iMouse.z > 0.5) {
         x0 = gridWidth / 2;
         y0 = gridHeight / 2;
+
         vec2 mousePixel = vec2(iMouse.x, iResolution.y - iMouse.y);
         vec2 mouseGrid = mousePixel / cellSize;
         x1 = max(0, min(gridWidth - 1, int(floor(mouseGrid.x))));
@@ -134,6 +137,7 @@ out vec2 vUV;
 
 void main() {
     vUV = uv;
+
     gl_Position = vec4(position, 1.0);
 }
 ```
@@ -143,13 +147,13 @@ void main() {
 precision highp float;
 
 in vec2 vUV;
-out vec4 fragColor;
 
 uniform vec2 iResolution;
+uniform vec3 iMouse;
+
+out vec4 fragColor;
 
 const int GRID_SIZE = 64;
-
-uniform vec3 iMouse;
 
 vec2 viewportPixel(vec2 uv) {
     return uv * iResolution;
@@ -179,10 +183,12 @@ void drawPixel(int x, int y, inout vec3 color, vec3 pixelColor) {
 }
 
 void bresenhamLine(int x0, int y0, int x1, int y1, inout vec3 color) {
-    int dx = abs(x1 - x0);
-    int sx = x0 < x1 ? 1 : -1;
+    int dx =  abs(x1 - x0);
     int dy = -abs(y1 - y0);
+
+    int sx = x0 < x1 ? 1 : -1;
     int sy = y0 < y1 ? 1 : -1;
+
     int err = dx + dy;
     int e2;
 
@@ -195,8 +201,16 @@ void bresenhamLine(int x0, int y0, int x1, int y1, inout vec3 color) {
         if (x == x1 && y == y1) break;
 
         e2 = 2 * err;
-        if (e2 >= dy) { err += dy; x += sx; }
-        if (e2 <= dx) { err += dx; y += sy; }
+
+        if (e2 >= dy) {
+            err += dy;
+            x += sx;
+        }
+
+        if (e2 <= dx) {
+            err += dx;
+            y += sy;
+        }
     }
 }
 
@@ -211,9 +225,11 @@ void main() {
     int y0 = 0;
     int x1 = gridWidth - 1;
     int y1 = min(gridHeight - 1, int(0.75 * float(gridWidth)));
+
     if (iMouse.z > 0.5) {
         x0 = gridWidth / 2;
         y0 = gridHeight / 2;
+
         vec2 mousePixel = vec2(iMouse.x, iResolution.y - iMouse.y);
         vec2 mouseGrid = mousePixel / cellSize;
         x1 = max(0, min(gridWidth - 1, int(floor(mouseGrid.x))));

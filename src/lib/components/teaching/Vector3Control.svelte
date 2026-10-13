@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ControlResetButton from './ControlResetButton.svelte';
+  import ControlField from './ControlField.svelte';
   import { enteredNumber, mirrorNumber } from '$lib/actions/mirrorNumber';
 
   export let value: number[] = [0, 0, 0];
@@ -22,10 +22,10 @@
   }
 </script>
 
-<div class="teaching-control-body"><div class="teaching-control-heading"><span class="teaching-control-label">{label}</span><ControlResetButton {label} {onReset} /></div><div class:teaching-vector-grid--four={axes.length === 4} class="teaching-vector-grid">
+<ControlField {label} {onReset} stacked={axes.length === 4}><div class:teaching-vector-grid--four={axes.length === 4} class="teaching-vector-grid">
   {#each axes as axis, index}
     <label class="teaching-vector-field"><span class={`teaching-axis teaching-axis-${axis.toLowerCase()}`}>{axis}</span>
       <input aria-label={`${label} ${axis}`} type="number" {min} {max} {step} use:mirrorNumber={{ value: value[index] ?? 0 }} readonly={readOnly} oninput={(event) => update(index, event)} />
     </label>
   {/each}
-</div></div>
+</div></ControlField>

@@ -66,6 +66,7 @@ mat4 venusPointMatrix;
 mat4 earthPointMatrix;
 mat4 moonPointMatrix;
 mat4 marsPointMatrix;
+
 mat3 sunNormalMatrix;
 mat3 mercuryNormalMatrix;
 mat3 venusNormalMatrix;
@@ -80,39 +81,48 @@ void main() {
     animateEarth(time);
     animateMoon(time);
     animateMars(time);
+
     render();
 }
 
 void animateSun(float time) {
-    sunPointMatrix = mat4(1.0, 0.0, 0.0, 0.0,
-                          0.0, 1.0, 0.0, 0.0,
-                          0.0, 0.0, 1.0, 0.0,
-                          0.0, 0.0, 0.0, 1.0);
+    sunPointMatrix = mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+
     sunNormalMatrix = mat3(1.0);
 }
 
 void animateMercury(float time) {
     mercuryPointMatrix = sunPointMatrix;
+
     mercuryNormalMatrix = mat3(1.0);
 }
 
 void animateVenus(float time) {
     venusPointMatrix = sunPointMatrix;
+
     venusNormalMatrix = mat3(1.0);
 }
 
 void animateEarth(float time) {
     earthPointMatrix = sunPointMatrix;
+
     earthNormalMatrix = mat3(1.0);
 }
 
 void animateMoon(float time) {
     moonPointMatrix = earthPointMatrix;
+
     moonNormalMatrix = mat3(1.0);
 }
 
 void animateMars(float time) {
     marsPointMatrix = sunPointMatrix;
+
     marsNormalMatrix = mat3(1.0);
 }
 
@@ -148,6 +158,7 @@ void render() {
     }
 
     vNormal = normalize(normalMatrix * normal);
+
     gl_Position = projectionMatrix * modelViewMatrix * pointMatrix * vec4(position, 1.0);
 }
 // @suffix
@@ -181,6 +192,7 @@ mat4 venusPointMatrix;
 mat4 earthPointMatrix;
 mat4 moonPointMatrix;
 mat4 marsPointMatrix;
+
 mat3 sunNormalMatrix;
 mat3 mercuryNormalMatrix;
 mat3 venusNormalMatrix;
@@ -195,35 +207,44 @@ void main() {
     animateEarth(time);
     animateMoon(time);
     animateMars(time);
+
     render();
 }
 
 mat4 translationMatrix(vec3 translationVector) {
-    return mat4(1.0, 0.0, 0.0, translationVector.x,
-                0.0, 1.0, 0.0, translationVector.y,
-                0.0, 0.0, 1.0, translationVector.z,
-                0.0, 0.0, 0.0, 1.0);
+    return mat4(
+        1.0, 0.0, 0.0, translationVector.x,
+        0.0, 1.0, 0.0, translationVector.y,
+        0.0, 0.0, 1.0, translationVector.z,
+        0.0, 0.0, 0.0, 1.0
+    );
 }
 
 mat4 scalingMatrix(vec3 scaleVector) {
-    return mat4(scaleVector.x, 0.0, 0.0, 0.0,
-                0.0, scaleVector.y, 0.0, 0.0,
-                0.0, 0.0, scaleVector.z, 0.0,
-                0.0, 0.0, 0.0, 1.0);
+    return mat4(
+        scaleVector.x, 0.0,           0.0,           0.0,
+        0.0,           scaleVector.y, 0.0,           0.0,
+        0.0,           0.0,           scaleVector.z, 0.0,
+        0.0,           0.0,           0.0,           1.0
+    );
 }
 
 mat4 rotationYMatrix(float rotationAngle) {
     float cosine = cos(rotationAngle);
     float sine = sin(rotationAngle);
-    return mat4(cosine, 0.0, sine, 0.0,
-                0.0, 1.0, 0.0, 0.0,
-                -sine, 0.0, cosine, 0.0,
-                0.0, 0.0, 0.0, 1.0);
+
+    return mat4(
+        cosine, 0.0, sine,   0.0,
+        0.0,    1.0, 0.0,    0.0,
+        -sine,  0.0, cosine, 0.0,
+        0.0,    0.0, 0.0,    1.0
+    );
 }
 
 void animateSun(float time) {
     sunPointMatrix = mat4(1.0);
     sunPointMatrix = sunPointMatrix * scalingMatrix(vec3(0.8));
+
     sunNormalMatrix = mat3(transpose(inverse(sunPointMatrix)));
 }
 
@@ -232,6 +253,7 @@ void animateMercury(float time) {
     mercuryPointMatrix = mercuryPointMatrix * rotationYMatrix(time * 2.075);
     mercuryPointMatrix = mercuryPointMatrix * translationMatrix(vec3(2.0, 0.0, 0.0));
     mercuryPointMatrix = mercuryPointMatrix * scalingMatrix(vec3(0.15));
+
     mercuryNormalMatrix = mat3(transpose(inverse(mercuryPointMatrix)));
 }
 
@@ -240,6 +262,7 @@ void animateVenus(float time) {
     venusPointMatrix = venusPointMatrix * rotationYMatrix(time * 0.81);
     venusPointMatrix = venusPointMatrix * translationMatrix(vec3(2.8, 0.0, 0.0));
     venusPointMatrix = venusPointMatrix * scalingMatrix(vec3(0.3));
+
     venusNormalMatrix = mat3(transpose(inverse(venusPointMatrix)));
 }
 
@@ -248,12 +271,17 @@ void animateEarth(float time) {
     earthPointMatrix = earthPointMatrix * rotationYMatrix(time * 0.5);
     earthPointMatrix = earthPointMatrix * translationMatrix(vec3(3.8, 0.0, 0.0));
     earthPointMatrix = earthPointMatrix * scalingMatrix(vec3(0.35));
+
     earthNormalMatrix = mat3(transpose(inverse(earthPointMatrix)));
 }
 
 void animateMoon(float time) {
-    mat4 localMoonMatrix = rotationYMatrix(time * 2.0) * translationMatrix(vec3(1.3, 0.0, 0.0)) * scalingMatrix(vec3(0.2));
+    mat4 localMoonMatrix = rotationYMatrix(time * 2.0)
+                         * translationMatrix(vec3(1.3, 0.0, 0.0))
+                         * scalingMatrix(vec3(0.2));
+
     moonPointMatrix = earthPointMatrix * localMoonMatrix;
+
     moonNormalMatrix = mat3(transpose(inverse(moonPointMatrix)));
 }
 
@@ -262,12 +290,14 @@ void animateMars(float time) {
     marsPointMatrix = marsPointMatrix * rotationYMatrix(time * 0.265);
     marsPointMatrix = marsPointMatrix * translationMatrix(vec3(5.0, 0.0, 0.0));
     marsPointMatrix = marsPointMatrix * scalingMatrix(vec3(0.25));
+
     marsNormalMatrix = mat3(transpose(inverse(marsPointMatrix)));
 }
 
 void render() {
     mat4 pointMatrix;
     mat3 normalMatrix;
+
     if (gl_InstanceID == 0) {
         pointMatrix = sunPointMatrix;
         normalMatrix = sunNormalMatrix;
@@ -295,6 +325,7 @@ void render() {
     }
 
     vNormal = normalize(normalMatrix * normal);
+
     gl_Position = projectionMatrix * modelViewMatrix * pointMatrix * vec4(position, 1.0);
 }
 ```
@@ -305,12 +336,15 @@ precision highp float;
 
 in vec3 vNormal;
 in vec3 vColor;
+
 out vec4 fragColor;
 
 void main() {
     vec3 lightDirection = normalize(vec3(0.5, 0.5, 1.0));
+
     float diffuse = max(dot(normalize(vNormal), lightDirection), 0.0);
     float ambient = 0.2;
+
     fragColor = vec4(vColor * (diffuse + ambient), 1.0);
 }
 ```

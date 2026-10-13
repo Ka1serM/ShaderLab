@@ -22,17 +22,31 @@ vec3 localPosition = (rotation * scaling * vec4(position - pivot, 1.0)).xyz;
 vec4 transformedPosition = translation * vec4(pivot + localPosition, 1.0);
 ```
 
-`pivot=<uniform>` on the translate control names a vec3 uniform and places the
-gizmo at `translation * pivot`. It only affects gizmo placement; the pivot is an
-ordinary uniform with no CPU-side compensation, so moving it after rotating or
+`pivot=<name>` on the translate control names a vec3 uniform or a vec3 readback
+and places the gizmo at `translation * pivot`. It only affects gizmo placement;
+there is no CPU-side compensation, so changing the pivot after rotating or
 scaling moves the mesh exactly as the shader math says.
 
-An optional draggable point uses the existing readback annotations:
+A shader can also derive the pivot, for example from fixed choices. An `int`
+uniform with `options` shows a segmented toggle and holds the selected index:
 
 ```glsl
-// @readback visualize=point target=pivot inverse=translation
-vec3 pivotWorld = (translation * vec4(pivot, 1.0)).xyz;
+// @control label="Pivot" options="Center,Right"
+uniform int pivotChoice;
+// @control transform=translate pivot=pivot readonly=true
+uniform mat4 translation;
+
+void main() {
+  // @readback label="Pivot P"
+  vec3 pivot = pivotChoice == 0 ? vec3(0.0) : vec3(1.0, 0.0, 0.0);
+  // @readback visualize=point
+  vec3 pivotWorld = (translation * vec4(pivot, 1.0)).xyz;
+  ...
+}
 ```
+
+Add `target=pivot inverse=translation` to the point readback to make a pivot
+uniform draggable in the viewport.
 
 Only the editor interaction keeps state on the CPU; vertex transformation stays
 in GLSL. Shaders without pivot annotations retain ordinary T/R/S gizmos.

@@ -58,6 +58,7 @@ void render();
 mat4 gearAPointMatrix;
 mat4 gearBPointMatrix;
 mat4 gearCPointMatrix;
+
 mat3 gearANormalMatrix;
 mat3 gearBNormalMatrix;
 mat3 gearCNormalMatrix;
@@ -66,24 +67,30 @@ void main() {
     animateA(time);
     animateB(time);
     animateC(time);
+
     render();
 }
 
 void animateA(float time) {
-    gearAPointMatrix = mat4(1.0, 0.0, 0.0, 0.0,
-                            0.0, 1.0, 0.0, 0.0,
-                            0.0, 0.0, 1.0, 0.0,
-                            0.0, 0.0, 0.0, 1.0);
+    gearAPointMatrix = mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+
     gearANormalMatrix = mat3(1.0);
 }
 
 void animateB(float time) {
     gearBPointMatrix = mat4(1.0);
+
     gearBNormalMatrix = mat3(1.0);
 }
 
 void animateC(float time) {
     gearCPointMatrix = mat4(1.0);
+
     gearCNormalMatrix = mat3(1.0);
 }
 
@@ -91,6 +98,7 @@ void animateC(float time) {
 void render() {
     mat4 pointMatrix;
     mat3 normalMatrix;
+
     if (gl_InstanceID == 0) {
         pointMatrix = gearAPointMatrix;
         normalMatrix = gearANormalMatrix;
@@ -106,6 +114,7 @@ void render() {
     }
 
     vNormal = normalize(normalMatrix * normal);
+
     gl_Position = projectionMatrix * modelViewMatrix * pointMatrix * vec4(position, 1.0);
 }
 // @suffix
@@ -128,31 +137,39 @@ out vec3 vColor;
 mat4 gearAPointMatrix;
 mat4 gearBPointMatrix;
 mat4 gearCPointMatrix;
+
 mat3 gearANormalMatrix;
 mat3 gearBNormalMatrix;
 mat3 gearCNormalMatrix;
 
 mat4 translationMatrix(vec3 translationVector) {
-    return mat4(1.0, 0.0, 0.0, translationVector.x,
-                0.0, 1.0, 0.0, translationVector.y,
-                0.0, 0.0, 1.0, translationVector.z,
-                0.0, 0.0, 0.0, 1.0);
+    return mat4(
+        1.0, 0.0, 0.0, translationVector.x,
+        0.0, 1.0, 0.0, translationVector.y,
+        0.0, 0.0, 1.0, translationVector.z,
+        0.0, 0.0, 0.0, 1.0
+    );
 }
 
 mat4 scalingMatrix(vec3 scaleVector) {
-    return mat4(scaleVector.x, 0.0, 0.0, 0.0,
-                0.0, scaleVector.y, 0.0, 0.0,
-                0.0, 0.0, scaleVector.z, 0.0,
-                0.0, 0.0, 0.0, 1.0);
+    return mat4(
+        scaleVector.x, 0.0,           0.0,           0.0,
+        0.0,           scaleVector.y, 0.0,           0.0,
+        0.0,           0.0,           scaleVector.z, 0.0,
+        0.0,           0.0,           0.0,           1.0
+    );
 }
 
 mat4 rotationZMatrix(float rotationAngle) {
     float cosine = cos(rotationAngle);
     float sine = sin(rotationAngle);
-    return mat4(cosine, sine, 0.0, 0.0,
-                -sine, cosine, 0.0, 0.0,
-                0.0, 0.0, 1.0, 0.0,
-                0.0, 0.0, 0.0, 1.0);
+
+    return mat4(
+        cosine, sine,   0.0, 0.0,
+        -sine,  cosine, 0.0, 0.0,
+        0.0,    0.0,    1.0, 0.0,
+        0.0,    0.0,    0.0, 1.0
+    );
 }
 
 void animateA(float time) {
@@ -160,6 +177,7 @@ void animateA(float time) {
     gearAPointMatrix = gearAPointMatrix * translationMatrix(vec3(0.0, 0.0, 0.0));
     gearAPointMatrix = gearAPointMatrix * rotationZMatrix(time * 0.8);
     gearAPointMatrix = gearAPointMatrix * scalingMatrix(vec3(1.0, 1.0, 1.0));
+
     gearANormalMatrix = mat3(transpose(inverse(gearAPointMatrix)));
 }
 
@@ -168,6 +186,7 @@ void animateB(float time) {
     gearBPointMatrix = gearBPointMatrix * translationMatrix(vec3(0.0, 2.0, 0.0));
     gearBPointMatrix = gearBPointMatrix * rotationZMatrix(-time * 1.6);
     gearBPointMatrix = gearBPointMatrix * scalingMatrix(vec3(0.65, 0.65, 1.0));
+
     gearBNormalMatrix = mat3(transpose(inverse(gearBPointMatrix)));
 }
 
@@ -176,6 +195,7 @@ void animateC(float time) {
     gearCPointMatrix = gearCPointMatrix * translationMatrix(vec3(0.0, 3.85, 0.0));
     gearCPointMatrix = gearCPointMatrix * rotationZMatrix(time * 1.05 + 0.261799);
     gearCPointMatrix = gearCPointMatrix * scalingMatrix(vec3(0.85, 0.85, 1.0));
+
     gearCNormalMatrix = mat3(transpose(inverse(gearCPointMatrix)));
 }
 
@@ -186,6 +206,7 @@ void main() {
 
     mat4 pointMatrix;
     mat3 normalMatrix;
+
     if (gl_InstanceID == 0) {
         pointMatrix = gearAPointMatrix;
         normalMatrix = gearANormalMatrix;
@@ -201,6 +222,7 @@ void main() {
     }
 
     vNormal = normalize(normalMatrix * normal);
+
     gl_Position = projectionMatrix * modelViewMatrix * pointMatrix * vec4(position, 1.0);
 }
 ```
@@ -211,12 +233,15 @@ precision highp float;
 
 in vec3 vNormal;
 in vec3 vColor;
+
 out vec4 fragColor;
 
 void main() {
     vec3 lightDirection = normalize(vec3(1.0, 0.5, 1.0));
+
     float diffuse = max(dot(normalize(vNormal), lightDirection), 0.0);
     float ambient = 0.3;
+
     fragColor = vec4(vColor * (diffuse + ambient), 1.0);
 }
 ```

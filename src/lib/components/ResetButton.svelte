@@ -2,6 +2,7 @@
   import { toast } from 'svelte-sonner';
   import { fade, scale } from 'svelte/transition';
   import { Portal } from 'bits-ui';
+  import ArrowCounterClockwise from 'phosphor-svelte/lib/ArrowCounterClockwiseIcon';
 
   export let description = 'Reset to the default values?';
   export let onReset: () => void = () => {};
@@ -15,7 +16,12 @@
   }
 </script>
 
-<button class="motion-press h-8 rounded-md border border-input px-3 text-sm hover:bg-accent" onclick={() => confirmReset = true}>Reset</button>
+<button
+  class="motion-press h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground shrink-0"
+  title="Reset"
+  aria-label="Reset"
+  onclick={() => confirmReset = true}
+><ArrowCounterClockwise class="h-4 w-4" /></button>
 
 {#if confirmReset}
   <Portal>
