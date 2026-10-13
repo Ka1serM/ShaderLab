@@ -15,8 +15,6 @@ THREE.Cache.enabled = false;
 // TransformControls normally occupy a fixed fraction of the canvas height.
 // Use the size they have in a typical 600px-high viewport as our fixed visual size.
 const TRANSFORM_CONTROLS_REFERENCE_HEIGHT = 600;
-// Point and vector edit gizmos sit on small helpers and must not hide the object.
-const VISUALIZATION_GIZMO_SCALE = .55;
 // Free space kept around the framed scene, as a factor on the field of view.
 const FRAME_MARGIN = 1.1;
 // Inset view size as a fraction of the viewport, and its placement in CSS pixels.
@@ -566,7 +564,6 @@ export class Renderer {
     this.editingVectorId = undefined;
     this.transformControls?.setMode(this.transformMode);
     this.gizmoSelection = 'object';
-    this.updateTransformControlsSize();
     this.syncTransformProxy();
     this.requestRender();
   }
@@ -674,7 +671,7 @@ export class Renderer {
         let point = this.pointHelpers.get(vector.id);
         if (!point) {
           point = new THREE.Mesh(
-            new THREE.SphereGeometry(.06, 20, 12),
+            new THREE.SphereGeometry(.033, 20, 12),
             new THREE.MeshBasicMaterial({ color: 0xbf2732, side: THREE.DoubleSide, depthTest: false, depthWrite: false })
           );
           this.pointHelpers.set(vector.id, point);
@@ -747,7 +744,6 @@ export class Renderer {
       this.transformControls.setSpace('world');
       this.transformControls.attach(this.vectorEditProxy);
       this.gizmoSelection = 'visualization';
-      this.updateTransformControlsSize();
       return;
     }
 
@@ -759,7 +755,6 @@ export class Renderer {
       this.transformControls.setMode(this.transformMode);
       this.transformControls.setSpace(this.transformSpace);
       this.gizmoSelection = 'object';
-      this.updateTransformControlsSize();
     } else {
       this.transformControls.detach();
       this.gizmoSelection = null;
@@ -1170,8 +1165,7 @@ export class Renderer {
    */
   private updateTransformControlsSize(height = this.container.clientHeight) {
     if (height < 1) return;
-    const scale = this.gizmoSelection === 'visualization' ? VISUALIZATION_GIZMO_SCALE : 1;
-    this.transformControls?.setSize(scale * TRANSFORM_CONTROLS_REFERENCE_HEIGHT / height);
+    this.transformControls?.setSize(TRANSFORM_CONTROLS_REFERENCE_HEIGHT / height);
   }
 
   private renderScene() {
