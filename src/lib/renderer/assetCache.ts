@@ -11,9 +11,11 @@ export type ModelPart = {
 };
 
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-const storedAssetsName = 'shaderlab-assets-v1';
 const models = new Map<string, Promise<ModelPart[]>>();
 const rawFiles = new Map<string, Promise<ArrayBuffer>>();
+
+// Earlier versions kept a second copy of every asset (about 12 MB) in Cache Storage.
+if (typeof caches !== 'undefined') void caches.delete('shaderlab-assets-v1').catch(() => {});
 
 function cached<T>(cache: Map<string, Promise<T>>, url: string, load: () => Promise<T>) {
   let entry = cache.get(url);
@@ -70,33 +72,14 @@ export function loadRawFile(url: string) {
 }
 
 /**
- * Downloads an asset once and keeps it in Cache Storage for later visits.
- * A HEAD request compares the stored ETag/Last-Modified with the server, so a
- * changed file is downloaded again and an unchanged one never is. Offline,
- * the stored copy is used. Cache Storage only exists in secure contexts
- * (HTTPS or localhost); elsewhere every visit downloads the asset.
+ * The server sends models and textures with `Cache-Control: no-cache` and an
+ * ETag, so the browser HTTP cache keeps one copy and later visits only get a
+ * 304 response. A changed file is downloaded again.
  */
 async function fetchAsset(url: string) {
-  if (!globalThis.caches) return download(url);
-  const storage = await caches.open(storedAssetsName);
-  const [stored, current] = await Promise.all([
-    storage.match(url),
-    fetch(url, { method: 'HEAD', cache: 'no-cache' }).catch(() => undefined)
-  ]);
-  if (stored && (!current?.ok || assetVersion(stored) === assetVersion(current))) return stored;
-  const response = await download(url);
-  storage.put(url, response.clone()).catch(error => console.error(`Could not store ${url} for later visits:`, error));
-  return response;
-}
-
-async function download(url: string) {
-  const response = await fetch(url, { cache: 'no-cache' });
+  const response = await fetch(url);
   if (!response.ok) throw new Error(`HTTP ${response.status} while loading ${url}`);
   return response;
-}
-
-function assetVersion(response: Response) {
-  return response.headers.get('ETag') ?? response.headers.get('Last-Modified');
 }
 
 function interleaveBytePlanes(planar: Uint8Array, bytesPerValue: number) {

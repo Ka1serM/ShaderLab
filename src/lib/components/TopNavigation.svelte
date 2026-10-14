@@ -7,19 +7,12 @@
   import House from 'phosphor-svelte/lib/HouseIcon';
   import BookOpen from 'phosphor-svelte/lib/BookOpenIcon';
   import Presentation from 'phosphor-svelte/lib/PresentationIcon';
-  import { taskCatalog, teachingCatalog } from '$lib/catalog';
-  import { slugify } from '$lib/utils/slugify';
   import LibraryCard from '$lib/components/LibraryCard.svelte';
   import ShaderLabLogo from '$lib/components/ShaderLabLogo.svelte';
 
   let logoReplay = 0;
 
   function replayLogo() { logoReplay += 1; }
-
-  function preview(html: string, maxLength = 100) {
-    const text = html.replace(/<[^>]+>/g, '');
-    return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
-  }
 
   function isActive(path: string) {
     return $page.url.pathname === path;
@@ -52,9 +45,9 @@
       >Tasks</a>
       <div class="top-navigation-dropdown" aria-label="Tasks">
         <div class="top-navigation-card-grid">
-          {#each $taskCatalog ?? [] as task}
-            {@const path = resolve(`/task/${slugify(task.title)}/`)}
-            <LibraryCard href={path} category={task.category} title={task.title} description={preview(task.task)} kind="task" compact active={isActive(path)} />
+          {#each $page.data.taskCatalog as task (task.id)}
+            {@const path = resolve(`/task/${task.id}/`)}
+            <LibraryCard href={path} category={task.category} title={task.title} description={task.description} kind="task" compact active={isActive(path)} />
           {/each}
         </div>
       </div>
@@ -68,9 +61,9 @@
       >Teaching demos</a>
       <div class="top-navigation-dropdown" aria-label="Teaching demos">
         <div class="top-navigation-card-grid">
-          {#each $teachingCatalog ?? [] as demo}
+          {#each $page.data.teachingCatalog as demo (demo.id)}
             {@const path = resolve(`/teach/${demo.id}/`)}
-            <LibraryCard href={path} category={demo.category} title={demo.title} description={preview(demo.overview)} kind="teaching" compact active={isActive(path)} />
+            <LibraryCard href={path} category={demo.category} title={demo.title} description={demo.description} kind="teaching" compact active={isActive(path)} />
           {/each}
         </div>
       </div>

@@ -2,22 +2,12 @@
   import { Input } from '$lib/components/ui/input/index.js';
   import Search from 'phosphor-svelte/lib/MagnifyingGlassIcon';
   import { resolve } from '$app/paths';
-  import { teachingCatalog } from '$lib/catalog';
   import LibraryCard from '$lib/components/LibraryCard.svelte';
-  import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
   import { reveal, writeIn } from '$lib/actions/motion';
 
+  let { data } = $props();
   let query = $state('');
-  const filteredTeaching = $derived(($teachingCatalog ?? []).filter(demo =>
-    demo.title.toLowerCase().includes(query.toLowerCase()) ||
-    demo.category?.toLowerCase().includes(query.toLowerCase()) ||
-    demo.overview.toLowerCase().includes(query.toLowerCase())
-  ));
-
-  function preview(html: string, maxLength = 100) {
-    const text = html.replace(/<[^>]+>/g, '');
-    return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
-  }
+  const filteredTeaching = $derived(data.teachingCatalog.filter(demo => data.searchText[demo.id].includes(query.toLowerCase())));
 </script>
 
 <div class="library-page">
@@ -36,15 +26,13 @@
 
   <main class="library-content">
     <div class="library-grid">
-      {#if $teachingCatalog === null}
-        <div class="relative col-span-full min-h-40"><LoadingOverlay label="Loading teaching demos" /></div>
-      {:else if filteredTeaching.length}
+      {#if filteredTeaching.length}
         {#each filteredTeaching as demo (demo.id)}
           <LibraryCard
             href={resolve(`/teach/${demo.id}/`)}
             category={demo.category}
             title={demo.title}
-            description={preview(demo.overview)}
+            description={demo.description}
             kind="teaching"
           />
         {/each}

@@ -1,6 +1,5 @@
 import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
-import { loadTaskContent } from '$lib/content';
 import { slugify } from '$lib/utils/slugify';
 import type { ShaderInput } from '$lib/renderer/ShaderTaskMaterial';
 import type { Scene, ViewportOverlays } from '$lib/renderer/Renderer';
@@ -67,7 +66,6 @@ interface UserWorkspace {
 
 interface TaskState {
   task: Task | null;
-  error: string | null;
 	vertexShader: string;
 	fragmentShader: string;
 	activeTab: 'vertex' | 'fragment';
@@ -145,7 +143,6 @@ export function getTaskStudentShader(task: Task, stage: ShaderStage): string {
 function emptyState(): TaskState {
 	return {
 		task: null,
-		error: null,
 		vertexShader: '',
 		fragmentShader: '',
 		activeTab: 'fragment',
@@ -200,7 +197,6 @@ function createTaskStore() {
 	const store = writable<TaskState>(emptyState());
 	const persistence = createPersistence();
 	let currentTaskTitle: string | null = null;
-	let loadRequest = 0;
 
 	function snapshot(state: TaskState): UserWorkspace | null {
 		if (!state.task) return null;
@@ -223,44 +219,26 @@ function createTaskStore() {
 	return {
 		subscribe: store.subscribe,
 
-		async loadTask(slug: string) {
-			if (!browser) return;
-			const request = ++loadRequest;
-			const normalizedSlug = slugify(slug);
-			try {
-				const task = await loadTaskContent(normalizedSlug);
-				if (request !== loadRequest) return;
-				if (!task) {
-					console.error('Task not found for slug:', slug);
-					currentTaskTitle = null;
-					store.set({ ...emptyState(), error: 'This task could not be found.' });
-					return;
-				}
-
-				store.update(state => {
-					persist(state);
-					return state;
-				});
-				currentTaskTitle = task.title;
-				const saved = persistence.get(normalizedSlug);
-				store.set({
-					task,
-					error: null,
-					vertexShader: task.shaderStages.includes('vertex') ? saved?.userCode.vertex ?? getTaskStudentShader(task, 'vertex') : task.referenceVertexShader,
-					fragmentShader: task.shaderStages.includes('fragment') ? saved?.userCode.fragment ?? getTaskStudentShader(task, 'fragment') : task.referenceFragmentShader,
-					activeTab: saved?.activeTab && getTaskShaderStages(task).includes(saved.activeTab)
-						? saved.activeTab
-						: getTaskShaderStages(task)[0],
-					shaderErrors: { vertex: [], fragment: [] },
-					cameraPose: saved?.cameraPose ?? taskCameraPose(task),
-					cameraPoseSaved: Boolean(saved)
-				});
-			} catch (error) {
-				if (request !== loadRequest) return;
-				console.error(`Failed to load task ${slug}:`, error);
-				currentTaskTitle = null;
-				store.set({ ...emptyState(), error: 'This task could not be loaded. Check your connection and try again.' });
-			}
+		/** Shows `task` with the user's saved workspace for it. */
+		setTask(task: Task) {
+			if (currentTaskTitle === task.title) return;
+			store.update(state => {
+				persist(state);
+				return state;
+			});
+			currentTaskTitle = task.title;
+			const saved = persistence.get(slugify(task.title));
+			store.set({
+				task,
+				vertexShader: task.shaderStages.includes('vertex') ? saved?.userCode.vertex ?? getTaskStudentShader(task, 'vertex') : task.referenceVertexShader,
+				fragmentShader: task.shaderStages.includes('fragment') ? saved?.userCode.fragment ?? getTaskStudentShader(task, 'fragment') : task.referenceFragmentShader,
+				activeTab: saved?.activeTab && getTaskShaderStages(task).includes(saved.activeTab)
+					? saved.activeTab
+					: getTaskShaderStages(task)[0],
+				shaderErrors: { vertex: [], fragment: [] },
+				cameraPose: saved?.cameraPose ?? taskCameraPose(task),
+				cameraPoseSaved: Boolean(saved)
+			});
 		},
 
 		setVertexShader(code: string) {

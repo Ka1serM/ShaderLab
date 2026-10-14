@@ -1,4 +1,4 @@
-// js-yaml is browser-safe but does not ship TypeScript declarations.
+// js-yaml does not ship TypeScript declarations.
 // @ts-expect-error
 import yaml from 'js-yaml';
 import { marked } from 'marked';
@@ -6,47 +6,13 @@ import katex from 'katex';
 import type { Task } from '$lib/stores/taskStore';
 import type { Teach } from '$lib/stores/teachingStore';
 import { slugify } from '$lib/utils/slugify';
-import { base } from '$app/paths';
+import type { CatalogEntry } from '$lib/catalog';
+import taskIndex from '../../content/tasks/index.txt?raw';
+import teachingIndex from '../../content/teaching/index.txt?raw';
 
-type ContentEntry = { id: string; path: string };
-let indexRequests = new Map<'tasks' | 'teaching', Promise<ContentEntry[]>>();
-const markdownRequests = new Map<string, Promise<string>>();
-// Parsed content is shared by the catalog, route preloads and the page stores,
-// so each file is fetched and rendered once. Consumers must not mutate it.
-const tasks = new Map<string, Promise<Task | null>>();
-const teachings = new Map<string, Promise<Teach | null>>();
-
-function contentUrl(path: string) {
-  return `${base}/content/${path}`;
-}
-
-async function fetchMarkdown(path: string) {
-  let request = markdownRequests.get(path);
-  if (!request) {
-    request = fetch(contentUrl(path), { cache: 'no-cache' }).then(response => {
-      if (!response.ok) throw new Error(`Unable to load ${path}: ${response.status}`);
-      return response.text();
-    });
-    markdownRequests.set(path, request);
-    request.catch(() => markdownRequests.delete(path));
-  }
-  return request;
-}
-
-export function loadContentIndex(kind: 'tasks' | 'teaching') {
-  let request = indexRequests.get(kind);
-  if (!request) {
-    request = fetch(contentUrl(`${kind}/index.txt`), { cache: 'no-cache' }).then(async response => {
-      if (!response.ok) throw new Error(`Unable to load ${kind} index: ${response.status}`);
-      return (await response.text()).split(/\r?\n/)
-        .map(name => name.trim())
-        .filter(name => name && !name.startsWith('#'))
-        .map(name => ({ id: slugify(name.replace(/\.md$/i, '')), path: `${kind}/${name}` }));
-    });
-    indexRequests.set(kind, request);
-  }
-  return request;
-}
+// Content is parsed once at build time. Prerendered pages carry the result, so
+// the browser never fetches or parses Markdown and no content appears late.
+const markdown = import.meta.glob<string>('/src/content/*/*.md', { query: '?raw', import: 'default', eager: true });
 
 function camelCase(value: string) {
   return value.replace(/\s(.)/g, (_, char) => char.toUpperCase()).replace(/\s/g, '').replace(/^(.)/, (_, char) => char.toLowerCase());
@@ -138,34 +104,44 @@ export function parseTeaching(raw: string): Teach {
   return result as unknown as Teach;
 }
 
-function loadParsed<T>(cache: Map<string, Promise<T | null>>, kind: 'tasks' | 'teaching', id: string, parse: (raw: string) => T) {
-  const slug = slugify(id);
-  let request = cache.get(slug);
-  if (!request) {
-    request = loadContentIndex(kind).then(async entries => {
-      const entry = entries.find(item => item.id === slug);
-      return entry ? parse(await fetchMarkdown(entry.path)) : null;
+function contentFiles(kind: 'tasks' | 'teaching', index: string) {
+  return index.split(/\r?\n/)
+    .map(name => name.trim())
+    .filter(name => name && !name.startsWith('#'))
+    .map(name => {
+      const raw = markdown[`/src/content/${kind}/${name}`];
+      if (raw === undefined) throw new Error(`src/content/${kind}/index.txt lists ${name}, but the file does not exist.`);
+      return { id: slugify(name.replace(/\.md$/i, '')), raw };
     });
-    cache.set(slug, request);
-    request.catch(() => cache.delete(slug));
-  }
-  return request;
 }
 
-export function loadTaskContent(id: string) {
-  return loadParsed(tasks, 'tasks', id, parseTask);
+function plainText(html: string) {
+  return html.replace(/<[^>]+>/g, '');
 }
 
-export function loadTeachingContent(id: string) {
-  return loadParsed(teachings, 'teaching', id, parseTeaching);
+function preview(html: string, maxLength = 100) {
+  const text = plainText(html);
+  return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
 }
 
-export async function loadTaskCatalog() {
-  const entries = await loadContentIndex('tasks');
-  return (await Promise.all(entries.map(entry => loadTaskContent(entry.id)))).filter(task => task !== null);
+export const tasks = new Map(contentFiles('tasks', taskIndex).map(file => [file.id, parseTask(file.raw)]));
+export const teachings = new Map(contentFiles('teaching', teachingIndex).map(file => [file.id, parseTeaching(file.raw)]));
+
+export const taskCatalog: CatalogEntry[] = [...tasks].map(([id, task]) => ({
+  id, title: task.title, category: task.category, description: preview(task.task)
+}));
+
+export const teachingCatalog: CatalogEntry[] = [...teachings].map(([id, teaching]) => ({
+  id, title: teaching.title, category: teaching.category, description: preview(teaching.overview)
+}));
+
+/** Lower-case plain text that the overview pages filter by. */
+export function taskSearchText(id: string) {
+  const task = tasks.get(id)!;
+  return [task.title, task.category ?? '', plainText(task.task), plainText(task.theory)].join(' ').toLowerCase();
 }
 
-export async function loadTeachingCatalog() {
-  const entries = await loadContentIndex('teaching');
-  return (await Promise.all(entries.map(entry => loadTeachingContent(entry.id)))).filter(teach => teach !== null);
+export function teachingSearchText(id: string) {
+  const teaching = teachings.get(id)!;
+  return [teaching.title, teaching.category ?? '', plainText(teaching.overview)].join(' ').toLowerCase();
 }

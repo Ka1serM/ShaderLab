@@ -312,6 +312,11 @@
     display: block;
     width: 100%;
     height: 100%;
+    animation: home-viewport-in .4s ease both;
+  }
+
+  @keyframes home-viewport-in {
+    from { opacity: 0; }
   }
 
   .home-viewport-fallback {

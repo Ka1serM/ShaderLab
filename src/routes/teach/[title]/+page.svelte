@@ -14,7 +14,6 @@
   import type { PageData } from './$types';
   import { isMobile } from '$lib/hooks/is-mobile.svelte';
   import AppTutorial from '$lib/components/AppTutorial.svelte';
-  import ShaderLabLogo from '$lib/components/ShaderLabLogo.svelte';
   import { loadSplitterSizes, saveSplitterSizes, type SplitterSizes } from '$lib/utils/splitPaneStorage';
 
   const defaultSplitterSizes: SplitterSizes = { outer: 35, inner: 34, viewports: 50 };
@@ -22,7 +21,6 @@
 
   export let data: PageData;
   let mounted = false;
-  let loadedTeachingTitle = '';
   let teachingSource: TeachingShaderSource = 'fragment';
   let editorSources: Partial<Record<TeachingShaderSource, string>> = {};
   let defaultEditorSources: Partial<Record<TeachingShaderSource, string>> = {};
@@ -49,10 +47,8 @@
     }
   }
 
-  $: if (mounted && data.title !== loadedTeachingTitle) {
-    loadedTeachingTitle = data.title;
-    teachingStore.load(data.title);
-  }
+  // Runs during prerendering too, so the page HTML already contains the demo.
+  $: teachingStore.setDefinition(data.definition);
   $: if (mounted && data.title && data.title !== loadedSplitterKey) {
     loadedSplitterKey = data.title;
     splitterSizes = loadSplitterSizes(splitterStorageKey(), defaultSplitterSizes);
@@ -160,7 +156,6 @@
     mounted = true;
     loadedSplitterKey = data.title;
     splitterSizes = loadSplitterSizes(splitterStorageKey(), defaultSplitterSizes);
-    teachingStore.load(data.title);
     window.addEventListener('keydown', handleKeydown);
   });
 
@@ -256,18 +251,6 @@
       <AppTutorial mode="teaching" />
 
       <div class="pointer-events-none absolute inset-0 z-50" data-panel-maximizer></div>
-    </div>
-  {/if}
-{:else}
-  {#if $teachingStore.error}
-    <div class="flex h-full flex-col items-center justify-center gap-3 p-6 text-center" role="alert">
-      <p>{$teachingStore.error}</p>
-      <button class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground" onclick={() => teachingStore.load(data.title)}>Try again</button>
-    </div>
-  {:else}
-    <div class="flex h-full items-center justify-center" role="status" aria-label="Loading teaching demo">
-      <ShaderLabLogo animation="spinner" className="h-10 w-10" />
-      <span class="sr-only">Loading teaching demo</span>
     </div>
   {/if}
 {/if}

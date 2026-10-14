@@ -71,6 +71,8 @@
   let viewport: Renderer;
   let mounted = false;
   let loading = true;
+  // The canvas fades in once the first scene is complete, so objects never pop in one by one.
+  let revealed = false;
   let webglUnavailable = false;
   let loadToken = 0;
   let previousRenderKey = '';
@@ -161,7 +163,9 @@
       shaderReadbacks,
       scene: resolvedScene()
     }).finally(() => {
-      if (token === loadToken) loading = false;
+      if (token !== loadToken) return;
+      loading = false;
+      revealed = true;
     });
   }
 
@@ -254,7 +258,7 @@
       </div>
     {/if}
     <div class="viewport-overlay-controls relative flex min-h-0 flex-1 items-start gap-2 p-3">
-      <div bind:this={container} class="absolute inset-0 h-full w-full overflow-hidden rounded-md" style="background: var(--viewport-background);"></div>
+      <div bind:this={container} class="absolute inset-0 h-full w-full overflow-hidden rounded-md transition-opacity duration-300" class:opacity-0={!revealed} style="background: var(--viewport-background);"></div>
       {#if loading}<LoadingOverlay label="Loading scene" />{/if}
       {#if webglUnavailable}<p class="absolute inset-0 z-10 flex items-center justify-center p-6 text-center text-sm text-muted-foreground" role="alert">WebGL is unavailable, so this viewport cannot render.</p>{/if}
       {#if scenes.length > 1}

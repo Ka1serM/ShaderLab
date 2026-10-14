@@ -2,28 +2,15 @@
 import { Input } from "$lib/components/ui/input/index.js";
 import Search from "phosphor-svelte/lib/MagnifyingGlassIcon";
 import { resolve } from "$app/paths";
-import { taskCatalog } from '$lib/catalog';
-import { slugify } from '$lib/utils/slugify';
 import LibraryCard from '$lib/components/LibraryCard.svelte';
-import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
 import { reveal, writeIn } from '$lib/actions/motion';
 
+let { data } = $props();
 let query = $state("");
 
 const filteredTasks = $derived(
-  ($taskCatalog ?? []).filter(
-    (task) =>
-      task.title.toLowerCase().includes(query.toLowerCase()) ||
-      task.category?.toLowerCase().includes(query.toLowerCase()) ||
-      task.task.toLowerCase().includes(query.toLowerCase()) ||
-      task.theory.toLowerCase().includes(query.toLowerCase())
-  )
+  data.taskCatalog.filter(task => data.searchText[task.id].includes(query.toLowerCase()))
 );
-
-function getPreview(html: string, maxLength: number = 90): string {
-  const text = html.replace(/<[^>]+>/g, "");
-  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
-}
 </script>
 
 <div class="library-page">
@@ -46,15 +33,13 @@ function getPreview(html: string, maxLength: number = 90): string {
 
   <main class="library-content">
     <div class="library-grid">
-      {#if $taskCatalog === null}
-        <div class="relative col-span-full min-h-40"><LoadingOverlay label="Loading tasks" /></div>
-      {:else if filteredTasks.length > 0}
-        {#each filteredTasks as task (task.title)}
+      {#if filteredTasks.length > 0}
+        {#each filteredTasks as task (task.id)}
           <LibraryCard
-            href={resolve(`/task/${slugify(task.title)}/`)}
+            href={resolve(`/task/${task.id}/`)}
             category={task.category}
             title={task.title}
-            description={getPreview(task.task)}
+            description={task.description}
             kind="task"
           />
         {/each}

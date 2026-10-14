@@ -10,7 +10,7 @@ describe('parseShaderControls', () => {
     ['shading.md', 5],
     ['illumination.md', 6]
   ])('parses every annotation in %s', (file, expectedCount) => {
-    const source = readFileSync(resolve('static/content/teaching', file), 'utf8');
+    const source = readFileSync(resolve('src/content/teaching', file), 'utf8');
     const annotationCount = source.match(/^\s*\/\/\s*@(control|readback)\b/gm)?.length ?? 0;
     const controls = parseShaderControls(source);
     expect(annotationCount).toBe(expectedCount);

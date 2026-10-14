@@ -7,13 +7,11 @@
   import { onMount } from 'svelte';
   import { resolve } from '$app/paths';
   import { preloadData } from '$app/navigation';
-  import { taskCatalog, teachingCatalog } from '$lib/catalog';
   import ShaderLabLogo from '$lib/components/ShaderLabLogo.svelte';
   import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
   import { reveal, scramble, tilt, writeIn } from '$lib/actions/motion';
 
-  $: taskCount = $taskCatalog?.length ?? '–';
-  $: teachingCount = $teachingCatalog?.length ?? '–';
+  export let data;
 
   // three.js is loaded after hydration so the page's text is interactive and
   // visible without waiting for the renderer bundle.
@@ -26,11 +24,9 @@
 
   // Preloads every task and demo (route code, Monaco, three.js, content and
   // models) once the home page is idle, so opening one of them is instant.
-  async function preloadAllRoutes() {
-    const { loadContentIndex } = await import('$lib/content');
-    const [tasks, teachings] = await Promise.all([loadContentIndex('tasks'), loadContentIndex('teaching')]);
-    for (const entry of tasks) void preloadData(resolve(`/task/${entry.id}/`));
-    for (const entry of teachings) void preloadData(resolve(`/teach/${entry.id}/`));
+  function preloadAllRoutes() {
+    for (const entry of data.taskCatalog) void preloadData(resolve(`/task/${entry.id}/`));
+    for (const entry of data.teachingCatalog) void preloadData(resolve(`/teach/${entry.id}/`));
   }
 </script>
 
@@ -68,7 +64,7 @@
     <section class="overview" aria-labelledby="overview-title">
       <div class="overview-heading motion-reveal" use:reveal><p class="section-kicker">What is ShaderLab?</p><h2 id="overview-title" use:scramble={{ delay: 160 }}>Turn code<br /><b>into visuals.</b></h2></div>
       <div class="overview-copy motion-reveal" use:reveal><p>ShaderLab is a browser-based environment for computer graphics. Edit GLSL vertex and fragment shaders and see every change immediately in the viewport.</p><p>Tasks compare your output with a reference. Teaching demos make ideas such as projection, transformations, and lighting models tangible.</p></div>
-      <div class="overview-facts"><div class="motion-reveal" use:reveal><strong>{taskCount}</strong><span>Tasks</span></div><div class="motion-reveal" use:reveal><strong>{teachingCount}</strong><span>Teaching demos</span></div><div class="motion-reveal" use:reveal><strong>GLSL</strong><span>GPU code</span></div></div>
+      <div class="overview-facts"><div class="motion-reveal" use:reveal><strong>{data.taskCatalog.length}</strong><span>Tasks</span></div><div class="motion-reveal" use:reveal><strong>{data.teachingCatalog.length}</strong><span>Teaching demos</span></div><div class="motion-reveal" use:reveal><strong>GLSL</strong><span>GPU code</span></div></div>
     </section>
 
     <section class="entry-section" aria-label="Content">

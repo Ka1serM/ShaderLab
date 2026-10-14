@@ -91,6 +91,7 @@
   });
 
   onDestroy(() => {
+    if (typeof window === 'undefined') return;
     window.removeEventListener('resize', updateTarget);
     window.removeEventListener('keydown', handleKeydown);
   });
