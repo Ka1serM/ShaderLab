@@ -11,9 +11,13 @@
   import AppTutorial from '$lib/components/AppTutorial.svelte';
   import ShaderLabLogo from '$lib/components/ShaderLabLogo.svelte';
   import { loadSplitterSizes, saveSplitterSizes, type SplitterSizes } from '$lib/utils/splitPaneStorage';
+  import { CameraLink } from '$lib/renderer/CameraLink';
 
   const defaultSplitterSizes: SplitterSizes = { outer: 35, inner: 50, viewports: 50 };
   export let data: PageData;
+
+  // Reference and Output show one camera.
+  const cameraLink = new CameraLink();
 
   let mounted = false;
   let splitterSizes: SplitterSizes = { ...defaultSplitterSizes };
@@ -97,6 +101,7 @@
                         cameraPose={$taskStore.cameraPose}
                         cameraPoseSaved={$taskStore.cameraPoseSaved}
                         onCameraChange={taskStore.setCameraPose}
+                        cameraLink={cameraLink}
                         overlays={$taskStore.task.overlays}
                         reportErrors={false}
                         title="Reference"
@@ -114,6 +119,7 @@
                         cameraPose={$taskStore.cameraPose}
                         cameraPoseSaved={$taskStore.cameraPoseSaved}
                         onCameraChange={taskStore.setCameraPose}
+                        cameraLink={cameraLink}
                         overlays={$taskStore.task.overlays}
                         reportErrors={true}
                         onShaderErrors={taskStore.setShaderErrors}
@@ -148,6 +154,7 @@
               cameraPose={$taskStore.cameraPose}
               cameraPoseSaved={$taskStore.cameraPoseSaved}
               onCameraChange={taskStore.setCameraPose}
+              cameraLink={cameraLink}
               overlays={$taskStore.task.overlays}
               reportErrors={true}
               onShaderErrors={taskStore.setShaderErrors}
@@ -167,6 +174,7 @@
               cameraPose={$taskStore.cameraPose}
               cameraPoseSaved={$taskStore.cameraPoseSaved}
               onCameraChange={taskStore.setCameraPose}
+              cameraLink={cameraLink}
               overlays={$taskStore.task.overlays}
               reportErrors={false}
               title="Reference"

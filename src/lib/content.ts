@@ -7,12 +7,14 @@ import type { Task } from '$lib/stores/taskStore';
 import type { Teach } from '$lib/stores/teachingStore';
 import { slugify } from '$lib/utils/slugify';
 import { base } from '$app/paths';
-import { browser } from '$app/environment';
-import { readable } from 'svelte/store';
 
 type ContentEntry = { id: string; path: string };
 let indexRequests = new Map<'tasks' | 'teaching', Promise<ContentEntry[]>>();
 const markdownRequests = new Map<string, Promise<string>>();
+// Parsed content is shared by the catalog, route preloads and the page stores,
+// so each file is fetched and rendered once. Consumers must not mutate it.
+const tasks = new Map<string, Promise<Task | null>>();
+const teachings = new Map<string, Promise<Teach | null>>();
 
 function contentUrl(path: string) {
   return `${base}/content/${path}`;
@@ -136,28 +138,34 @@ export function parseTeaching(raw: string): Teach {
   return result as unknown as Teach;
 }
 
-export async function loadTaskContent(id: string): Promise<Task | null> {
-  const entry = (await loadContentIndex('tasks')).find(item => item.id === slugify(id));
-  return entry ? parseTask(await fetchMarkdown(entry.path)) : null;
+function loadParsed<T>(cache: Map<string, Promise<T | null>>, kind: 'tasks' | 'teaching', id: string, parse: (raw: string) => T) {
+  const slug = slugify(id);
+  let request = cache.get(slug);
+  if (!request) {
+    request = loadContentIndex(kind).then(async entries => {
+      const entry = entries.find(item => item.id === slug);
+      return entry ? parse(await fetchMarkdown(entry.path)) : null;
+    });
+    cache.set(slug, request);
+    request.catch(() => cache.delete(slug));
+  }
+  return request;
 }
 
-export async function loadTeachingContent(id: string): Promise<Teach | null> {
-  const entry = (await loadContentIndex('teaching')).find(item => item.id === slugify(id));
-  return entry ? parseTeaching(await fetchMarkdown(entry.path)) : null;
+export function loadTaskContent(id: string) {
+  return loadParsed(tasks, 'tasks', id, parseTask);
 }
 
-async function loadCatalog<T>(kind: 'tasks' | 'teaching', parse: (raw: string) => T) {
-  const entries = await loadContentIndex(kind);
-  return Promise.all(entries.map(async entry => parse(await fetchMarkdown(entry.path))));
+export function loadTeachingContent(id: string) {
+  return loadParsed(teachings, 'teaching', id, parseTeaching);
 }
 
-/** `null` until the catalog has loaded, so pages can tell loading from empty. */
-export const taskCatalog = readable<Task[] | null>(null, set => {
-  if (!browser) return;
-  void loadCatalog('tasks', parseTask).then(set).catch(error => console.error('Failed to load task catalog:', error));
-});
+export async function loadTaskCatalog() {
+  const entries = await loadContentIndex('tasks');
+  return (await Promise.all(entries.map(entry => loadTaskContent(entry.id)))).filter(task => task !== null);
+}
 
-export const teachingCatalog = readable<Teach[] | null>(null, set => {
-  if (!browser) return;
-  void loadCatalog('teaching', parseTeaching).then(set).catch(error => console.error('Failed to load teaching catalog:', error));
-});
+export async function loadTeachingCatalog() {
+  const entries = await loadContentIndex('teaching');
+  return (await Promise.all(entries.map(entry => loadTeachingContent(entry.id)))).filter(teach => teach !== null);
+}

@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js';
-import { base } from '$app/paths';
 import { ShaderTaskMaterial, type ShaderInput } from './ShaderTaskMaterial';
 import { InfiniteGrid } from './InfiniteGrid';
 import { validateShaderProgram, type ShaderDiagnostic, type ShaderDiagnostics } from './shaderValidation';
 import { ShaderReadback, type ShaderReadbackRequest, type ShaderReadbackValue } from './shaderReadback';
 import { loadModel } from './assetCache';
+import type { CameraLink, LinkedCamera } from './CameraLink';
 
 // Scene assets must refresh when their Markdown definition changes during authoring.
 THREE.Cache.enabled = false;
@@ -130,6 +130,8 @@ export type RendererOptions = {
   overlays?: ViewportOverlays;
   reportErrors?: boolean;
   onCameraChange?: (pose: ViewportCameraPose) => void;
+  /** Viewports with the same link show one camera. */
+  cameraLink?: CameraLink;
   onTransformChange?: (transform: ViewportTransform) => void;
   /** Index of the scene object that a click selects, or undefined when a click hits no object. */
   onObjectSelect?: (objectIndex: number | undefined) => void;
@@ -159,7 +161,7 @@ type Geometry = {
   scale: THREE.Vector3;
 };
 
-export class Renderer {
+export class Renderer implements LinkedCamera {
   readonly scene = new THREE.Scene();
   private readonly gridScene = new THREE.Scene();
   readonly renderer: THREE.WebGLRenderer;
@@ -180,6 +182,7 @@ export class Renderer {
   private shaderTime = 0;
   private timePaused = false;
   private readonly onCameraChange?: RendererOptions['onCameraChange'];
+  private readonly cameraLink?: CameraLink;
   private readonly onTransformChange?: RendererOptions['onTransformChange'];
   private readonly onObjectSelect?: RendererOptions['onObjectSelect'];
   private readonly onVectorChange?: RendererOptions['onVectorChange'];
@@ -264,6 +267,7 @@ export class Renderer {
     this.container = options.container;
     this.cameraPoseSaved = options.cameraPoseSaved ?? false;
     this.onCameraChange = options.onCameraChange;
+    this.cameraLink = options.cameraLink;
     this.onTransformChange = options.onTransformChange;
     this.onObjectSelect = options.onObjectSelect;
     this.onVectorChange = options.onVectorChange;
@@ -346,16 +350,19 @@ export class Renderer {
     this.renderer.domElement.addEventListener('pointerup', this.handleInsetPointerUp, { capture: true });
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.05;
+    this.controls.dampingFactor = 0.12;
     this.controls.minDistance = 0;
     this.controls.maxDistance = 100;
     this.controls.maxPolarAngle = Math.PI;
     this.controls.addEventListener('change', () => {
       this.requestRender();
-      if (!this.applyingCamera) this.cameraSavePending = true;
+      if (this.applyingCamera) return;
+      this.cameraSavePending = true;
+      this.shareCamera(true);
     });
     this.controls.addEventListener('start', () => { this.autoFrame = false; });
     this.applyCameraPose(options.cameraPose);
+    this.cameraLink?.join(this);
     this.setOverlays(options.overlays);
 
     this.resizeObserver = new ResizeObserver(() => this.scheduleResize());
@@ -396,6 +403,15 @@ export class Renderer {
 
   setCameraPose(pose: ViewportCameraPose, saved = this.cameraPoseSaved) {
     this.cameraPoseSaved = saved;
+    this.applyCameraPose(pose);
+  }
+
+  get aspect() {
+    return this.camera.aspect;
+  }
+
+  followCamera(pose: ViewportCameraPose, userMoved: boolean) {
+    if (userMoved) this.autoFrame = false;
     this.applyCameraPose(pose);
   }
 
@@ -881,6 +897,7 @@ export class Renderer {
     this.camera.lookAt(center);
     this.controls.update();
     this.applyingCamera = false;
+    this.shareCamera(false);
   }
 
   private frameBounds() {
@@ -897,8 +914,8 @@ export class Renderer {
 
   /** Distance along `view` from `center` at which `bounds` fits the frustum. */
   private fitDistance(bounds: THREE.Box3, center: THREE.Vector3, view: THREE.Vector3) {
-    const tanVertical = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) / FRAME_MARGIN;
-    const tanHorizontal = tanVertical * this.camera.aspect;
+    const tanHorizontal = Math.tan(THREE.MathUtils.degToRad(this.horizontalFov) / 2) / FRAME_MARGIN;
+    const tanVertical = tanHorizontal / (this.cameraLink?.widestAspect() ?? this.camera.aspect);
     this.camera.position.copy(center).add(view);
     this.camera.lookAt(center);
     this.camera.updateMatrixWorld();
@@ -915,7 +932,7 @@ export class Renderer {
 
   private async loadGeometries(object: Object): Promise<Geometry[]> {
     try {
-      const parts = await loadModel(this.resolvePath(object.source));
+      const parts = await loadModel(object.source);
       return parts.map(part => ({
         ...part,
         geometry: object.wireframe ? this.createQuadWireframeGeometry(part.geometry) : part.geometry.clone()
@@ -1014,14 +1031,16 @@ export class Renderer {
     this.objectGroups = [];
   }
 
-  private resolvePath(path: string) {
-    return `${base}/${path.replace(/^\//, '')}`;
-  }
-
   private applyCameraPose(pose: ViewportCameraPose) {
     const key = JSON.stringify(pose);
     if (this.cameraKey === key) return;
     this.applyingCamera = true;
+    // A pose from outside replaces this viewport's orbit inertia. Without
+    // damping, update() consumes the pending deltas; the pose below then
+    // overwrites their effect, so the final update() applies no stale motion.
+    this.controls.enableDamping = false;
+    this.controls.update();
+    this.controls.enableDamping = true;
     this.camera.position.fromArray(pose.position);
     this.camera.quaternion.fromArray(pose.quaternion);
     this.horizontalFov = pose.fov;
@@ -1034,15 +1053,24 @@ export class Renderer {
     this.requestRender();
   }
 
-  private saveCamera() {
-    if (this.applyingCamera) return;
-    this.cameraPoseSaved = true;
-    const pose: ViewportCameraPose = {
+  private currentCameraPose(): ViewportCameraPose {
+    return {
       position: this.camera.position.toArray() as ViewportCameraPose['position'],
       quaternion: this.camera.quaternion.toArray() as ViewportCameraPose['quaternion'],
       target: this.controls.target.toArray() as ViewportCameraPose['target'],
       fov: this.horizontalFov
     };
+  }
+
+  private shareCamera(userMoved: boolean) {
+    if (!this.cameraLink) return;
+    this.cameraLink.share(this, this.currentCameraPose(), userMoved);
+  }
+
+  private saveCamera() {
+    if (this.applyingCamera) return;
+    this.cameraPoseSaved = true;
+    const pose = this.currentCameraPose();
     this.cameraKey = JSON.stringify(pose);
     this.onCameraChange?.(pose);
   }
@@ -1327,6 +1355,7 @@ export class Renderer {
     const viewHelperAnimating = Boolean(this.viewHelper?.animating);
     if (viewHelperAnimating) {
       this.viewHelper!.update(delta);
+      this.shareCamera(true);
       this.renderRequested = true;
       if (!this.viewHelper!.animating) this.saveCamera();
     }
@@ -1364,6 +1393,7 @@ export class Renderer {
 
   dispose() {
     this.disposed = true;
+    this.cameraLink?.leave(this);
     cancelAnimationFrame(this.animationFrame);
     cancelAnimationFrame(this.resizeFrame);
     cancelAnimationFrame(this.settledResizeFrame);

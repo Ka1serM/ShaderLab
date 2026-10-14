@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { Renderer, type Scene, type SceneDefinition, type TransformMode, type ViewportCameraPose, type ViewportOverlays, type ViewportShaderError, type ViewportTransform, type ViewportVector } from '$lib/renderer/Renderer';
   import type { ShaderInput } from '$lib/renderer/ShaderTaskMaterial';
+  import type { CameraLink } from '$lib/renderer/CameraLink';
   import type { ShaderReadbackRequest, ShaderReadbackValue } from '$lib/renderer/shaderReadback';
   import { rewriteRowMajorMatrixLiterals } from '$lib/utils/glslMatrixLiterals';
   import MaximizeButton from './MaximizeButton.svelte';
@@ -34,6 +35,7 @@
   export let onObjectSelect: (objectIndex: number | undefined) => void = () => {};
   export let onVectorChange: (id: string, value: [number, number, number]) => void = () => {};
   export let onCameraChange: ((pose: ViewportCameraPose) => void) | undefined = undefined;
+  export let cameraLink: CameraLink | undefined = undefined;
   export let title = '';
   export let panelId = '';
   export let showTimeControl = false;
@@ -174,6 +176,7 @@
         shaderLineOffsets: shaderLineOffsets(),
         reportErrors,
         onCameraChange,
+        cameraLink,
         onShaderErrors: reportShaderErrors,
         shaderReadbacks,
         onShaderReadbacks

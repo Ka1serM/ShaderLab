@@ -2,7 +2,7 @@
 import { Input } from "$lib/components/ui/input/index.js";
 import Search from "phosphor-svelte/lib/MagnifyingGlassIcon";
 import { resolve } from "$app/paths";
-import { taskCatalog } from '$lib/content';
+import { taskCatalog } from '$lib/catalog';
 import { slugify } from '$lib/utils/slugify';
 import LibraryCard from '$lib/components/LibraryCard.svelte';
 import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';

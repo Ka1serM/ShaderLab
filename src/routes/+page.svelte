@@ -6,7 +6,8 @@
   import GraduationCap from 'phosphor-svelte/lib/GraduationCapIcon';
   import { onMount } from 'svelte';
   import { resolve } from '$app/paths';
-  import { taskCatalog, teachingCatalog } from '$lib/content';
+  import { preloadData } from '$app/navigation';
+  import { taskCatalog, teachingCatalog } from '$lib/catalog';
   import ShaderLabLogo from '$lib/components/ShaderLabLogo.svelte';
   import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
   import { reveal, scramble, tilt, writeIn } from '$lib/actions/motion';
@@ -19,7 +20,18 @@
   let HomeViewport: typeof import('$lib/components/HomeViewport.svelte').default | undefined;
   onMount(async () => {
     HomeViewport = (await import('$lib/components/HomeViewport.svelte')).default;
+    if ('requestIdleCallback' in window) requestIdleCallback(preloadAllRoutes);
+    else setTimeout(preloadAllRoutes, 1000);
   });
+
+  // Preloads every task and demo (route code, Monaco, three.js, content and
+  // models) once the home page is idle, so opening one of them is instant.
+  async function preloadAllRoutes() {
+    const { loadContentIndex } = await import('$lib/content');
+    const [tasks, teachings] = await Promise.all([loadContentIndex('tasks'), loadContentIndex('teaching')]);
+    for (const entry of tasks) void preloadData(resolve(`/task/${entry.id}/`));
+    for (const entry of teachings) void preloadData(resolve(`/teach/${entry.id}/`));
+  }
 </script>
 
 <svelte:head>

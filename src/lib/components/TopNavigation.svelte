@@ -7,7 +7,7 @@
   import House from 'phosphor-svelte/lib/HouseIcon';
   import BookOpen from 'phosphor-svelte/lib/BookOpenIcon';
   import Presentation from 'phosphor-svelte/lib/PresentationIcon';
-  import { taskCatalog, teachingCatalog } from '$lib/content';
+  import { taskCatalog, teachingCatalog } from '$lib/catalog';
   import { slugify } from '$lib/utils/slugify';
   import LibraryCard from '$lib/components/LibraryCard.svelte';
   import ShaderLabLogo from '$lib/components/ShaderLabLogo.svelte';

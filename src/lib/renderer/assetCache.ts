@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { base } from '$app/paths';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
@@ -27,9 +28,11 @@ function cached<T>(cache: Map<string, Promise<T>>, url: string, load: () => Prom
 /**
  * Every viewport on a page needs the same assets. Fetching and parsing them once
  * lets the Reference and Output viewports load concurrently from one request.
+ * `path` is relative to the static directory, as written in the content files.
  * Cached geometry is shared: callers must clone it and never dispose it.
  */
-export function loadModel(url: string) {
+export function loadModel(path: string) {
+  const url = `${base}/${path.replace(/^\//, '')}`;
   return cached(models, url, async () => {
     const response = await fetchAsset(url);
     const gltf = await loader.parseAsync(await response.arrayBuffer(), '');
