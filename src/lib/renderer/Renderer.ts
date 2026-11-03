@@ -10,6 +10,8 @@ import { GpuDevice } from './gpu/device';
 import { GpuGeometry } from './gpu/geometry';
 import { ShaderInputs, type ShaderInput } from './gpu/inputs';
 import { compileProgram, type Program, type ShaderDiagnostic, type ShaderDiagnostics } from './gpu/program';
+import { bufferSampler, computeFragmentShader, DISPATCH_VERTEX_SHADER, parseComputeShader, sameLayout, withBufferAccess, type BufferLayout } from './gpu/compute';
+import { Simulation } from './gpu/simulation';
 
 // Scene assets must refresh when their Markdown definition changes during authoring.
 THREE.Cache.enabled = false;
@@ -35,8 +37,13 @@ const PICK_FRAGMENT_SHADER = 'precision highp float; uniform int uObjectIndex; o
 const RENDERER_UNIFORMS = new Set([
   'time', 'iResolution', 'iMouse', 'cameraFov', 'cameraPosition', 'cameraDirection',
   'modelMatrix', 'viewMatrix', 'projectionMatrix', 'modelViewMatrix', 'normalMatrix',
-  'uWireframe', 'uWireframeLineWidth', 'uInsetView', 'uObjectIndex'
+  'uWireframe', 'uWireframeLineWidth', 'uInsetView', 'uObjectIndex',
+  'deltaTime', 'pointerPosition', 'pointerVelocity', 'pointerDown', 'shaderlabReset'
 ]);
+// A frame that took longer than this, for example after a hidden tab, advances a simulation by this much only.
+const MAX_SIMULATION_FRAME = 1 / 30;
+// A single step while paused advances the simulation by one frame at 60 Hz.
+const STEP_FRAME = 1 / 60;
 
 type UniformValue = number | number[] | boolean;
 
@@ -72,8 +79,11 @@ export type Object = {
   position?: [number, number, number];
   rotation?: [number, number, number];
   scale?: [number, number, number];
-  /** Number of identical instances. Their placement belongs in the shader. */
-  instanceCount?: number;
+  /**
+   * Number of identical instances. Their placement belongs in the shader. The
+   * name of a compute buffer draws one instance per element of that buffer.
+   */
+  instanceCount?: number | string;
   /** Draw quad outlines without showing their internal triangulation edges. */
   wireframe?: boolean;
   /** Outline width in framebuffer pixels. Only applies when `wireframe` is enabled. */
@@ -119,6 +129,8 @@ export type ViewportOverlays = {
   transformControls?: {
     mode?: TransformMode;
   };
+  /** False keeps the camera where the task puts it, so a drag can belong to the shader. */
+  orbitControls?: boolean;
 };
 
 export type ViewportVector = {
@@ -154,7 +166,24 @@ export type RendererTaskState = {
   vertexShader: string;
   fragmentShader: string;
   shaderReadbacks: ShaderReadbackRequest[];
+  /** A compute stage. Its buffer is then readable in the vertex shader. */
+  computeShader?: ComputeShaderSource;
+  simulation?: SimulationSettings;
   scene: Scene;
+};
+
+export type ComputeShaderSource = {
+  source: string;
+  /** Hidden template lines before the editable code. */
+  lineOffset: number;
+};
+
+export type SimulationSettings = {
+  /** Dispatches per frame. More steps of a smaller `deltaTime` keep stiff simulations stable. */
+  stepsPerFrame: number;
+  running: boolean;
+  /** Multiplies `deltaTime`. */
+  speed: number;
 };
 
 
@@ -173,6 +202,8 @@ type Part = {
   objectIndex: number;
   wireframe: boolean;
   lineWidth: number;
+  /** Draws one instance per element of this compute buffer. */
+  instancesFrom?: string;
 };
 
 /** A 1 × 1 framebuffer for GPU picking. */
@@ -201,6 +232,19 @@ export class Renderer implements LinkedCamera {
   private readonly inputs: ShaderInputs;
   private program?: Program;
   private pickProgram?: Program;
+  /** The compute stage's dispatch program and the buffer it updates. */
+  private computeProgram?: Program;
+  private simulation?: Simulation;
+  private simulationSettings: SimulationSettings = { stepsPerFrame: 1, running: true, speed: 1 };
+  private simulationTime = 0;
+  private orbitEnabled = true;
+  // The pointer on the z = 0 plane, in world units, for compute shaders.
+  private readonly pointerPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+  private readonly pointerWorld = new THREE.Vector3();
+  private readonly pointerPrevious = new THREE.Vector3();
+  private readonly pointerVelocity = new THREE.Vector3();
+  private pointerInside = false;
+  private pointerDown = false;
   private pickTarget?: PickTarget;
   private readonly pickingPixel = new Uint8Array(4);
 
@@ -323,6 +367,11 @@ export class Renderer implements LinkedCamera {
     this.canvas.addEventListener('pointerdown', this.handleInsetPointerDown, { capture: true });
     this.canvas.addEventListener('pointermove', this.handleInsetPointerMove, { capture: true });
     this.canvas.addEventListener('pointerup', this.handleInsetPointerUp, { capture: true });
+    this.canvas.addEventListener('pointermove', this.handlePointer);
+    this.canvas.addEventListener('pointerdown', this.handlePointer);
+    this.canvas.addEventListener('pointerup', this.handlePointer);
+    this.canvas.addEventListener('pointercancel', this.handlePointerLeave);
+    this.canvas.addEventListener('pointerleave', this.handlePointerLeave);
     this.controls = new OrbitControls(this.camera, this.canvas);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.12;
@@ -400,20 +449,166 @@ export class Renderer implements LinkedCamera {
    * Compiles once. A program that fails keeps the previous one alive but not
    * drawn, so the viewport shows the grid until the shader compiles again.
    * The readbacks belong to this vertex shader, so both are replaced together.
+   * With a compute stage, its buffer layout is parsed first: the drawing
+   * shader reads the buffer through code generated from it.
    */
-  updateShaders(vertexShader: string, fragmentShader: string, shaderReadbacks: ShaderReadbackRequest[]) {
+  updateShaders(vertexShader: string, fragmentShader: string, shaderReadbacks: ShaderReadbackRequest[], computeShader?: ComputeShaderSource) {
     this.shaderReadbacks = shaderReadbacks;
-    const { program, diagnostics } = compileProgram(this.gl, vertexShader, fragmentShader, { hiddenLines: this.shaderLineOffsets });
+    const diagnostics: ShaderDiagnostics = { vertex: [], fragment: [], compute: [] };
+    let vertex = vertexShader;
+    let vertexLineOffset = this.shaderLineOffsets.vertex;
+    let compute: { layout: BufferLayout; program?: Program } | undefined;
+    if (computeShader) {
+      const parsed = parseComputeShader(computeShader.source);
+      diagnostics.compute = parsed.diagnostics.map(diagnostic => ({ ...diagnostic, line: Math.max(1, diagnostic.line - computeShader.lineOffset) }));
+      if (parsed.layout) {
+        const dispatch = computeFragmentShader(parsed.layout, parsed.source);
+        const result = compileProgram(this.gl, DISPATCH_VERTEX_SHADER, dispatch.source, { hiddenLines: { vertex: 0, fragment: dispatch.hiddenLines + computeShader.lineOffset } });
+        diagnostics.compute.push(...result.diagnostics.fragment);
+        compute = { layout: parsed.layout, program: result.program };
+        const access = withBufferAccess(parsed.layout, vertexShader);
+        vertex = access.source;
+        vertexLineOffset += access.addedLines;
+      }
+    }
+    // Without a buffer layout the drawing shader cannot compile, and its errors would only repeat the compute stage's.
+    const drawable = !computeShader || compute;
+    const result = drawable
+      ? compileProgram(this.gl, vertex, fragmentShader, { hiddenLines: { vertex: vertexLineOffset, fragment: this.shaderLineOffsets.fragment } })
+      : undefined;
     this.three.resetState();
-    this.shaderRenderable = Boolean(program);
+    if (result) {
+      diagnostics.vertex = result.diagnostics.vertex;
+      diagnostics.fragment = result.diagnostics.fragment;
+    }
+    const program = result?.program;
+    let renderable = Boolean(program) && (!computeShader || Boolean(compute?.program));
+    if (renderable && compute?.program) {
+      try {
+        this.replaceCompute(compute.layout, compute.program);
+      } catch (error) {
+        compute.program.dispose();
+        diagnostics.compute.push({ type: 'error', line: 1, message: error instanceof Error ? error.message : String(error), timestamp: Date.now() });
+        renderable = false;
+      }
+    } else {
+      compute?.program?.dispose();
+    }
+    if (!computeShader) this.disposeCompute();
+    this.shaderRenderable = renderable;
     this.publishDiagnostics(diagnostics);
-    if (program) {
+    if (renderable && program) {
       this.replacePrograms(program);
-      this.vertexShader = vertexShader;
+      this.vertexShader = vertex;
       this.trackShaderInputs(program);
+    } else {
+      program?.dispose();
     }
     this.renderScene();
     this.updateShaderReadbacks();
+    this.scheduleFrame();
+  }
+
+  /**
+   * Installs a new dispatch program. A buffer with the same layout keeps its
+   * state, so editing the update rule changes a running simulation in place.
+   */
+  private replaceCompute(layout: BufferLayout, program: Program) {
+    const keep = this.simulation && sameLayout(this.simulation.layout, layout);
+    const simulation = keep ? this.simulation! : new Simulation(this.gl, layout);
+    this.three.resetState();
+    this.computeProgram?.dispose();
+    this.computeProgram = program;
+    if (!keep) {
+      this.simulation?.dispose();
+      this.simulation = simulation;
+    }
+    this.applyValues();
+    if (!keep) this.resetSimulation();
+  }
+
+  private disposeCompute() {
+    this.computeProgram?.dispose();
+    this.computeProgram = undefined;
+    this.simulation?.dispose();
+    this.simulation = undefined;
+  }
+
+  /** Runs, pauses and paces the compute stage. */
+  setSimulation(settings: SimulationSettings) {
+    this.simulationSettings = { ...settings, stepsPerFrame: Math.max(1, Math.floor(settings.stepsPerFrame)) };
+    this.requestRender();
+  }
+
+  /** Starts the buffer over from `init()`. */
+  resetSimulation() {
+    if (!this.simulation || !this.computeProgram) return;
+    this.simulationTime = 0;
+    this.dispatch(true, 0);
+    this.three.resetState();
+    this.requestRender();
+  }
+
+  /** Advances a paused simulation by one frame. */
+  stepSimulation() {
+    if (!this.simulation || !this.computeProgram || !this.shaderRenderable) return;
+    this.advanceSimulation(STEP_FRAME);
+    this.requestRender();
+  }
+
+  private advanceSimulation(frameTime: number) {
+    const steps = this.simulationSettings.stepsPerFrame;
+    const deltaTime = Math.min(frameTime, MAX_SIMULATION_FRAME) * this.simulationSettings.speed / steps;
+    // The pointer's velocity over this frame; it is zero while the pointer rests.
+    if (this.pointerInside && frameTime > 0) this.pointerVelocity.subVectors(this.pointerWorld, this.pointerPrevious).divideScalar(frameTime);
+    else this.pointerVelocity.set(0, 0, 0);
+    this.pointerPrevious.copy(this.pointerWorld);
+    for (let step = 0; step < steps; step++) {
+      this.simulationTime += deltaTime;
+      this.dispatch(false, deltaTime);
+    }
+    this.three.resetState();
+  }
+
+  private dispatch(reset: boolean, deltaTime: number) {
+    const program = this.computeProgram!;
+    program.set('time', this.simulationTime);
+    program.set('deltaTime', deltaTime);
+    program.set('iResolution', [this.canvas.width, this.canvas.height]);
+    program.set('iMouse', this.mousePositionArray);
+    program.set('pointerPosition', this.pointerWorld.toArray());
+    program.set('pointerVelocity', this.pointerVelocity.toArray());
+    program.set('pointerDown', this.pointerDown);
+    program.set('shaderlabReset', reset);
+    for (const name of this.inputs.textureNames) program.setTexture(name, this.inputs.texture(name));
+    this.simulation!.dispatch(program);
+  }
+
+  private handlePointer = (event: PointerEvent) => {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(pointer, this.camera);
+    const hit = raycaster.ray.intersectPlane(this.pointerPlane, new THREE.Vector3());
+    if (hit) {
+      // Entering the viewport must not look like a jump from where the pointer left it.
+      if (!this.pointerInside) this.pointerPrevious.copy(hit);
+      this.pointerWorld.copy(hit);
+    }
+    this.pointerInside = Boolean(hit);
+    if (event.type === 'pointerdown' && event.button === 0) this.pointerDown = true;
+    if (event.type === 'pointerup') this.pointerDown = false;
+    if (this.simulation) this.requestRender();
+  };
+
+  private handlePointerLeave = () => {
+    this.pointerInside = false;
+    this.pointerDown = false;
+  };
+
+  private syncControlsEnabled() {
+    this.controls.enabled = this.orbitEnabled && !this.transformDragging && !this.viewHelper?.animating;
   }
 
   /**
@@ -429,7 +624,8 @@ export class Renderer implements LinkedCamera {
     // The synchronous part of setScene() removes the previous objects and
     // scene options, so the new shader never draws them.
     const sceneLoaded = this.setScene(state.scene);
-    this.updateShaders(state.vertexShader, state.fragmentShader, state.shaderReadbacks);
+    if (state.simulation) this.setSimulation(state.simulation);
+    this.updateShaders(state.vertexShader, state.fragmentShader, state.shaderReadbacks, state.computeShader);
     await sceneLoaded;
     await this.inputs.loaded();
     if (!this.disposed) this.renderScene();
@@ -449,7 +645,7 @@ export class Renderer implements LinkedCamera {
 
   /** Gives every uniform the renderer does not own its value: a control first, then a task input, otherwise zero. */
   private applyValues() {
-    for (const program of [this.program, this.pickProgram]) {
+    for (const program of [this.program, this.pickProgram, this.computeProgram]) {
       if (!program) continue;
       for (const uniform of program.uniforms.values()) {
         if (uniform.unit !== undefined || RENDERER_UNIFORMS.has(uniform.name)) continue;
@@ -492,6 +688,8 @@ export class Renderer implements LinkedCamera {
 
   setOverlays(overlays: ViewportOverlays | undefined) {
     this.requestRender();
+    this.orbitEnabled = overlays?.orbitControls !== false;
+    this.syncControlsEnabled();
     this.syncInfiniteGrid(overlays?.infiniteGrid !== false);
     const key = JSON.stringify(overlays ?? {});
     if (key === this.overlaysKey) return;
@@ -535,12 +733,12 @@ export class Renderer implements LinkedCamera {
     });
     this.transformControls.addEventListener('mouseUp', () => {
       this.transformDragging = false;
-      this.controls.enabled = !this.transformDragging && !this.viewHelper?.animating;
+      this.syncControlsEnabled();
       queueMicrotask(() => { this.suppressVisualizationSelection = false; });
     });
     this.transformControls.addEventListener('dragging-changed', event => {
       this.transformDragging = Boolean(event.value);
-      this.controls.enabled = !this.transformDragging && !this.viewHelper?.animating;
+      this.syncControlsEnabled();
       // The gizmo moves freely during a drag. Afterwards, show what the owner
       // accepted, so a mode that the object does not support snaps back.
       if (!this.transformDragging && this.gizmoSelection === 'object') this.setTransformState(this.acceptedTransform);
@@ -884,7 +1082,8 @@ export class Renderer implements LinkedCamera {
       group.rotation.fromArray(object.rotation ?? [0, 0, 0]);
       group.scale.fromArray(object.scale ?? [1, 1, 1]);
       this.objectRoot.add(group);
-      const instanceCount = Math.max(1, Math.floor(object.instanceCount ?? 1));
+      const instancesFrom = typeof object.instanceCount === 'string' ? object.instanceCount : undefined;
+      const instanceCount = typeof object.instanceCount === 'number' ? Math.max(1, Math.floor(object.instanceCount)) : 1;
       for (const loaded of loadedObjects[objectIndex]) {
         const node = new THREE.Object3D();
         node.position.copy(loaded.position);
@@ -896,7 +1095,8 @@ export class Renderer implements LinkedCamera {
           geometry: new GpuGeometry(this.gl, loaded.geometry, instanceCount),
           objectIndex,
           wireframe: Boolean(object.wireframe),
-          lineWidth: this.getWireframeLineWidth(object)
+          lineWidth: this.getWireframeLineWidth(object),
+          instancesFrom
         });
       }
     }
@@ -1099,7 +1299,7 @@ export class Renderer implements LinkedCamera {
       this.vectorEditProxy = undefined;
       this.editingVectorId = undefined;
     }
-    this.controls.enabled = true;
+    this.syncControlsEnabled();
   }
 
   private disposeVectorHelper(helper: THREE.ArrowHelper) {
@@ -1237,7 +1437,11 @@ export class Renderer implements LinkedCamera {
     program.set('viewMatrix', camera.matrixWorldInverse.elements);
     program.set('projectionMatrix', camera.projectionMatrix.elements);
     program.set('uInsetView', inset);
+    program.set('pointerPosition', this.pointerWorld.toArray());
+    program.set('pointerVelocity', this.pointerVelocity.toArray());
+    program.set('pointerDown', this.pointerDown);
     for (const name of this.inputs.textureNames) program.setTexture(name, this.inputs.texture(name));
+    this.simulation?.textures.forEach((texture, slot) => program.setTexture(bufferSampler(slot), texture));
 
     gl.disable(gl.STENCIL_TEST);
     gl.disable(gl.POLYGON_OFFSET_FILL);
@@ -1255,6 +1459,8 @@ export class Renderer implements LinkedCamera {
     }
     gl.cullFace(gl.BACK);
     for (const { part } of order) {
+      const instances = part.instancesFrom === undefined ? part.geometry.instanceCount
+        : part.instancesFrom === this.simulation?.layout.name ? this.simulation.layout.count : 0;
       const world = part.node.matrixWorld;
       modelView.multiplyMatrices(camera.matrixWorldInverse, world);
       normalMatrix.getNormalMatrix(modelView);
@@ -1270,13 +1476,13 @@ export class Renderer implements LinkedCamera {
         // Back faces first, then front faces, so a closed transparent object blends correctly.
         gl.enable(gl.CULL_FACE);
         gl.frontFace(mirrored ? gl.CCW : gl.CW);
-        part.geometry.draw(program);
+        part.geometry.draw(program, instances);
         gl.frontFace(mirrored ? gl.CW : gl.CCW);
-        part.geometry.draw(program);
+        part.geometry.draw(program, instances);
       } else {
         gl.disable(gl.CULL_FACE);
         gl.frontFace(mirrored ? gl.CW : gl.CCW);
-        part.geometry.draw(program);
+        part.geometry.draw(program, instances);
       }
     }
   }
@@ -1397,7 +1603,7 @@ export class Renderer implements LinkedCamera {
       this.looping = false;
       return;
     }
-    this.controls.enabled = !this.transformDragging && !this.viewHelper?.animating;
+    this.syncControlsEnabled();
     const cameraMoving = this.controls.update();
     if (!cameraMoving && this.cameraSavePending) {
       this.cameraSavePending = false;
@@ -1415,23 +1621,28 @@ export class Renderer implements LinkedCamera {
       this.shaderTime += delta;
       this.renderRequested = true;
     }
+    const simulating = Boolean(this.simulation && this.computeProgram && this.shaderRenderable && this.simulationSettings.running);
+    if (simulating) {
+      this.advanceSimulation(delta);
+      this.renderRequested = true;
+    }
     if (this.renderRequested) this.renderScene();
     let readbackPending = false;
     if (this.shaderReadback.busy) {
       readbackPending = this.shaderReadback.collect();
       this.three.resetState();
     }
-    const keepRunning = cameraMoving || viewHelperAnimating || timeRunning || readbackPending;
+    const keepRunning = cameraMoving || viewHelperAnimating || timeRunning || readbackPending || simulating;
     if (keepRunning && !this.animationFrame) this.animationFrame = requestAnimationFrame(this.frame);
     this.looping = this.animationFrame !== 0;
   };
 
   private publishDiagnostics(diagnostics: ShaderDiagnostics) {
     this.events.onShaderErrors?.(diagnostics);
-    const lines = (['vertex', 'fragment'] as const).flatMap(stage =>
+    const lines = (['compute', 'vertex', 'fragment'] as const).flatMap(stage =>
       diagnostics[stage].map(diagnostic => `[${stage} ${diagnostic.type}, line ${diagnostic.line}] ${diagnostic.message}`));
     if (!lines.length) return;
-    const failed = diagnostics.vertex.some(diagnostic => diagnostic.type === 'error') || diagnostics.fragment.some(diagnostic => diagnostic.type === 'error');
+    const failed = Object.values(diagnostics).some(list => list.some(diagnostic => diagnostic.type === 'error'));
     if (failed) console.error(`Shader compilation failed:\n${lines.join('\n')}`);
     else console.warn(`Shader compilation warnings:\n${lines.join('\n')}`);
   }
@@ -1453,6 +1664,11 @@ export class Renderer implements LinkedCamera {
     this.canvas.removeEventListener('pointerdown', this.handleInsetPointerDown, { capture: true });
     this.canvas.removeEventListener('pointermove', this.handleInsetPointerMove, { capture: true });
     this.canvas.removeEventListener('pointerup', this.handleInsetPointerUp, { capture: true });
+    this.canvas.removeEventListener('pointermove', this.handlePointer);
+    this.canvas.removeEventListener('pointerdown', this.handlePointer);
+    this.canvas.removeEventListener('pointerup', this.handlePointer);
+    this.canvas.removeEventListener('pointercancel', this.handlePointerLeave);
+    this.canvas.removeEventListener('pointerleave', this.handlePointerLeave);
     this.controls.dispose();
     this.disposeOverlays();
     this.vectorHelpers.forEach(helper => this.disposeVectorHelper(helper));
@@ -1463,6 +1679,7 @@ export class Renderer implements LinkedCamera {
     this.clearParts();
     this.program?.dispose();
     this.pickProgram?.dispose();
+    this.disposeCompute();
     this.inputs.dispose();
     if (this.pickTarget) {
       this.gl.deleteFramebuffer(this.pickTarget.framebuffer);

@@ -6,7 +6,7 @@ export class TaskModel {
   slug = $state('');
   task = $state.raw<Task | null>(null);
   /** What runs in the output viewport. Stages students cannot edit hold the reference source. */
-  sources = $state<StageSources>({ vertex: '', fragment: '' });
+  sources = $state<StageSources>({ vertex: '', fragment: '', compute: '' });
   activeStage = $state<ShaderStage>('fragment');
   /** Errors of the last compile. They describe `sources` as compiled, never a stored copy. */
   diagnostics = $state.raw<ShaderDiagnostics>(emptyDiagnostics());

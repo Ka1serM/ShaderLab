@@ -39,10 +39,10 @@
               <div class="workspace-group h-full" data-tutorial="viewports">
                 <Splitpanes class="splitpanes-nested" theme="my-theme" on:resized={resized('viewports')}>
                   <Pane size={layout.sizes.viewports} class="workspace-leaf workspace-leaf--reference">
-                    <ViewportView viewport={app.viewports.reference} title="Reference" panelId="reference" scenes={task.scenes} sceneIndex={model.sceneIndex} onSelectScene={index => controller.selectScene(index)} transformControls={Boolean(task.overlays?.transformControls)} showTimeControl={task.showTimeControl ?? false} />
+                    <ViewportView viewport={app.viewports.reference} title="Reference" panelId="reference" scenes={task.scenes} sceneIndex={model.sceneIndex} onSelectScene={index => controller.selectScene(index)} transformControls={Boolean(task.overlays?.transformControls)} showTimeControl={task.showTimeControl ?? false} simulation={task.referenceComputeShader !== undefined ? controller.simulation : undefined} />
                   </Pane>
                   <Pane size={100 - layout.sizes.viewports} class="workspace-leaf workspace-leaf--output">
-                    <ViewportView viewport={app.viewports.output} title="Output" panelId="output" scenes={task.scenes} sceneIndex={model.sceneIndex} onSelectScene={index => controller.selectScene(index)} transformControls={Boolean(task.overlays?.transformControls)} showTimeControl={task.showTimeControl ?? false} />
+                    <ViewportView viewport={app.viewports.output} title="Output" panelId="output" scenes={task.scenes} sceneIndex={model.sceneIndex} onSelectScene={index => controller.selectScene(index)} transformControls={Boolean(task.overlays?.transformControls)} showTimeControl={task.showTimeControl ?? false} simulation={task.referenceComputeShader !== undefined ? controller.simulation : undefined} />
                   </Pane>
                 </Splitpanes>
               </div>

@@ -7,11 +7,14 @@
   import { useApplication } from '$lib/app/application.svelte';
   import type { PanelId } from '$lib/app/controllers/layout.svelte';
   import type { ViewportSlot } from '$lib/app/controllers/viewport.svelte';
+  import type { SimulationController } from '$lib/app/controllers/simulation.svelte';
   import type { Scene, SceneDefinition, TransformMode } from '$lib/renderer/Renderer';
   import Play from 'phosphor-svelte/lib/PlayIcon';
   import Pause from 'phosphor-svelte/lib/PauseIcon';
+  import SkipForward from 'phosphor-svelte/lib/SkipForwardIcon';
+  import ArrowCounterClockwise from 'phosphor-svelte/lib/ArrowCounterClockwiseIcon';
 
-  let { viewport: slot, title, panelId, scenes, sceneIndex, onSelectScene, transformControls = false, showTimeControl = false }: {
+  let { viewport: slot, title, panelId, scenes, sceneIndex, onSelectScene, transformControls = false, showTimeControl = false, simulation }: {
     viewport: ViewportSlot;
     title: string;
     panelId: PanelId;
@@ -20,7 +23,11 @@
     onSelectScene: (index: number) => void;
     transformControls?: boolean;
     showTimeControl?: boolean;
+    /** Controls for a compute stage. They drive every viewport of the page together. */
+    simulation?: SimulationController;
   } = $props();
+
+  const headerButton = 'motion-press h-7 min-w-7 px-1 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground shrink-0';
 
   const layout = useApplication().layout;
   const transformModes: TransformMode[] = ['translate', 'rotate', 'scale'];
@@ -60,6 +67,14 @@
     <div class="viewport-panel-header app-panel-header flex items-center justify-between shrink-0">
       <h3 class="app-panel-title text-xl font-medium text-foreground">{title}</h3>
       <div class="flex items-center gap-1">
+        {#if simulation}
+          <button class={headerButton} title={simulation.running ? 'Pause simulation' : 'Run simulation'} aria-label={simulation.running ? 'Pause simulation' : 'Run simulation'} aria-pressed={!simulation.running} onclick={() => simulation.toggle()}>
+            {#if simulation.running}<Pause class="h-4 w-4" />{:else}<Play class="h-4 w-4" />{/if}
+          </button>
+          <button class={headerButton} title="Advance one frame" aria-label="Advance one frame" onclick={() => simulation.step()}><SkipForward class="h-4 w-4" /></button>
+          <button class={headerButton} title="Restart from init()" aria-label="Restart simulation" onclick={() => simulation.reset()}><ArrowCounterClockwise class="h-4 w-4" /></button>
+          <button class="{headerButton} text-xs tabular-nums" title="Simulation speed" aria-label="Simulation speed {simulation.speed}×" onclick={() => simulation.nextSpeed()}>{simulation.speed}×</button>
+        {/if}
         {#if showTimeControl}
           <button
             class="motion-press h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground shrink-0"

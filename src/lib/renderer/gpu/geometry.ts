@@ -27,6 +27,8 @@ export class GpuGeometry {
   private readonly index?: { buffer: WebGLBuffer; type: number; count: number };
   private readonly vertexCount: number;
   private instanceBuffer?: WebGLBuffer;
+  /** Instances the identity-matrix buffer holds. */
+  private instanceCapacity = 0;
   private vaos = new Map<Program, WebGLVertexArrayObject>();
 
   constructor(private readonly gl: WebGL2RenderingContext, readonly source: THREE.BufferGeometry, readonly instanceCount: number) {
@@ -43,9 +45,18 @@ export class GpuGeometry {
     this.vertexCount = source.getAttribute('position')?.count ?? 0;
   }
 
-  /** Draws every instance, honouring the geometry's draw range like three.js does. */
-  draw(program: Program, mode = this.gl.TRIANGLES) {
+  /** Draws `instances` instances, honouring the geometry's draw range like three.js does. */
+  draw(program: Program, instances = this.instanceCount, mode = this.gl.TRIANGLES) {
     const gl = this.gl;
+    if (instances < 1) return;
+    // A program that reads instanceMatrix needs one per instance, so a larger count rebuilds its buffer.
+    if (instances > this.instanceCapacity && this.instanceBuffer) {
+      gl.deleteBuffer(this.instanceBuffer);
+      this.instanceBuffer = undefined;
+      for (const vao of this.vaos.values()) gl.deleteVertexArray(vao);
+      this.vaos.clear();
+    }
+    this.instanceCapacity = Math.max(this.instanceCapacity, instances);
     gl.bindVertexArray(this.vaoFor(program));
     const total = this.index ? this.index.count : this.vertexCount;
     const start = Math.max(0, this.source.drawRange.start);
@@ -53,9 +64,9 @@ export class GpuGeometry {
     if (count > 0) {
       if (this.index) {
         const bytes = this.index.type === gl.UNSIGNED_INT ? 4 : this.index.type === gl.UNSIGNED_BYTE ? 1 : 2;
-        gl.drawElementsInstanced(mode, count, this.index.type, start * bytes, this.instanceCount);
+        gl.drawElementsInstanced(mode, count, this.index.type, start * bytes, instances);
       } else {
-        gl.drawArraysInstanced(mode, start, count, this.instanceCount);
+        gl.drawArraysInstanced(mode, start, count, instances);
       }
     }
     gl.bindVertexArray(null);
@@ -128,8 +139,9 @@ export class GpuGeometry {
   private bindInstanceMatrix(location: number) {
     const gl = this.gl;
     if (!this.instanceBuffer) {
-      const matrices = new Float32Array(16 * this.instanceCount);
-      for (let instance = 0; instance < this.instanceCount; instance++) matrices.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], instance * 16);
+      const capacity = Math.max(this.instanceCapacity, this.instanceCount);
+      const matrices = new Float32Array(16 * capacity);
+      for (let instance = 0; instance < capacity; instance++) matrices.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], instance * 16);
       this.instanceBuffer = gl.createBuffer()!;
       gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, matrices, gl.STATIC_DRAW);

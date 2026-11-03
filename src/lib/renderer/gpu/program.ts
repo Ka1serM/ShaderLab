@@ -8,6 +8,7 @@ export type ShaderDiagnostic = {
 export type ShaderDiagnostics = {
   vertex: ShaderDiagnostic[];
   fragment: ShaderDiagnostic[];
+  compute: ShaderDiagnostic[];
 };
 
 /** A value a uniform can take. Matrices are column-major, as three.js stores them. */
@@ -50,9 +51,9 @@ export type CompileOptions = {
  */
 export function compileProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string, options: CompileOptions = {}): { program?: Program; diagnostics: ShaderDiagnostics } {
   const hiddenLines = options.hiddenLines ?? { vertex: 0, fragment: 0 };
-  const diagnostics: ShaderDiagnostics = { vertex: [], fragment: [] };
+  const diagnostics: ShaderDiagnostics = { vertex: [], fragment: [], compute: [] };
 
-  const compile = (type: number, source: string, stage: keyof ShaderDiagnostics) => {
+  const compile = (type: number, source: string, stage: 'vertex' | 'fragment') => {
     const candidate = sourceForWebGL(source);
     const shader = gl.createShader(type);
     if (!shader) {

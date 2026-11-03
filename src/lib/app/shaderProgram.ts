@@ -8,6 +8,7 @@ export type StageTemplates = Partial<Record<ShaderStage, ShaderTemplate | undefi
 export type ShaderProgram = {
   vertex: string;
   fragment: string;
+  compute: string;
   lineOffsets: Record<ShaderStage, number>;
 };
 
@@ -29,6 +30,7 @@ export function buildShaderProgram(sources: StageSources, templates: StageTempla
   return {
     vertex: rewriteRowMajorMatrixLiterals(assembleShader(sources.vertex, templates.vertex)),
     fragment: rewriteRowMajorMatrixLiterals(assembleShader(sources.fragment, templates.fragment)),
-    lineOffsets: { vertex: prefixLines(templates.vertex), fragment: prefixLines(templates.fragment) }
+    compute: rewriteRowMajorMatrixLiterals(assembleShader(sources.compute, templates.compute)),
+    lineOffsets: { vertex: prefixLines(templates.vertex), fragment: prefixLines(templates.fragment), compute: prefixLines(templates.compute) }
   };
 }

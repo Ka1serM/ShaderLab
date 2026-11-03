@@ -52,7 +52,7 @@ export class TeachingModel {
       const fallback = (stage === 'vertex' ? definition?.vertexShader : definition?.fragmentShader) ?? '';
       return definition?.shaderStages.includes(stage) ? this.userCode[stage] ?? fallback : fallback;
     };
-    return { vertex: source('vertex'), fragment: source('fragment') };
+    return { vertex: source('vertex'), fragment: source('fragment'), compute: '' };
   });
 
   readonly program = $derived(buildShaderProgram(this.sources, {

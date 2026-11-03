@@ -2,11 +2,12 @@ import { CameraLink } from '$lib/renderer/CameraLink';
 import type { RendererEvents } from '$lib/renderer/Renderer';
 import { slugify } from '$lib/utils/slugify';
 import { TaskModel } from '../models/task.svelte';
-import { buildShaderProgram, type StageSources } from '../shaderProgram';
+import { buildShaderProgram, type ShaderProgram, type StageSources } from '../shaderProgram';
 import { emptyDiagnostics, starterShader, taskCameraPose, type CameraPose, type ShaderStage, type Task } from '../types';
 import type { EditorHost } from '../services/editor.svelte';
 import type { Persistence } from '../services/persistence';
 import type { ViewportSlot } from './viewport.svelte';
+import { SimulationController } from './simulation.svelte';
 
 const COMPILE_DELAY = 120;
 
@@ -18,6 +19,8 @@ export class TaskController {
   readonly model = new TaskModel();
   /** Reference and output show one camera. */
   private readonly cameraLink = new CameraLink();
+  /** The compute stage of both viewports, for tasks that have one. */
+  readonly simulation: SimulationController;
   private compileTimer: ReturnType<typeof setTimeout> | undefined;
   private storageSlug = '';
 
@@ -26,7 +29,9 @@ export class TaskController {
     private readonly editor: EditorHost,
     private readonly reference: ViewportSlot,
     private readonly output: ViewportSlot
-  ) {}
+  ) {
+    this.simulation = new SimulationController([reference, output]);
+  }
 
   /** Shows `task` with the saved workspace for it. Opening the open task again changes nothing. */
   open(slug: string, task: Task) {
@@ -34,8 +39,8 @@ export class TaskController {
     if (model.slug === slug && model.task === task) return;
     this.storageSlug = slugify(task.title);
     const saved = this.persistence.taskWorkspace(this.storageSlug);
-    const sources: StageSources = { vertex: '', fragment: '' };
-    for (const stage of ['vertex', 'fragment'] as const) {
+    const sources: StageSources = { vertex: '', fragment: '', compute: '' };
+    for (const stage of ['vertex', 'fragment', 'compute'] as const) {
       sources[stage] = task.shaderStages.includes(stage) ? saved?.userCode[stage] ?? starterShader(task, stage) : starterShader(task, stage);
     }
     model.slug = slug;
@@ -47,6 +52,7 @@ export class TaskController {
     model.sceneIndex = 0;
     model.panelTab = 'task';
     model.openHints = [];
+    this.simulation.start(task.simulation?.stepsPerFrame);
     this.openEditor();
     this.loadViewports();
   }
@@ -114,13 +120,18 @@ export class TaskController {
     this.editor.open({
       key: `task:${model.slug}`,
       stages: task.shaderStages,
-      initialText: { vertex: model.sources.vertex, fragment: model.sources.fragment },
+      initialText: { ...model.sources },
       onChange: (stage, text) => this.setSource(stage, text)
     }, model.activeStage);
   }
 
   private templates(task: Task) {
-    return { vertex: task.starterVertexShaderTemplate, fragment: task.starterFragmentShaderTemplate };
+    return { vertex: task.starterVertexShaderTemplate, fragment: task.starterFragmentShaderTemplate, compute: task.starterComputeShaderTemplate };
+  }
+
+  /** The compute stage as the renderer takes it, for tasks that have one. */
+  private computeShader(task: Task, program: ShaderProgram) {
+    return task.referenceComputeShader === undefined ? undefined : { source: program.compute, lineOffset: program.lineOffsets.compute };
   }
 
   private loadViewports(fresh = true) {
@@ -130,13 +141,14 @@ export class TaskController {
     const camera = model.camera!;
     const scene = task.scenes[model.sceneIndex]!;
     const onCameraChange = (pose: CameraPose) => this.setCameraPose(pose);
-    const reference = buildShaderProgram({ vertex: task.referenceVertexShader, fragment: task.referenceFragmentShader });
+    const reference = buildShaderProgram({ vertex: task.referenceVertexShader, fragment: task.referenceFragmentShader, compute: task.referenceComputeShader ?? '' });
     const output = buildShaderProgram(model.sources, this.templates(task));
-    const shared = { inputs: task.inputs ?? [], overlays: task.overlays, scene, shaderReadbacks: [] };
+    const simulation = task.referenceComputeShader === undefined ? undefined : this.simulation.settings;
+    const shared = { inputs: task.inputs ?? [], overlays: task.overlays, scene, shaderReadbacks: [], simulation };
     const referenceEvents: RendererEvents = { onCameraChange };
     const outputEvents: RendererEvents = { onCameraChange, onShaderErrors: diagnostics => this.showDiagnostics(diagnostics) };
-    this.reference.load({ ...shared, vertexShader: reference.vertex, fragmentShader: reference.fragment, shaderLineOffsets: reference.lineOffsets }, camera, referenceEvents, this.cameraLink, fresh);
-    this.output.load({ ...shared, vertexShader: output.vertex, fragmentShader: output.fragment, shaderLineOffsets: output.lineOffsets }, camera, outputEvents, this.cameraLink, fresh);
+    this.reference.load({ ...shared, vertexShader: reference.vertex, fragmentShader: reference.fragment, computeShader: this.computeShader(task, reference), shaderLineOffsets: reference.lineOffsets }, camera, referenceEvents, this.cameraLink, fresh);
+    this.output.load({ ...shared, vertexShader: output.vertex, fragmentShader: output.fragment, computeShader: this.computeShader(task, output), shaderLineOffsets: output.lineOffsets }, camera, outputEvents, this.cameraLink, fresh);
   }
 
   /** Compiles shortly after typing stops. Until then the previous errors no longer apply. */
@@ -147,7 +159,7 @@ export class TaskController {
       const task = this.model.task;
       if (!task) return;
       const program = buildShaderProgram(this.model.sources, this.templates(task));
-      this.output.renderer?.updateShaders(program.vertex, program.fragment, []);
+      this.output.renderer?.updateShaders(program.vertex, program.fragment, [], this.computeShader(task, program));
     }, COMPILE_DELAY);
   }
 

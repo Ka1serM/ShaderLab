@@ -6,7 +6,7 @@ import type { TeachingValue } from '$lib/utils/shaderControls';
 export type { ShaderDiagnostic, ShaderDiagnostics };
 export type { TeachingControl, TeachingValue } from '$lib/utils/shaderControls';
 
-export type ShaderStage = 'vertex' | 'fragment';
+export type ShaderStage = 'vertex' | 'fragment' | 'compute';
 
 export interface ShaderTemplate {
   prefix: string;
@@ -40,12 +40,22 @@ export interface Task {
   starterFragmentShaderTemplate?: ShaderTemplate;
   referenceVertexShader: string;
   referenceFragmentShader: string;
+  /** A compute stage, which updates a buffer that the vertex shader draws. */
+  starterComputeShader?: string;
+  starterComputeShaderTemplate?: ShaderTemplate;
+  referenceComputeShader?: string;
+  simulation?: TaskSimulation;
   shaderStages: ShaderStage[];
   camera?: TaskCamera;
   inputs?: ShaderInput[];
   scenes: Scene[];
   overlays?: ViewportOverlays;
   showTimeControl?: boolean;
+}
+
+export interface TaskSimulation {
+  /** Compute dispatches per frame. Defaults to 1. */
+  stepsPerFrame?: number;
 }
 
 export interface TeachingPreset {
@@ -73,7 +83,7 @@ export interface Teach {
   showTimeControl?: boolean;
 }
 
-export const emptyDiagnostics = (): ShaderDiagnostics => ({ vertex: [], fragment: [] });
+export const emptyDiagnostics = (): ShaderDiagnostics => ({ vertex: [], fragment: [], compute: [] });
 
 export const defaultCameraPose = (): CameraPose => ({ position: [0, 0, 1], quaternion: [0, 0, 0, 1], target: [0, 0, 0], fov: 30 });
 
@@ -89,6 +99,7 @@ export function taskCameraPose(task: Task): CameraPose {
 
 /** The code a stage starts with. Stages students cannot edit always run the reference source. */
 export function starterShader(task: Task, stage: ShaderStage): string {
-  if (!task.shaderStages.includes(stage)) return stage === 'vertex' ? task.referenceVertexShader : task.referenceFragmentShader;
-  return (stage === 'vertex' ? task.starterVertexShader : task.starterFragmentShader) ?? '';
+  const reference = { vertex: task.referenceVertexShader, fragment: task.referenceFragmentShader, compute: task.referenceComputeShader ?? '' }[stage];
+  if (!task.shaderStages.includes(stage)) return reference;
+  return { vertex: task.starterVertexShader, fragment: task.starterFragmentShader, compute: task.starterComputeShader }[stage] ?? '';
 }

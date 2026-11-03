@@ -52,9 +52,10 @@ export function isCameraPose(value: unknown): value is CameraPose {
 }
 
 function isStageCode(value: unknown): value is StageCode {
-  return isRecord(value) && hasOnlyKeys(value, ['vertex', 'fragment'])
+  return isRecord(value) && hasOnlyKeys(value, ['vertex', 'fragment', 'compute'])
     && (value.vertex === undefined || typeof value.vertex === 'string')
-    && (value.fragment === undefined || typeof value.fragment === 'string');
+    && (value.fragment === undefined || typeof value.fragment === 'string')
+    && (value.compute === undefined || typeof value.compute === 'string');
 }
 
 function isTeachingValue(value: unknown): value is TeachingValue {
@@ -68,7 +69,7 @@ function isTaskWorkspace(value: unknown): value is TaskWorkspace {
   return isRecord(value) && hasOnlyKeys(value, ['taskSlug', 'userCode', 'activeTab', 'cameraPose'])
     && typeof value.taskSlug === 'string'
     && isStageCode(value.userCode)
-    && (value.activeTab === 'vertex' || value.activeTab === 'fragment')
+    && (value.activeTab === 'vertex' || value.activeTab === 'fragment' || value.activeTab === 'compute')
     && (value.cameraPose === undefined || isCameraPose(value.cameraPose));
 }
 
