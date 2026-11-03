@@ -22,6 +22,7 @@
     "@tanstack/table-core": "^8.21.3",
     "@types/node": "^26.6.2",
     "@types/three": "^0.185.4",
+    "playwright": "^1.55.0",
     "svelte": "^5.41.2",
     "svelte-check": "^4.3.3",
     "svelte-sonner": "^1.0.5",

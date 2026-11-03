@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { afterNavigate } from '$app/navigation';
-  import { navigating } from '$app/state';
+  import { navigating, page } from '$app/state';
+  import { Application, provideApplication } from '$lib/app/application.svelte';
   import TopNavigation from '$lib/components/TopNavigation.svelte';
   import { ModeWatcher } from "mode-watcher";
   import { checkStorageVersion } from '$lib/config';
@@ -10,8 +11,16 @@
 
   checkStorageVersion();
 
-  let mainElement: HTMLElement;
-  let pageReplay = 0;
+  // Built once for the whole session. Pages only tell it what to show.
+  const app = provideApplication(new Application());
+  const workspaceRoutes = new Set(['/task/[title]', '/teach/[title]']);
+  $effect(() => {
+    if (!workspaceRoutes.has(page.route.id ?? '')) app.closeWorkspaces();
+  });
+
+  let { children } = $props();
+  let mainElement = $state<HTMLElement>();
+  let pageReplay = $state(0);
 
   // Keep route transitions opacity-only for WebGL and Monaco workspaces.
   afterNavigate(() => {
@@ -54,7 +63,7 @@
   <TopNavigation />
   <main id="main-content" bind:this={mainElement} class="app-main motion-fade flex min-h-0 flex-1 flex-col overflow-hidden" tabindex="-1">
     {#key pageReplay}
-      <slot />
+      {@render children()}
     {/key}
   </main>
 </div>

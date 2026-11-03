@@ -118,26 +118,17 @@ export type ViewportVector = {
   inverse?: number[];
 };
 
-export type RendererOptions = {
-  container: HTMLElement;
-  vertexShader: string;
-  fragmentShader: string;
-  inputs?: ShaderInput[];
-  uniformValues?: Record<string, number | number[] | boolean>;
-  shaderLineOffsets?: { vertex: number; fragment: number };
-  cameraPose: ViewportCameraPose;
-  cameraPoseSaved?: boolean;
-  overlays?: ViewportOverlays;
-  reportErrors?: boolean;
+/**
+ * What the renderer reports back. The owner replaces the whole set when a
+ * different page takes over the viewport, so no callback outlives its page.
+ */
+export type RendererEvents = {
   onCameraChange?: (pose: ViewportCameraPose) => void;
-  /** Viewports with the same link show one camera. */
-  cameraLink?: CameraLink;
   onTransformChange?: (transform: ViewportTransform) => void;
   /** Index of the scene object that a click selects, or undefined when a click hits no object. */
   onObjectSelect?: (objectIndex: number | undefined) => void;
   onVectorChange?: (id: string, value: [number, number, number]) => void;
   onShaderErrors?: (errors: ShaderDiagnostics) => void;
-  shaderReadbacks?: ShaderReadbackRequest[];
   onShaderReadbacks?: (values: Record<string, ShaderReadbackValue>) => void;
 };
 
@@ -177,17 +168,14 @@ export class Renderer implements LinkedCamera {
   });
   private readonly pickingPixel = new Uint8Array(4);
 
+  /** The renderer's own element. Views attach it to their layout and detach it again; it is never recreated. */
+  readonly element: HTMLElement;
   private readonly container: HTMLElement;
   private readonly clock = new THREE.Clock();
   private shaderTime = 0;
   private timePaused = false;
-  private readonly onCameraChange?: RendererOptions['onCameraChange'];
-  private readonly cameraLink?: CameraLink;
-  private readonly onTransformChange?: RendererOptions['onTransformChange'];
-  private readonly onObjectSelect?: RendererOptions['onObjectSelect'];
-  private readonly onVectorChange?: RendererOptions['onVectorChange'];
-  private readonly onShaderErrors?: RendererOptions['onShaderErrors'];
-  private readonly reportErrors: boolean;
+  events: RendererEvents = {};
+  private cameraLink?: CameraLink;
   private resizeObserver: ResizeObserver;
   private visibilityObserver: IntersectionObserver;
   private visible = true;
@@ -254,8 +242,7 @@ export class Renderer implements LinkedCamera {
   private shaderReadsTime = false;
   private shaderReadsMouse = false;
   private vertexShader: string;
-  private shaderReadbacks: ShaderReadbackRequest[];
-  private readonly onShaderReadbacks?: RendererOptions['onShaderReadbacks'];
+  private shaderReadbacks: ShaderReadbackRequest[] = [];
   private readonly cameraDirection = new THREE.Vector3();
   private readonly cameraPositionArray = [0, 0, 0];
   private readonly cameraDirectionArray = [0, 0, -1];
@@ -263,24 +250,21 @@ export class Renderer implements LinkedCamera {
   // The third component is 1 only while the pointer is inside the viewport.
   private readonly mousePositionArray = [0, 0, 0];
 
-  constructor(options: RendererOptions) {
-    this.container = options.container;
-    this.cameraPoseSaved = options.cameraPoseSaved ?? false;
-    this.onCameraChange = options.onCameraChange;
-    this.cameraLink = options.cameraLink;
-    this.onTransformChange = options.onTransformChange;
-    this.onObjectSelect = options.onObjectSelect;
-    this.onVectorChange = options.onVectorChange;
-    this.onShaderErrors = options.onShaderErrors;
-    this.onShaderReadbacks = options.onShaderReadbacks;
-    this.shaderReadbacks = options.shaderReadbacks ?? [];
-    this.vertexShader = options.vertexShader;
-    this.reportErrors = options.reportErrors ?? false;
-    this.shaderLineOffsets = options.shaderLineOffsets ?? { vertex: 0, fragment: 0 };
+  /**
+   * Starts empty and detached. The owner fills it with `replaceTaskState()` and
+   * places `element` into a view with `attach()`.
+   */
+  constructor() {
+    this.element = this.container = document.createElement('div');
+    this.container.style.cssText = 'position: absolute; inset: 0; overflow: hidden; border-radius: inherit;';
+    this.cameraPoseSaved = false;
+    this.vertexShader = '';
+    this.shaderLineOffsets = { vertex: 0, fragment: 0 };
+    const cameraPose: ViewportCameraPose = { position: [0, 0, 1], quaternion: [0, 0, 0, 1], target: [0, 0, 0], fov: 30 };
 
-    const width = Math.max(1, this.container.clientWidth);
-    const height = Math.max(1, this.container.clientHeight);
-    this.horizontalFov = options.cameraPose.fov;
+    const width = 1;
+    const height = 1;
+    this.horizontalFov = cameraPose.fov;
     const verticalFov = 2 * Math.atan(Math.tan(this.horizontalFov * Math.PI / 360) / (width / height)) * 180 / Math.PI;
     // This is the viewport camera's clip plane, unrelated to the projection
     // lesson's uNear control. Keep it small enough to inspect a frustum from
@@ -288,7 +272,7 @@ export class Renderer implements LinkedCamera {
     this.camera = new THREE.PerspectiveCamera(verticalFov, width / height, 0.1, 1_000);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setClearColor(0x000000, 0);
-    this.shaderReadback = new ShaderReadback(this.renderer.getContext() as WebGL2RenderingContext, values => this.onShaderReadbacks?.(values));
+    this.shaderReadback = new ShaderReadback(this.renderer.getContext() as WebGL2RenderingContext, values => this.events.onShaderReadbacks?.(values));
     // Unbounded DPR makes two side-by-side teaching viewports prohibitively
     // expensive on modern mobile/retina displays without a visible benefit.
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -299,15 +283,13 @@ export class Renderer implements LinkedCamera {
     this.renderer.debug.checkShaderErrors = false;
     this.container.appendChild(this.renderer.domElement);
 
-    const initialValidation = this.validateShaders(options.vertexShader, options.fragmentShader);
     const fallbackVertex = 'precision highp float; in vec3 position; void main() { gl_Position = vec4(position, 1.0); }';
     const fallbackFragment = 'precision highp float; out vec4 fragColor; void main() { fragColor = vec4(0.0); }';
-    this.shaderRenderable = initialValidation.valid;
-    this.publishDiagnostics(initialValidation.diagnostics);
+    this.shaderRenderable = false;
 
     this.material = new ShaderTaskMaterial({
-      vertexShader: initialValidation.valid ? options.vertexShader : fallbackVertex,
-      fragmentShader: initialValidation.valid ? options.fragmentShader : fallbackFragment,
+      vertexShader: fallbackVertex,
+      fragmentShader: fallbackFragment,
       inputs: [
         { type: 'float', name: 'time', init: 0 },
         { type: 'vec2', name: 'iResolution', init: [width * window.devicePixelRatio, height * window.devicePixelRatio] },
@@ -320,12 +302,11 @@ export class Renderer implements LinkedCamera {
         { type: 'float', name: 'uWireframeLineWidth', init: 3.5 },
         { type: 'int', name: 'uWireframe', init: 0 },
         { type: 'int', name: 'uInsetView', init: 0 },
-        { type: 'int', name: 'uObjectIndex', init: 0 },
-        ...(options.inputs ?? [])
+        { type: 'int', name: 'uObjectIndex', init: 0 }
       ]
     });
     this.pickingMaterial = new THREE.RawShaderMaterial({
-      vertexShader: initialValidation.valid ? options.vertexShader : fallbackVertex,
+      vertexShader: fallbackVertex,
       // The red channel holds the object index + 1, so 0 means that no object was hit.
       fragmentShader: 'precision highp float; uniform int uObjectIndex; out vec4 fragColor; void main() { fragColor = vec4(float(uObjectIndex + 1) / 255.0, 0.0, 0.0, 1.0); }',
       uniforms: this.material.uniforms,
@@ -335,13 +316,6 @@ export class Renderer implements LinkedCamera {
       depthFunc: THREE.EqualDepth,
       depthWrite: false
     });
-    this.taskInputNames = new Set((options.inputs ?? []).map(input => input.name));
-    // Teaching shaders supply their control uniforms at construction time.
-    // Apply them before the first draw; otherwise WebGL uses zero-valued
-    // uniforms until a later reactive update or interaction occurs.
-    this.setUniformValues(options.uniformValues ?? {});
-
-    if (initialValidation.valid) this.trackShaderInputs(options.vertexShader, options.fragmentShader);
 
     // Capture listeners run before OrbitControls and TransformControls, so a
     // pointer on the inset never orbits the camera or picks an object.
@@ -361,9 +335,8 @@ export class Renderer implements LinkedCamera {
       this.shareCamera(true);
     });
     this.controls.addEventListener('start', () => { this.autoFrame = false; });
-    this.applyCameraPose(options.cameraPose);
-    this.cameraLink?.join(this);
-    this.setOverlays(options.overlays);
+    this.applyCameraPose(cameraPose);
+    this.setOverlays(undefined);
 
     this.resizeObserver = new ResizeObserver(() => this.scheduleResize());
     this.resizeObserver.observe(this.container);
@@ -404,6 +377,24 @@ export class Renderer implements LinkedCamera {
   setCameraPose(pose: ViewportCameraPose, saved = this.cameraPoseSaved) {
     this.cameraPoseSaved = saved;
     this.applyCameraPose(pose);
+  }
+
+  /** Viewports with the same link show one camera. */
+  setCameraLink(link: CameraLink | undefined) {
+    if (link === this.cameraLink) return;
+    this.cameraLink?.leave(this);
+    this.cameraLink = link;
+    link?.join(this);
+  }
+
+  attach(parent: HTMLElement) {
+    if (this.element.parentNode !== parent) parent.appendChild(this.element);
+    this.scheduleResize();
+    this.requestRender();
+  }
+
+  detach(parent: HTMLElement) {
+    if (this.element.parentNode === parent) parent.removeChild(this.element);
   }
 
   get aspect() {
@@ -775,7 +766,7 @@ export class Renderer implements LinkedCamera {
       this.transformControls.detach();
       this.gizmoSelection = null;
     }
-    this.onObjectSelect?.(objectHit);
+    this.events.onObjectSelect?.(objectHit);
   };
 
   /** GPU picking uses the active vertex shader, so shader-side transforms and
@@ -833,7 +824,7 @@ export class Renderer implements LinkedCamera {
       localPosition.applyMatrix4(matrix.invert());
     }
     const value = localPosition.sub(new THREE.Vector3().fromArray(definition.origin ?? [0, 0, 0]));
-    this.onVectorChange?.(definition.target ?? this.editingVectorId, value.toArray() as [number, number, number]);
+    this.events.onVectorChange?.(definition.target ?? this.editingVectorId, value.toArray() as [number, number, number]);
   }
 
   async setScene(sceneDefinition: Scene) {
@@ -1072,7 +1063,7 @@ export class Renderer implements LinkedCamera {
     this.cameraPoseSaved = true;
     const pose = this.currentCameraPose();
     this.cameraKey = JSON.stringify(pose);
-    this.onCameraChange?.(pose);
+    this.events.onCameraChange?.(pose);
   }
 
   private saveTransform() {
@@ -1082,7 +1073,7 @@ export class Renderer implements LinkedCamera {
       this.transformQuaternion.copy(this.transformProxy.quaternion);
     }
     this.transformScale.copy(this.transformProxy.scale);
-    this.onTransformChange?.({
+    this.events.onTransformChange?.({
       position: this.transformPosition.toArray() as ViewportTransform['position'],
       quaternion: this.transformQuaternion.toArray() as ViewportTransform['quaternion'],
       scale: this.transformScale.toArray() as ViewportTransform['scale']
@@ -1382,7 +1373,7 @@ export class Renderer implements LinkedCamera {
   }
 
   private publishDiagnostics(diagnostics: ShaderDiagnostics) {
-    if (this.reportErrors) this.onShaderErrors?.(diagnostics);
+    this.events.onShaderErrors?.(diagnostics);
     const lines = (['vertex', 'fragment'] as const).flatMap(stage =>
       diagnostics[stage].map(diagnostic => `[${stage} ${diagnostic.type}, line ${diagnostic.line}] ${diagnostic.message}`));
     if (!lines.length) return;
@@ -1420,6 +1411,6 @@ export class Renderer implements LinkedCamera {
     this.pickingTarget.dispose();
     this.shaderReadback.dispose();
     this.renderer.dispose();
-    if (this.container.contains(this.renderer.domElement)) this.container.removeChild(this.renderer.domElement);
+    this.element.remove();
   }
 }

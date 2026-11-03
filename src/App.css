@@ -976,3 +976,40 @@ body {
   from { transform: scaleX(0); }
   to { transform: scaleX(.9); }
 }
+
+/*
+ * Workspaces have one layout tree. Below the desktop breakpoint the splitters
+ * disappear and the leaf panes stack in one scrolling column, output before
+ * reference, so the student's result follows the editor directly.
+ */
+@media (max-width: 1023px) {
+  /* Like a flex column of 400px blocks: each pane shrinks to its minimum, and the column scrolls. */
+  .workspace-tree {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+
+  .workspace-tree .splitpanes,
+  .workspace-tree .workspace-group,
+  .workspace-tree .splitpanes__pane:not(.workspace-leaf) {
+    display: contents;
+  }
+
+  .workspace-tree .splitpanes__splitter {
+    display: none;
+  }
+
+  .splitpanes.my-theme .splitpanes__pane.workspace-leaf {
+    flex: 0 1 auto;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 400px;
+    overflow: visible !important;
+  }
+
+  .workspace-leaf--panel { order: 1; }
+  .workspace-leaf--editor { order: 2; }
+  .workspace-leaf--output { order: 3; }
+  .workspace-leaf--reference { order: 4; }
+}

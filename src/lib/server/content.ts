@@ -3,8 +3,7 @@
 import yaml from 'js-yaml';
 import { marked } from 'marked';
 import katex from 'katex';
-import type { Task } from '$lib/stores/taskStore';
-import type { Teach } from '$lib/stores/teachingStore';
+import type { Task, Teach } from '$lib/app/types';
 import { slugify } from '$lib/utils/slugify';
 import type { CatalogEntry } from '$lib/catalog';
 import taskIndex from '../../content/tasks/index.txt?raw';
