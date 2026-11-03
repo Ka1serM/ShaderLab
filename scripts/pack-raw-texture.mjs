@@ -1,5 +1,5 @@
 // Converts a .raw volume texture (16-byte header + Float16/Float32 payload)
-// into the .rawz file that ShaderTaskMaterial loads. The payload is split into
+// into the .rawz file that ShaderInputs (src/lib/renderer/gpu/inputs.ts) loads. The payload is split into
 // byte planes before gzip: all first bytes, then all second bytes, and so on.
 // This groups the similar high bytes together and compresses much better.
 import { readFileSync, writeFileSync } from 'node:fs';

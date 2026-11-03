@@ -1,6 +1,6 @@
-import type { ShaderInput } from '$lib/renderer/ShaderTaskMaterial';
+import type { ShaderInput } from '$lib/renderer/gpu/inputs';
 import type { Scene, ViewportOverlays } from '$lib/renderer/Renderer';
-import type { ShaderDiagnostic, ShaderDiagnostics } from '$lib/renderer/shaderValidation';
+import type { ShaderDiagnostic, ShaderDiagnostics } from '$lib/renderer/gpu/program';
 import type { TeachingValue } from '$lib/utils/shaderControls';
 
 export type { ShaderDiagnostic, ShaderDiagnostics };
