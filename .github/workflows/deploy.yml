@@ -31,7 +31,7 @@ jobs:
       # adapter-static writes the gzip and brotli copies next to the files (precompress in svelte.config.js).
       - run: npm run build
 
-      # The key of the VPS is restricted to rrsync in /srv/sites/shaderlab, which munges symlinks.
+      # The key of the VPS is restricted to rrsync in ~/srv/web/apps/shaderlab, which munges symlinks.
       - name: Deploy
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
