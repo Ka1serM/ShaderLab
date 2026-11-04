@@ -6,8 +6,11 @@ const VERTICES_PER_NORMAL = 1024;
 const MIN_NORMALS = 24;
 const LENGTH_PER_RADIUS = 0.12;
 const HEAD_LENGTH = 0.2;
-const HEAD_WIDTH = 0.1;
+const HEAD_WIDTH = 0.14;
+const SHAFT_WIDTH = 0.045;
 const HEAD_SEGMENTS = 8;
+
+export type NormalsVaryings = { position: string; normal: string; space?: 'model' | 'world' };
 
 export type NormalsPart = { source: THREE.BufferGeometry; matrixWorld: THREE.Matrix4 };
 
@@ -20,6 +23,7 @@ void main() {
   shaderlabNormal = normal;
   gl_Position = vec4(0.0);
 }`;
+const PASSTHROUGH_VARYINGS: NormalsVaryings = { position: 'shaderlabPosition', normal: 'shaderlabNormal', space: 'model' };
 
 const CAPTURE_FRAGMENT = 'out vec4 color; void main() { color = vec4(0.0); }';
 
@@ -57,18 +61,24 @@ void main() {
 }`;
 
 const COLOR = [0xbf / 255, 0x27 / 255, 0x32 / 255];
+const IDENTITY4 = new THREE.Matrix4().elements;
+const IDENTITY3 = new THREE.Matrix3().elements;
 
-// Shaft as a line from 0 to the head, head as a cone whose tip sits at 1.
+// Shaft as a tube from 0 to the head, head as a cone whose tip sits at 1.
 function arrowVertices() {
-  const neck = 1 - HEAD_LENGTH, radius = HEAD_WIDTH / 2;
-  const ring = (index: number) => {
+  const neck = 1 - HEAD_LENGTH;
+  const ring = (index: number, radius: number, y: number) => {
     const angle = (index / HEAD_SEGMENTS) * Math.PI * 2;
-    return [Math.cos(angle) * radius, neck, Math.sin(angle) * radius];
+    return [Math.cos(angle) * radius, y, Math.sin(angle) * radius];
   };
-  const vertices = [0, 0, 0, 0, neck, 0];
+  const shaft = SHAFT_WIDTH / 2, head = HEAD_WIDTH / 2;
+  const vertices: number[] = [];
   for (let index = 0; index < HEAD_SEGMENTS; index++) {
-    vertices.push(0, 1, 0, ...ring(index + 1), ...ring(index));
-    vertices.push(0, neck, 0, ...ring(index), ...ring(index + 1));
+    const [a, b] = [index, index + 1];
+    vertices.push(...ring(a, shaft, 0), ...ring(b, shaft, neck), ...ring(b, shaft, 0));
+    vertices.push(...ring(a, shaft, 0), ...ring(a, shaft, neck), ...ring(b, shaft, neck));
+    vertices.push(0, 1, 0, ...ring(b, head, neck), ...ring(a, head, neck));
+    vertices.push(0, neck, 0, ...ring(a, head, neck), ...ring(b, head, neck));
   }
   return new Float32Array(vertices);
 }
@@ -88,6 +98,7 @@ export class NormalsOverlay {
   private readonly transformFeedback: WebGLTransformFeedback;
   private readonly parts = new Map<THREE.BufferGeometry, PartArrows>();
   private capture?: Program;
+  private captureKey?: string;
   private readonly normalMatrix = new THREE.Matrix3();
   private readonly radius = new THREE.Sphere();
 
@@ -104,20 +115,22 @@ export class NormalsOverlay {
     this.transformFeedback = gl.createTransformFeedback()!;
   }
 
-  // Captures the mesh's position and normal at the sample corners, then draws one
-  // arrow per sample from the captured values. Everything per frame stays on the GPU.
-  draw(parts: NormalsPart[], viewProjection: THREE.Matrix4) {
+  // Runs the scene's vertex shader on the sample corners, then draws one arrow
+  // per sample from the captured outputs. Everything per frame stays on the GPU.
+  draw(vertexShader: string, varyings: NormalsVaryings | undefined, parts: NormalsPart[], prepare: (program: Program, index: number) => void, viewProjection: THREE.Matrix4) {
     const gl = this.gl;
-    const capture = this.captureProgram();
+    const capture = varyings ? this.captureProgram(vertexShader, varyings) : this.captureProgram(PASSTHROUGH_VERTEX, PASSTHROUGH_VARYINGS);
     if (!capture) return;
+    const space = varyings ? varyings.space ?? 'world' : 'model';
     const arrows = parts.map(part => this.arrowsFor(part.source));
     this.prune(parts.map(part => part.source));
 
     gl.enable(gl.RASTERIZER_DISCARD);
     gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.transformFeedback);
-    capture.bind();
-    arrows.forEach(part => {
+    arrows.forEach((part, index) => {
       if (!part.count) return;
+      prepare(capture, index);
+      capture.bind();
       gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, part.feedback);
       gl.beginTransformFeedback(gl.POINTS);
       part.samples.drawVertices(capture, gl.POINTS);
@@ -139,12 +152,11 @@ export class NormalsOverlay {
       const { source, matrixWorld } = parts[index];
       source.boundingSphere ?? source.computeBoundingSphere();
       this.arrows.set('uLength', this.radius.copy(source.boundingSphere!).applyMatrix4(matrixWorld).radius * LENGTH_PER_RADIUS);
-      this.arrows.set('uModelMatrix', matrixWorld.elements);
-      this.arrows.set('uNormalMatrix', this.normalMatrix.getNormalMatrix(matrixWorld).elements);
+      this.arrows.set('uModelMatrix', space === 'model' ? matrixWorld.elements : IDENTITY4);
+      this.arrows.set('uNormalMatrix', space === 'model' ? this.normalMatrix.getNormalMatrix(matrixWorld).elements : IDENTITY3);
       this.arrows.bind();
       gl.bindVertexArray(part.vao);
-      gl.drawArraysInstanced(gl.LINES, 0, 2, part.count);
-      gl.drawArraysInstanced(gl.TRIANGLES, 2, this.arrowVertexCount - 2, part.count);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, this.arrowVertexCount, part.count);
     });
     gl.bindVertexArray(null);
     gl.useProgram(null);
@@ -158,17 +170,25 @@ export class NormalsOverlay {
     this.gl.deleteTransformFeedback(this.transformFeedback);
   }
 
-  private captureProgram() {
-    if (this.capture) return this.capture;
-    const { program } = compileProgram(this.gl, PASSTHROUGH_VERTEX, CAPTURE_FRAGMENT, { feedbackVaryings: ['shaderlabPosition', 'shaderlabNormal'] });
-    if (!program) console.warn('The normals overlay capture program did not compile.');
-    return this.capture = program;
+  private captureProgram(vertexShader: string, { position, normal }: NormalsVaryings) {
+    const key = `${position}\0${normal}\0${vertexShader}`;
+    if (key === this.captureKey) return this.capture;
+    this.releaseCapture();
+    this.captureKey = key;
+    const gl = this.gl;
+    const { program, diagnostics } = compileProgram(gl, vertexShader, CAPTURE_FRAGMENT, { feedbackVaryings: [position, normal] });
+    if (program && [0, 1].every(index => gl.getTransformFeedbackVarying(program.handle, index)?.type === gl.FLOAT_VEC3)) return this.capture = program;
+    program?.dispose();
+    const reason = program ? 'both must be vec3 outputs' : [...diagnostics.vertex, ...diagnostics.fragment].map(diagnostic => diagnostic.message).join(' ');
+    console.warn(`Normals overlay cannot capture ${position} and ${normal}: ${reason}`);
+    return undefined;
   }
 
   private releaseCapture() {
     if (this.capture) for (const part of this.parts.values()) part.samples.release(this.capture);
     this.capture?.dispose();
     this.capture = undefined;
+    this.captureKey = undefined;
   }
 
   private arrowsFor(source: THREE.BufferGeometry) {

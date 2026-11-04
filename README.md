@@ -88,7 +88,9 @@ overlays:
   infiniteGrid: false              # default true
   viewHelper: false                # default true
   orbitControls: false             # default true
-  normals: true                    # normal arrows
+  normals: true                    # arrows from the mesh's own normals
+  # or from your vertex outputs, so they follow the shader (space: model | world):
+  # normals: { position: vTransformedPosition, normal: vTransformedNormal, space: model }
   insetView: true                  # second small view, see uInsetView
 inputs:
   - name: volumeTexture            # uniform sampler3D volumeTexture;

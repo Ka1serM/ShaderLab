@@ -114,11 +114,13 @@
         />
       {/if}
       {#if normals}
-        <Toggle
-          class="relative z-10 h-10 flex-none bg-muted px-4 hover:bg-muted/50 data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30"
-          aria-label="Show vertex normals"
-          bind:pressed={() => slot.normalsVisible, () => slot.toggleNormals()}
-        >Normals</Toggle>
+        <div class="relative z-10 flex w-fit flex-none rounded-md bg-muted">
+          <Toggle
+            class="h-10 px-4 transition-colors hover:bg-muted/50 data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30"
+            aria-label="Show vertex normals"
+            bind:pressed={() => slot.normalsVisible, () => slot.toggleNormals()}
+          >Normals</Toggle>
+        </div>
       {/if}
     </div>
   </div>

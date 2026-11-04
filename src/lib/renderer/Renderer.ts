@@ -3,7 +3,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js';
 import { InfiniteGrid } from './InfiniteGrid';
-import { NormalsOverlay } from './NormalsOverlay';
+import { NormalsOverlay, type NormalsVaryings } from './NormalsOverlay';
+import { VectorArrow } from './VectorArrow';
 import { sameValues } from '$lib/utils/sameValues';
 import { defaultCameraPose, type ViewportCameraPose } from './camera';
 import { ShaderReadback, type ShaderReadbackRequest, type ShaderReadbackValue } from './shaderReadback';
@@ -88,7 +89,7 @@ export type ViewportOverlays = {
     mode?: TransformMode;
   };
   orbitControls?: boolean;
-  normals?: boolean;
+  normals?: boolean | NormalsVaryings;
   insetView?: boolean;
 };
 
@@ -224,7 +225,7 @@ export class Renderer implements LinkedCamera {
   private viewHelper?: ViewHelper;
   private viewHelperPointerUp?: (event: PointerEvent) => void;
   private transformProxy?: THREE.Object3D;
-  private vectorHelpers = new Map<string, THREE.ArrowHelper>();
+  private vectorHelpers = new Map<string, VectorArrow>();
   private pointHelpers = new Map<string, THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>>();
   private vectorDefinitions = new Map<string, ViewportVector>();
   private vectorEditProxy?: THREE.Object3D;
@@ -773,7 +774,7 @@ export class Renderer implements LinkedCamera {
       const length = endpoint.length();
       let helper = this.vectorHelpers.get(vector.id);
       if (!helper) {
-        helper = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1, 0xbf2732);
+        helper = new VectorArrow(0xbf2732);
         this.vectorHelpers.set(vector.id, helper);
         this.overlayScene.add(helper);
       }
@@ -1147,12 +1148,9 @@ export class Renderer implements LinkedCamera {
     this.syncControlsEnabled();
   }
 
-  private disposeVectorHelper(helper: THREE.ArrowHelper) {
+  private disposeVectorHelper(helper: VectorArrow) {
     this.overlayScene.remove(helper);
-    helper.line.geometry.dispose();
-    (helper.line.material as THREE.Material).dispose();
-    helper.cone.geometry.dispose();
-    (helper.cone.material as THREE.Material).dispose();
+    helper.dispose();
   }
 
   private disposePointHelper(helper: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>) {
@@ -1246,11 +1244,20 @@ export class Renderer implements LinkedCamera {
   }
 
   private drawNormals() {
+    const varyings = typeof this.overlays?.normals === 'object' ? this.overlays.normals : undefined;
     this.normals ??= new NormalsOverlay(this.gl);
     projectScreen.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     const parts = this.parts.map(part => ({ source: part.geometry.source, matrixWorld: part.node.matrixWorld }));
-    this.normals.draw(parts, projectScreen);
+    this.normals.draw(this.vertexShader, varyings, parts, this.prepareNormalsCapture, projectScreen);
   }
+
+  private prepareNormalsCapture = (program: Program, index: number) => {
+    for (const uniform of program.uniforms.values()) {
+      if (uniform.unit === undefined && !RENDERER_UNIFORMS.has(uniform.name)) program.set(uniform.name, this.uniformValues[uniform.name]);
+    }
+    this.setViewUniforms(program, false);
+    this.setPartUniforms(program, this.parts[index]);
+  };
 
   private setViewUniforms(program: Program, inset: boolean) {
     const camera = this.camera;
