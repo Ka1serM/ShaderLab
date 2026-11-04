@@ -249,7 +249,16 @@
       material.uniforms.uPointerActive.value = 0;
     }
 
+    let visible = true;
+    const visibility = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      if (visible && !frame) animate();
+    });
+    visibility.observe(container);
+
     function animate() {
+      frame = 0;
+      if (!visible) return;
       const time = clock.getElapsedTime();
       pointer.lerp(pointerTarget, 0.08);
       material.uniforms.uTime.value = time;
@@ -275,6 +284,7 @@
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
+      visibility.disconnect();
       themeObserver.disconnect();
       container.removeEventListener('pointermove', handlePointerMove);
       container.removeEventListener('pointerleave', handlePointerLeave);
@@ -289,6 +299,7 @@
       starGeometry.dispose();
       starMaterial.dispose();
       renderer.dispose();
+      renderer.forceContextLoss();
       renderer.domElement.remove();
     };
   });

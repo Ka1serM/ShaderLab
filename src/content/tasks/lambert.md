@@ -10,6 +10,8 @@ camera:
 scenes:
   - objects:
       - source: models/HeadDavid.glb
+overlays:
+  normals: true
 ---
 
 # Task
@@ -29,10 +31,6 @@ Das Skalarprodukt entspricht dem Kosinus des Winkels. Es ist maximal, wenn die F
 
 # Starter Fragment Shader
 ```glsl
-// @prefix
-precision highp float;
-// @prefix
-
 in vec3 vNormal;
 
 out vec4 fragColor;
@@ -45,8 +43,6 @@ void main() {
 
 # Reference Vertex Shader
 ```glsl
-precision highp float;
-
 in vec3 position;
 in vec3 normal;
 
@@ -65,8 +61,6 @@ void main() {
 
 # Reference Fragment Shader
 ```glsl
-precision highp float;
-
 in vec3 vNormal;
 
 out vec4 fragColor;

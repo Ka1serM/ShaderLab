@@ -1,7 +1,7 @@
 ---
 title: Projection
 category: Projection
-shader stages:
+shaderStages:
   - vertex
 scenes:
   - label: Teapot
@@ -37,8 +37,6 @@ scenes:
 
 ```glsl
 // @prefix
-precision highp float;
-
 in vec3 position;
 in vec3 normal;
 in vec3 barycentric;
@@ -53,76 +51,81 @@ out vec4 vDisplayPosition;
 out vec4 vClipPosition;
 out vec3 vNormal;
 
-// @control label="World → NDC" min=0 max=1 step=0.01 default=0
+// @control { label: World → NDC, min: 0, max: 1, step: 0.01, default: 0 }
 uniform float uNdcBlend;
 
-// @control label="Near n" min=0.01 max=10 step=0.01 default=1
+// @control { label: Near n, min: 0.01, max: 10, step: 0.01, default: 1 }
 uniform float uNear;
 
-// @control label="Far f" min=1 max=100 step=0.1 default=6
+// @control { label: Far f, min: 1, max: 100, step: 0.1, default: 6 }
 uniform float uFar;
 
-// @control label="Field of view (°)" min=30 max=120 step=1 default=45
+// @control { label: Field of view (°), min: 30, max: 120, step: 1, default: 45 }
 uniform float uFov;
 
-// @control label="Aspect ratio" min=0.5 max=2.5 step=0.01 default=1.333
+// @control { label: Aspect ratio, min: 0.5, max: 2.5, step: 0.01, default: 1.333 }
 uniform float uAspect;
 
-// @control transform=translate object=0 hidden=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
+// @control { transform: translate, object: 0, hidden: true }
 uniform mat4 uCameraTranslation;
 
-// @control transform=rotate object=0 hidden=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
+// @control { transform: rotate, object: 0, hidden: true }
 uniform mat4 uCameraRotation;
 
-// @control transform=translate object=1 hidden=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,-3,1"
+// @control { transform: translate, object: 1, hidden: true, default: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -3, 1] }
 uniform mat4 uMeshTranslation;
 
-// @control transform=rotate object=1 hidden=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
+// @control { transform: rotate, object: 1, hidden: true }
 uniform mat4 uMeshRotation;
 
-// @control transform=scale object=1 hidden=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
+// @control { transform: scale, object: 1, hidden: true }
 uniform mat4 uMeshScale;
 
 vec3 cofactorTransform(mat3 m, vec3 n) {
     return cross(m[1], m[2]) * n.x + cross(m[2], m[0]) * n.y + cross(m[0], m[1]) * n.z;
 }
 
-void main() {
+void drawScene(mat4 cameraProjection, mat4 cameraView);
 // @prefix
-// This code runs in main(). The sliders set uNear, uFar, uFov (degrees)
-// and uAspect. The gizmo sets uCameraTranslation and uCameraRotation.
-// The rest of the shader draws the scene with cameraProjection and cameraView.
+void main() {
+    // The sliders set uNear, uFar, uFov (degrees) and uAspect. The gizmo sets
+    // uCameraTranslation and uCameraRotation. drawScene() renders the scene
+    // with the cameraProjection and cameraView you build here.
 
-float near = uNear;
-float far = max(uFar, uNear + 0.01);
-float tanHalfFov = tan(radians(uFov) * 0.5);
+    float near = uNear;
+    float far = max(uFar, uNear + 0.01);
+    float tanHalfFov = tan(radians(uFov) * 0.5);
 
-// @readback label="Left l"
-float left = -near * uAspect * tanHalfFov;
-// @readback label="Right r"
-float right = near * uAspect * tanHalfFov;
-// @readback label="Bottom b"
-float bottom = -near * tanHalfFov;
-// @readback label="Top t"
-float top = near * tanHalfFov;
+    // @readback { label: Left l }
+    float left = -near * uAspect * tanHalfFov;
+    // @readback { label: Right r }
+    float right = near * uAspect * tanHalfFov;
+    // @readback { label: Bottom b }
+    float bottom = -near * tanHalfFov;
+    // @readback { label: Top t }
+    float top = near * tanHalfFov;
 
-float width  = right - left;
-float height = top - bottom;
-float depth  = far - near;
+    float width  = right - left;
+    float height = top - bottom;
+    float depth  = far - near;
 
-// @readback label="Projection matrix P"
-mat4 cameraProjection = mat4(
-    2.0 * near / width, 0.0,                 (right + left) / width,  0.0,
-    0.0,                2.0 * near / height, (top + bottom) / height, 0.0,
-    0.0,                0.0,                 -(far + near) / depth,   -2.0 * far * near / depth,
-    0.0,                0.0,                 -1.0,                    0.0
-);
+    // @readback { label: Projection matrix P }
+    mat4 cameraProjection = mat4(
+        2.0 * near / width, 0.0,                 (right + left) / width,  0.0,
+        0.0,                2.0 * near / height, (top + bottom) / height, 0.0,
+        0.0,                0.0,                 -(far + near) / depth,   -2.0 * far * near / depth,
+        0.0,                0.0,                 -1.0,                    0.0
+    );
 
-// The view matrix V is the inverse of the camera's placement in the world.
-// @readback label="View matrix V"
-mat4 cameraView = inverse(uCameraTranslation * uCameraRotation);
+    // The view matrix V is the inverse of the camera's placement in the world.
+    // @readback { label: View matrix V }
+    mat4 cameraView = inverse(uCameraTranslation * uCameraRotation);
 
+    drawScene(cameraProjection, cameraView);
+}
 // @suffix
+
+void drawScene(mat4 cameraProjection, mat4 cameraView) {
     vec3 worldPosition;
     vec3 worldNormal = normal;
     if (uWireframe) {
@@ -164,8 +167,6 @@ mat4 cameraView = inverse(uCameraTranslation * uCameraRotation);
 # Fragment Shader
 
 ```glsl
-precision highp float;
-
 in vec3 vBarycentric;
 in vec4 vDisplayPosition;
 in vec4 vClipPosition;

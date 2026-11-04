@@ -1,11 +1,7 @@
 import * as THREE from 'three';
 
-/** Camera-following world-space grid with a radial fade. */
 export class InfiniteGrid extends THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial> {
   constructor(cellSize = 1, fadeRadius = 32) {
-    // The geometry is intentionally much larger than the visible fade area.
-    // It stays centered at the world origin, so no square camera-following
-    // boundary can become visible around the radial falloff.
     const geometry = new THREE.PlaneGeometry(fadeRadius * 32, fadeRadius * 32);
     const material = new THREE.ShaderMaterial({
       transparent: true,

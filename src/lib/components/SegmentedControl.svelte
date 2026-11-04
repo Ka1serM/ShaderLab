@@ -11,8 +11,6 @@
   let className = '';
   export { className as class };
 
-  // A single toggle group reports "" when the active item is clicked again. A switcher always
-  // keeps one option selected, so that click is ignored and the getter keeps the item active.
   function select(next: string) {
     if (next && next !== value) onChange(next as T);
   }

@@ -48,8 +48,6 @@ Beide Schreibweisen treffen dieselbe Mittelpunktentscheidung und benötigen in d
 # Starter Fragment Shader
 ```glsl
 // @prefix
-precision highp float;
-
 in vec2 vUV;
 
 uniform vec2 iResolution;
@@ -123,8 +121,6 @@ void main() {
 
 # Reference Vertex Shader
 ```glsl
-precision highp float;
-
 in vec3 position;
 in vec3 normal;
 in vec2 uv;
@@ -144,8 +140,6 @@ void main() {
 
 # Reference Fragment Shader
 ```glsl
-precision highp float;
-
 in vec2 vUV;
 
 uniform vec2 iResolution;

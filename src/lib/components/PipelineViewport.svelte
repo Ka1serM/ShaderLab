@@ -33,8 +33,6 @@
     const red = new THREE.Color(0xbf2732);
     const pale = new THREE.Color(0xd9dce1);
     const dark = new THREE.Color(0x343840);
-    // A cube makes the coordinate-space transformations legible: its local
-    // axes, orientation and relation to the camera frustum stay recognisable.
     const objectGeometry = new THREE.BoxGeometry(1.45, 1.45, 1.45);
     const solidMaterial = new THREE.MeshStandardMaterial({ color: red, roughness: .38, metalness: .12, flatShading: true });
     const solid = new THREE.Mesh(objectGeometry, solidMaterial);
@@ -73,9 +71,6 @@
     const viewCube = new THREE.Mesh(pipelineGeometry.viewGeometry, viewCubeMaterial);
     scene.add(cameraSpaceAxes, viewCameraGuide, viewDirection, viewGrid, viewCube);
 
-    // NDC is the real canonical cube. The mesh inside has been transformed by
-    // model, view and projection matrices, divided by w, then clipped against
-    // all six planes of this cube.
     const ndcGroup = new THREE.Group();
     const ndcBox = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(2, 2, 2)), new THREE.LineBasicMaterial({ color: pale, transparent: true, opacity: .8 }));
     const ndcMaterial = new THREE.MeshBasicMaterial({ color: red, transparent: true, opacity: .72, side: THREE.DoubleSide });
@@ -102,8 +97,6 @@
     grid.position.y = -1.6;
     scene.add(grid);
 
-    // One persistent scene; the individual modules describe its keyframe states.
-    // This lets the pipeline morph between stages instead of replacing a canvas.
     const targetPosition = new THREE.Vector3();
     const targetRotation = new THREE.Euler();
     const targetColor = new THREE.Color();
@@ -112,6 +105,8 @@
     let targetScale = 1;
     let isInitialized = false;
 
+    let frame = 0;
+    const wake = () => { if (!frame) frame = requestAnimationFrame(render); };
     updateStage = (value) => {
       const state = pipelineKeyframes[value]!;
       object.visible = state.object && value !== 3 && value !== 5 && value !== 6 && value !== 7;
@@ -146,6 +141,7 @@
         camera.position.copy(targetViewerPosition);
         isInitialized = true;
       }
+      wake();
     };
     updateStage(stage);
 
@@ -155,15 +151,19 @@
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height, false);
+      wake();
     };
     const observer = new ResizeObserver(resize);
     observer.observe(container);
     resize();
 
-    let frame = 0;
-    const render = () => {
-      // Damped interpolation produces an animation that remains smooth even
-      // when students switch rapidly between non-adjacent pipeline stages.
+    const settled = () => object.position.distanceToSquared(targetPosition) < 1e-8
+      && object.scale.distanceToSquared(targetScaleVector) < 1e-8
+      && camera.position.distanceToSquared(targetViewerPosition) < 1e-8
+      && Math.abs(targetRotation.x - object.rotation.x) + Math.abs(targetRotation.y - object.rotation.y) + Math.abs(targetRotation.z - object.rotation.z) < 1e-6
+      && Math.abs(solid.material.color.r - targetColor.r) + Math.abs(solid.material.color.g - targetColor.g) + Math.abs(solid.material.color.b - targetColor.b) < 1e-4;
+    function render() {
+      frame = 0;
       const morph = .075;
       object.position.lerp(targetPosition, morph);
       object.scale.lerp(targetScaleVector, morph);
@@ -174,9 +174,9 @@
       camera.position.lerp(targetViewerPosition, morph);
       camera.lookAt(0, 0, -.7);
       renderer.render(scene, camera);
-      frame = requestAnimationFrame(render);
-    };
-    render();
+      if (!settled()) wake();
+    }
+    wake();
 
     return () => {
       cancelAnimationFrame(frame);
@@ -209,6 +209,7 @@
       grid.geometry.dispose();
       (grid.material as THREE.Material).dispose();
       renderer.dispose();
+      renderer.forceContextLoss();
       renderer.domElement.remove();
     };
   });

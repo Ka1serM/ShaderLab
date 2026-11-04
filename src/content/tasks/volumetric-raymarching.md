@@ -81,8 +81,6 @@ Die Dichte (HU) bestimmt das Material. Wir interpolieren linear zwischen den bek
 
 # Reference Vertex Shader
 ```glsl
-precision highp float;
-
 in vec3 position;
 in vec2 uv;
 
@@ -97,9 +95,6 @@ void main() {
 
 # Reference Fragment Shader
 ```glsl
-precision highp float;
-precision highp sampler3D;
-
 in vec2 vUv;
 
 uniform vec3 cameraPosition;
@@ -241,9 +236,6 @@ void main() {
 # Starter Fragment Shader
 ```glsl
 // @prefix
-precision highp float;
-precision highp sampler3D;
-
 in vec2 vUv;
 
 uniform vec3 cameraPosition;

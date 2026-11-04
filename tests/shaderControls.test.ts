@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { initGlslParser } from '../src/lib/glsl/parser';
 import { controlValues, parseShaderControls } from '../src/lib/utils/shaderControls';
+
+beforeAll(() => initGlslParser(readFileSync('src/lib/glsl/tree-sitter-glsl.wasm')));
 
 describe('parseShaderControls', () => {
   it.each([
@@ -9,119 +12,88 @@ describe('parseShaderControls', () => {
     ['projection.md', 16],
     ['shading.md', 5],
     ['illumination.md', 6]
-  ])('parses every annotation in %s', (file, expectedCount) => {
+  ])('parses every annotation in %s without errors', (file, expectedCount) => {
     const source = readFileSync(resolve('src/content/teaching', file), 'utf8');
-    const annotationCount = source.match(/^\s*\/\/\s*@(control|readback)\b/gm)?.length ?? 0;
-    const controls = parseShaderControls(source);
-    expect(annotationCount).toBe(expectedCount);
+    const { controls, errors } = parseShaderControls(source);
+    expect(errors).toEqual([]);
     expect(controls).toHaveLength(expectedCount);
-    expect(new Set(controls.map(control => control.id)).size).toBe(expectedCount);
   });
 
-  it('binds an annotation only to the next declaration', () => {
-    const controls = parseShaderControls(`
-      // @control default=1,2,3 min=bad
+  it('binds an annotation to the next declaration, past plain comments', () => {
+    const { controls } = parseShaderControls(`
+      // @control { default: [1, 2, 3] }
       // explanatory comment
       uniform vec3 lightDirection;
-      // @control default=0.5 min=0 max=1
+      // @control { default: 0.5, min: 0, max: 1 }
       uniform float strength;
     `);
     expect(controls).toMatchObject([
-      { id: 'lightDirection', uniform: 'lightDirection', type: 'vector3', default: [1, 2, 3], min: undefined },
-      { id: 'strength', uniform: 'strength', default: 0.5, min: 0, max: 1 }
+      { id: 'lightDirection', uniform: 'lightDirection', type: 'vector3', default: [1, 2, 3] },
+      { id: 'strength', uniform: 'strength', type: 'slider', default: 0.5, min: 0, max: 1 }
     ]);
   });
 
-  it('binds a bool uniform to a checkbox', () => {
-    const controls = parseShaderControls('// @control label="Extra lights" default=true\nuniform bool uExtraLights;');
-    expect(controls).toMatchObject([{ id: 'uExtraLights', type: 'checkbox', uniform: 'uExtraLights', default: true }]);
-    expect(controlValues(controls, { uExtraLights: false })).toEqual({ uExtraLights: false });
+  it('defaults by GLSL type', () => {
+    const { controls } = parseShaderControls('// @control\nuniform float a;\n// @control\nuniform bool b;\n// @control\nuniform mat4 m;');
+    expect(controls.map(control => control.default)).toEqual([0, false, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]]);
   });
 
-  it('binds an int uniform with options to an options control', () => {
-    const controls = parseShaderControls('// @control label="Pivot" options="Center, Right" default=1\nuniform int uPivot;');
+  it('turns options on an int uniform into an options control', () => {
+    const { controls } = parseShaderControls('// @control { label: Pivot, options: [Center, Right], default: 1 }\nuniform int uPivot;');
     expect(controls).toMatchObject([{ id: 'uPivot', type: 'options', options: ['Center', 'Right'], default: 1 }]);
     expect(controlValues(controls, { uPivot: 0 })).toEqual({ uPivot: 0 });
     expect(controlValues(controls, { uPivot: 0.5 })).toEqual({ uPivot: 1 });
+    expect(controlValues(controls, { uPivot: 2 })).toEqual({ uPivot: 1 });
   });
 
-  it('does not cross another annotation while searching for a declaration', () => {
-    const controls = parseShaderControls(`
-      // @control default=1
-      // @control default=2
-      uniform float value;
+  it('shows a vec3 as a color on request', () => {
+    const { controls } = parseShaderControls('// @control { display: color, default: [0.1, 0.2, 0.3] }\nuniform vec3 ambient;');
+    expect(controls[0]).toMatchObject({ id: 'ambient', type: 'color', default: [0.1, 0.2, 0.3] });
+  });
+
+  it('makes visualized uniforms editable and visualized readbacks hidden', () => {
+    const { controls } = parseShaderControls(`
+      // @control { visualize: point }
+      uniform vec3 pivot;
+      void main() {
+        // @readback { visualize: vector }
+        vec3 direction = vec3(1.0);
+      }
     `);
-    expect(controls).toMatchObject([{ id: 'value', uniform: 'value', default: 2 }]);
+    expect(controls).toMatchObject([
+      { id: 'pivot', visualization: 'point', editable: true, hidden: false },
+      { id: 'direction', readback: 'direction', visualization: 'vector', editable: false, hidden: true }
+    ]);
   });
 
   it('rejects persisted values whose shape no longer matches', () => {
-    const controls = parseShaderControls('// @control default=1,2,3\nuniform vec3 direction;');
+    const { controls } = parseShaderControls('// @control { default: [1, 2, 3] }\nuniform vec3 direction;');
     expect(controlValues(controls, { direction: 4 })).toEqual({ direction: [1, 2, 3] });
   });
 
-  it('falls back safely when annotated defaults are malformed', () => {
-    const controls = parseShaderControls(`
-      // @control default=not-a-number
-      uniform float amount;
-      // @control default=1,2
-      uniform vec3 direction;
-      // @control default=1,2,3
-      uniform mat4 transform;
-    `);
-    expect(controls.map(control => control.default)).toEqual([
-      0,
-      [0, 0, 0],
-      [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
-    ]);
+  it('reports every broken annotation with its line and keeps the others', () => {
+    const { controls, errors } = parseShaderControls([
+      '// @control { default: [1, 2] }',
+      'uniform vec3 a;',
+      '// @control { colour: red }',
+      'uniform vec3 b;',
+      '// @control { label: Unclosed',
+      'uniform float c;',
+      '// @control { transform: rotate }',
+      'uniform vec3 d;',
+      '// @control',
+      'float notUniform;',
+      '// @control',
+      'uniform mat3 e;',
+      '// @control { default: 2 }',
+      'uniform float ok;'
+    ].join('\n'));
+    expect(controls.map(control => control.id)).toEqual(['ok']);
+    expect(errors.map(error => error.line)).toEqual([1, 3, 5, 7, 9, 11]);
   });
 
-  it('infers generic transform roles only for matrix controls', () => {
-    const controls = parseShaderControls(`
-      // @control transform=translate
-      uniform mat4 translation;
-      // @control transform=rotate
-      uniform vec3 invalidRotation;
-    `);
-    expect(controls).toMatchObject([
-      { id: 'translation', transform: 'translate' },
-      { id: 'invalidRotation', transform: undefined }
-    ]);
-  });
-
-  it('makes visualized controls editable through their own uniform', () => {
-    const controls = parseShaderControls(`
-      // @control visualize=point
-      uniform vec3 pivot;
-      // @control visualize=vector
-      uniform vec3 direction;
-    `);
-    expect(controls).toMatchObject([
-      { id: 'pivot', visualization: 'point', editable: true, target: 'pivot' },
-      { id: 'direction', visualization: 'vector', editable: true, target: 'direction' }
-    ]);
-  });
-
-  it('allows an explicit display override without duplicating the GLSL type', () => {
-    const controls = parseShaderControls(`
-      // @control display=color default=0.1,0.2,0.3
-      uniform vec3 ambient;
-    `);
-    expect(controls[0]).toMatchObject({ id: 'ambient', uniform: 'ambient', type: 'color' });
-  });
-
-  it('rejects the legacy positional control syntax', () => {
-    const controls = parseShaderControls('// @control ambient color default=1,1,1\nuniform vec3 ambient;');
-    expect(controls).toEqual([]);
-  });
-
-  it('supports hidden editable readback visualizations linked to a control', () => {
-    const controls = parseShaderControls(`
-      // @readback visualize=point target=pivot inverse=objectMatrix
-      vec3 pivotWorld = vec3(0.0);
-    `);
-    expect(controls[0]).toMatchObject({
-      id: 'pivotWorld', readback: 'pivotWorld', visualization: 'point', editable: true,
-      hidden: true, target: 'pivot', inverse: 'objectMatrix'
-    });
+  it('reads annotations inside functions and ignores block comments', () => {
+    const { controls } = parseShaderControls('/* @control */\nuniform float hidden;\nvoid main() {\n  // @readback { label: Result }\n  mat4 m = mat4(1.0);\n}');
+    expect(controls).toMatchObject([{ id: 'm', type: 'matrix4', label: 'Result', readOnly: true }]);
   });
 });

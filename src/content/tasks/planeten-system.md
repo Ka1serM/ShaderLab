@@ -39,8 +39,6 @@ Die Sonne ist das Elternobjekt. Die Planeten bewegen sich relativ zur Sonne. Der
 # Starter Vertex Shader
 ```glsl
 // @prefix
-precision highp float;
-
 in vec3 position;
 in vec3 normal;
 
@@ -166,8 +164,6 @@ void render() {
 
 # Reference Vertex Shader
 ```glsl
-precision highp float;
-
 in vec3 position;
 in vec3 normal;
 
@@ -332,8 +328,6 @@ void render() {
 
 # Reference Fragment Shader
 ```glsl
-precision highp float;
-
 in vec3 vNormal;
 in vec3 vColor;
 

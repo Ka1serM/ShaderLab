@@ -3,6 +3,7 @@
   import MaximizeButton from '$lib/components/MaximizeButton.svelte';
   import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
   import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+  import { Toggle } from '$lib/components/ui/toggle';
   import { maximizable } from '$lib/actions/maximizable';
   import { useApplication } from '$lib/app/application.svelte';
   import type { PanelId } from '$lib/app/controllers/layout.svelte';
@@ -14,7 +15,7 @@
   import SkipForward from 'phosphor-svelte/lib/SkipForwardIcon';
   import ArrowCounterClockwise from 'phosphor-svelte/lib/ArrowCounterClockwiseIcon';
 
-  let { viewport: slot, title, panelId, scenes, sceneIndex, onSelectScene, transformControls = false, showTimeControl = false, simulation }: {
+  let { viewport: slot, title, panelId, scenes, sceneIndex, onSelectScene, transformControls = false, normals = false, showTimeControl = false, simulation }: {
     viewport: ViewportSlot;
     title: string;
     panelId: PanelId;
@@ -22,8 +23,8 @@
     sceneIndex: number;
     onSelectScene: (index: number) => void;
     transformControls?: boolean;
+    normals?: boolean;
     showTimeControl?: boolean;
-    /** Controls for a compute stage. They drive every viewport of the page together. */
     simulation?: SimulationController;
   } = $props();
 
@@ -32,7 +33,6 @@
   const layout = useApplication().layout;
   const transformModes: TransformMode[] = ['translate', 'rotate', 'scale'];
   const transformModeLabels = { translate: 'Translate', rotate: 'Rotate', scale: 'Scale' } as const;
-  // Keys as in common 3D editors.
   const transformModeKeys: Record<string, TransformMode> = { w: 'translate', e: 'rotate', r: 'scale' };
   const transformSpaces = ['local', 'world'] as const;
 
@@ -49,8 +49,6 @@
     const handleKey = (event: KeyboardEvent) => {
       if (!transformControls || event.ctrlKey || event.metaKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
-      // Typing in the shader editor or a field must not switch the gizmo.
-      // Monaco types into a role="textbox" element, not into a textarea.
       if (target?.isContentEditable || target?.closest('input, textarea, select, [role="textbox"]')) return;
       const mode = transformModeKeys[event.key.toLowerCase()];
       if (!mode) return;
@@ -72,7 +70,7 @@
             {#if simulation.running}<Pause class="h-4 w-4" />{:else}<Play class="h-4 w-4" />{/if}
           </button>
           <button class={headerButton} title="Advance one frame" aria-label="Advance one frame" onclick={() => simulation.step()}><SkipForward class="h-4 w-4" /></button>
-          <button class={headerButton} title="Restart from init()" aria-label="Restart simulation" onclick={() => simulation.reset()}><ArrowCounterClockwise class="h-4 w-4" /></button>
+          <button class={headerButton} title="Restart from frame 0" aria-label="Restart simulation" onclick={() => simulation.reset()}><ArrowCounterClockwise class="h-4 w-4" /></button>
           <button class="{headerButton} text-xs tabular-nums" title="Simulation speed" aria-label="Simulation speed {simulation.speed}×" onclick={() => simulation.nextSpeed()}>{simulation.speed}×</button>
         {/if}
         {#if showTimeControl}
@@ -114,6 +112,13 @@
           options={transformSpaces.map(space => ({ value: space, label: space === 'local' ? 'Local' : 'World' }))}
           onChange={space => slot.setTransformSpace(space)}
         />
+      {/if}
+      {#if normals}
+        <Toggle
+          class="relative z-10 h-10 flex-none bg-muted px-4 hover:bg-muted/50 data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30"
+          aria-label="Show vertex normals"
+          bind:pressed={() => slot.normalsVisible, () => slot.toggleNormals()}
+        >Normals</Toggle>
       {/if}
     </div>
   </div>

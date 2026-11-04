@@ -10,6 +10,8 @@ camera:
 scenes:
   - objects:
       - source: models/HeadDavid.glb
+overlays:
+  normals: true
 ---
 
 # Task
@@ -35,10 +37,6 @@ Für eine Lichtquelle lautet es `I = Ia·ka + Ip·[kd·max(N·L,0) + ks·max(V·
 
 # Starter Fragment Shader
 ```glsl
-// @prefix
-precision highp float;
-// @prefix
-
 in vec3 vNormal;
 in vec3 vPosition;
 
@@ -53,8 +51,6 @@ void main() {
 
 # Reference Vertex Shader
 ```glsl
-precision highp float;
-
 in vec3 position;
 in vec3 normal;
 
@@ -75,8 +71,6 @@ void main() {
 
 # Reference Fragment Shader
 ```glsl
-precision highp float;
-
 in vec3 vNormal;
 in vec3 vPosition;
 

@@ -18,21 +18,15 @@ function isIntegerAttribute(gl: WebGL2RenderingContext, type: number) {
   return ([gl.INT, gl.INT_VEC2, gl.INT_VEC3, gl.INT_VEC4, gl.UNSIGNED_INT, gl.UNSIGNED_INT_VEC2, gl.UNSIGNED_INT_VEC3, gl.UNSIGNED_INT_VEC4] as number[]).includes(type);
 }
 
-/**
- * A three.js geometry uploaded once. Vertex array objects are made per program,
- * because each linked program chooses its own attribute locations.
- */
 export class GpuGeometry {
   private readonly buffers = new Map<ArrayLike<number>, WebGLBuffer>();
   private readonly index?: { buffer: WebGLBuffer; type: number; count: number };
-  private readonly vertexCount: number;
+  readonly vertexCount: number;
   private instanceBuffer?: WebGLBuffer;
-  /** Instances the identity-matrix buffer holds. */
   private instanceCapacity = 0;
   private vaos = new Map<Program, WebGLVertexArrayObject>();
 
   constructor(private readonly gl: WebGL2RenderingContext, readonly source: THREE.BufferGeometry, readonly instanceCount: number) {
-    // A vertex array that three.js left bound would capture the index buffer below.
     gl.bindVertexArray(null);
     const index = source.index;
     if (index) {
@@ -45,11 +39,9 @@ export class GpuGeometry {
     this.vertexCount = source.getAttribute('position')?.count ?? 0;
   }
 
-  /** Draws `instances` instances, honouring the geometry's draw range like three.js does. */
   draw(program: Program, instances = this.instanceCount, mode = this.gl.TRIANGLES) {
     const gl = this.gl;
     if (instances < 1) return;
-    // A program that reads instanceMatrix needs one per instance, so a larger count rebuilds its buffer.
     if (instances > this.instanceCapacity && this.instanceBuffer) {
       gl.deleteBuffer(this.instanceBuffer);
       this.instanceBuffer = undefined;
@@ -72,7 +64,14 @@ export class GpuGeometry {
     gl.bindVertexArray(null);
   }
 
-  /** Forgets the vertex array of a program that is being replaced. */
+  drawVertices(program: Program, mode: number) {
+    const gl = this.gl;
+    if (this.vertexCount < 1) return;
+    gl.bindVertexArray(this.vaoFor(program));
+    gl.drawArrays(mode, 0, this.vertexCount);
+    gl.bindVertexArray(null);
+  }
+
   release(program: Program) {
     const vao = this.vaos.get(program);
     if (vao) this.gl.deleteVertexArray(vao);
@@ -114,7 +113,6 @@ export class GpuGeometry {
         continue;
       }
       const source = this.source.getAttribute(attribute.name) as SourceAttribute | undefined;
-      // A missing attribute reads the default (0, 0, 0, 1), as in three.js.
       if (!source) continue;
       const interleaved = source instanceof THREE.InterleavedBufferAttribute;
       const array = interleaved ? source.data.array : source.array;
@@ -135,7 +133,6 @@ export class GpuGeometry {
     return vao;
   }
 
-  /** Every instance gets an identity matrix. Instance placement belongs in the shader. */
   private bindInstanceMatrix(location: number) {
     const gl = this.gl;
     if (!this.instanceBuffer) {

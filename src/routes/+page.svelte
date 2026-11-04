@@ -13,8 +13,6 @@
 
   export let data;
 
-  // three.js is loaded after hydration so the page's text is interactive and
-  // visible without waiting for the renderer bundle.
   let HomeViewport: typeof import('$lib/components/HomeViewport.svelte').default | undefined;
   onMount(async () => {
     HomeViewport = (await import('$lib/components/HomeViewport.svelte')).default;
@@ -22,8 +20,6 @@
     else setTimeout(preloadAllRoutes, 1000);
   });
 
-  // Preloads every task and demo (route code, Monaco, three.js, content and
-  // models) once the home page is idle, so opening one of them is instant.
   function preloadAllRoutes() {
     for (const entry of data.taskCatalog) void preloadData(resolve(`/task/${entry.id}/`));
     for (const entry of data.teachingCatalog) void preloadData(resolve(`/teach/${entry.id}/`));
@@ -85,7 +81,6 @@
 </div>
 
 <style>
-  /* svelte-ignore css-unused-selector */
   .hsd-page { --red: #bf2732; --red-dark: #bf2732; --black: #111; --paper: var(--background); --surface: #c6c6c6; --soft-surface: #d8d8d8; --copy: #4f4f4f; --copy-muted: #666; --line: #aaa; --muted: #636363; --hero-gap: clamp(20px, 4vw, 65px); container-type: inline-size; width: 100%; min-width: 0; min-height: 100%; box-sizing: border-box; overflow-x: hidden; overflow-y: auto; color: var(--black); background: var(--paper); font-family: 'Inter', Arial, Helvetica, sans-serif; }
   main { width: 100%; box-sizing: border-box; padding-inline: clamp(14px, 4vw, 64px); margin: 0; }
   .hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: var(--hero-gap); min-height: min(540px, calc(100svh - 3.5rem)); padding: clamp(28px, 5vw, 48px) 0 clamp(20px, 3vw, 32px); }.section-kicker { margin: 0 0 19px; color: var(--red); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }.hero-copy { container-type: inline-size; max-width: 560px; }.hero-title-row { --hero-title-size: clamp(42px, 16cqw, 123px); display: flex; min-width: 0; align-items: center; gap: clamp(12px, 2.5cqw, 28px); }.hero-title-row :global(.hero-logo) { width: calc(var(--hero-title-size) * .9); height: calc(var(--hero-title-size) * .9); flex: 0 0 auto; }.hero h1 { min-width: 0; margin: 0; max-width: 100%; font-family: 'Inter', Arial, Helvetica, sans-serif; font-size: var(--hero-title-size); font-weight: 700; letter-spacing: -.1em; line-height: .82; white-space: nowrap; }.hero h1 span { color: var(--red); }.hero-intro { max-width: 365px; margin: 33px 0 0; font-size: clamp(15px, 1.2vw, 17px); line-height: 1.42; }.hero-links { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 31px; }.hero-links a, .hero-note a { display: inline-flex; align-items: center; gap: 8px; color: var(--red); font-size: 13px; font-weight: 700; text-decoration: none; }.hero-links a:hover, .hero-note a:hover { color: var(--red-dark); text-decoration: underline; }.hero-note { max-width: 330px; margin-top: clamp(35px, 4vw, 52px); color: var(--muted); font-size: 11px; line-height: 1.5; }.hero-note a { font-size: inherit; }.hero-visual { min-width: 0; padding-top: 5px; }.visual-heading, .visual-footer { display: flex; align-items: center; justify-content: space-between; gap: 11px; color: var(--red); font-size: 10px; font-weight: 700; letter-spacing: .14em; }.visual-heading i { width: 8px; height: 8px; margin-left: auto; border-radius: 50%; background: var(--red); animation: blink 1.7s ease-in-out infinite; }.visual-frame { position: relative; height: clamp(300px, 40vw, 410px); margin-top: 12px; overflow: hidden; border-radius: var(--radius-md); background: var(--surface); perspective: 900px; }.visual-frame::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,.22), transparent 45%); }.visual-footer { margin-top: 10px; color: var(--muted); font-size: 9px; }

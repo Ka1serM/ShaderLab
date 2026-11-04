@@ -14,7 +14,6 @@ const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const models = new Map<string, Promise<ModelPart[]>>();
 const rawFiles = new Map<string, Promise<ArrayBuffer>>();
 
-// Earlier versions kept a second copy of every asset (about 12 MB) in Cache Storage.
 if (typeof caches !== 'undefined') void caches.delete('shaderlab-assets-v1').catch(() => {});
 
 function cached<T>(cache: Map<string, Promise<T>>, url: string, load: () => Promise<T>) {
@@ -27,12 +26,6 @@ function cached<T>(cache: Map<string, Promise<T>>, url: string, load: () => Prom
   return entry;
 }
 
-/**
- * Every viewport on a page needs the same assets. Fetching and parsing them once
- * lets the Reference and Output viewports load concurrently from one request.
- * `path` is relative to the static directory, as written in the content files.
- * Cached geometry is shared: callers must clone it and never dispose it.
- */
 export function loadModel(path: string) {
   const url = `${base}/${path.replace(/^\//, '')}`;
   return cached(models, url, async () => {
@@ -53,11 +46,6 @@ export function loadModel(path: string) {
   });
 }
 
-/**
- * Loads a .rawz file made by scripts/pack-raw-texture.mjs and returns it in
- * the plain .raw layout: 16-byte header, then interleaved Float16/Float32 values.
- * The returned buffer is shared and must be treated as read-only.
- */
 export function loadRawFile(url: string) {
   return cached(rawFiles, url, async () => {
     const response = await fetchAsset(url);
@@ -71,11 +59,6 @@ export function loadRawFile(url: string) {
   });
 }
 
-/**
- * The server sends models and textures with `Cache-Control: no-cache` and an
- * ETag, so the browser HTTP cache keeps one copy and later visits only get a
- * 304 response. A changed file is downloaded again.
- */
 async function fetchAsset(url: string) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`HTTP ${response.status} while loading ${url}`);

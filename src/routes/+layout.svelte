@@ -11,7 +11,6 @@
 
   checkStorageVersion();
 
-  // Built once for the whole session. Pages only tell it what to show.
   const app = provideApplication(new Application());
   const workspaceRoutes = new Set(['/task/[title]', '/teach/[title]']);
   $effect(() => {
@@ -22,7 +21,6 @@
   let mainElement = $state<HTMLElement>();
   let pageReplay = $state(0);
 
-  // Keep route transitions opacity-only for WebGL and Monaco workspaces.
   afterNavigate(() => {
     if (!mainElement || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     mainElement.classList.remove('motion-fade');

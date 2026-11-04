@@ -1,33 +1,27 @@
 import type { RendererEvents, ViewportTransform } from '$lib/renderer/Renderer';
 import type { ShaderReadbackValue } from '$lib/renderer/shaderReadback';
+import { sameValues } from '$lib/utils/sameValues';
 import { TeachingModel } from '../models/teaching.svelte';
-import { defaultCameraPose, emptyDiagnostics, type CameraPose, type ShaderStage, type Teach, type TeachingValue } from '../types';
+import { defaultCameraPose, teachingShader, type ShaderDiagnostics, type ShaderStage, type Teach, type TeachingValue } from '../types';
 import type { EditorHost } from '../services/editor.svelte';
 import type { Persistence } from '../services/persistence';
 import type { ViewportSlot } from './viewport.svelte';
+import { WorkspaceController } from './workspace.svelte';
 
-const COMPILE_DELAY = 120;
-
-function sameReadback(previous: ShaderReadbackValue | undefined, next: ShaderReadbackValue) {
-  if (!Array.isArray(previous) || !Array.isArray(next)) return previous === next;
-  return previous.length === next.length && next.every((component, index) => component === previous[index]);
-}
-
-/**
- * Opens teaching demos and applies every change to them. After each change it
- * pushes the derived uniforms, gizmo and vectors to the viewport in one place.
- */
-export class TeachingController {
-  readonly model = new TeachingModel();
-  private compileTimer: ReturnType<typeof setTimeout> | undefined;
-  /** The overlays the viewport was loaded with. Different overlays need a full reload. */
+export class TeachingController extends WorkspaceController<TeachingModel> {
   private loadedOverlays = '';
 
   constructor(
     private readonly persistence: Persistence,
-    private readonly editor: EditorHost,
+    editor: EditorHost,
     private readonly viewport: ViewportSlot
-  ) {}
+  ) {
+    super(new TeachingModel(), editor);
+  }
+
+  protected get stages() {
+    return this.model.definition?.shaderStages;
+  }
 
   open(definition: Teach) {
     const model = this.model;
@@ -37,7 +31,6 @@ export class TeachingController {
     model.overrides = { ...saved?.parameters };
     model.userCode = { ...saved?.userCode };
     model.activeStage = definition.shaderStages.includes('fragment') ? 'fragment' : definition.shaderStages[0] ?? 'fragment';
-    model.diagnostics = emptyDiagnostics();
     model.readbacks = {};
     model.camera = saved?.cameraPose ? { pose: saved.cameraPose, saved: true } : { pose: defaultCameraPose(), saved: false };
     model.selectedObject = 0;
@@ -49,12 +42,13 @@ export class TeachingController {
       initialText: { vertex: model.sources.vertex, fragment: model.sources.fragment },
       onChange: (stage, text) => this.setSource(stage, text)
     }, model.activeStage);
+    this.showDiagnostics(model.annotations.diagnostics);
     this.load();
   }
 
   close() {
     if (!this.model.definition) return;
-    clearTimeout(this.compileTimer);
+    this.cancelCompile();
     this.viewport.release();
     this.model.definition = null;
   }
@@ -63,40 +57,24 @@ export class TeachingController {
     const model = this.model;
     const definition = model.definition;
     if (!definition || !definition.shaderStages.includes(stage) || model.sources[stage] === text) return;
-    const starter = (stage === 'vertex' ? definition.vertexShader : definition.fragmentShader) ?? '';
     const userCode = { ...model.userCode };
-    if (text === starter) delete userCode[stage];
+    if (text === teachingShader(definition, stage)) delete userCode[stage];
     else userCode[stage] = text;
     model.userCode = userCode;
     model.readbacks = {};
-    this.showDiagnostics(emptyDiagnostics());
+    this.showDiagnostics(model.annotations.diagnostics);
     this.save();
     if (JSON.stringify(model.overlays ?? {}) !== this.loadedOverlays) {
       this.load(false);
       return;
     }
     this.sync();
-    clearTimeout(this.compileTimer);
-    this.compileTimer = setTimeout(() => {
-      if (!this.model.definition) return;
-      const program = this.model.program;
-      this.viewport.renderer?.updateShaders(program.vertex, program.fragment, this.model.readbackRequests);
-    }, COMPILE_DELAY);
-  }
-
-  setStage(stage: ShaderStage) {
-    const model = this.model;
-    if (!model.definition || model.activeStage === stage || !model.definition.shaderStages.includes(stage)) return;
-    model.activeStage = stage;
-    this.editor.show(stage);
-    this.editor.setDiagnostics(model.diagnostics[stage]);
+    this.scheduleCompile(() => this.viewport.renderer?.updateShaders({ ...this.model.program, shaderReadbacks: this.model.readbackRequests }));
   }
 
   resetShader() {
     const definition = this.model.definition;
-    if (!definition) return;
-    const stage = this.model.activeStage;
-    this.editor.replaceText(stage, (stage === 'vertex' ? definition.vertexShader : definition.fragmentShader) ?? '');
+    if (definition) this.editor.replaceText(this.model.activeStage, teachingShader(definition, this.model.activeStage));
   }
 
   setValue(id: string, value: TeachingValue) {
@@ -114,7 +92,6 @@ export class TeachingController {
     this.setOverrides(overrides);
   }
 
-  /** Drops every override, so each control falls back to the default in its @control annotation. */
   resetValues() {
     this.setOverrides({});
   }
@@ -153,35 +130,28 @@ export class TeachingController {
   }
 
   private applyReadbacks(values: Record<string, ShaderReadbackValue>) {
-    const previous = this.model.readbacks;
-    const ids = Object.keys(values);
-    if (ids.length === Object.keys(previous).length && ids.every(id => sameReadback(previous[id], values[id]))) return;
+    if (sameValues(this.model.readbacks, values)) return;
     this.model.readbacks = values;
     this.sync();
   }
 
-  private setCameraPose(pose: CameraPose) {
-    const camera = this.model.camera;
-    if (!this.model.definition || (camera?.saved && JSON.stringify(camera.pose) === JSON.stringify(pose))) return;
-    this.model.camera = { pose, saved: true };
-    this.save();
+  private withAnnotations(diagnostics: ShaderDiagnostics): ShaderDiagnostics {
+    const annotations = this.model.annotations.diagnostics;
+    return {
+      vertex: [...annotations.vertex, ...diagnostics.vertex],
+      fragment: [...annotations.fragment, ...diagnostics.fragment],
+      compute: diagnostics.compute
+    };
   }
 
-  private showDiagnostics(diagnostics: typeof this.model.diagnostics) {
-    this.model.diagnostics = diagnostics;
-    this.editor.setDiagnostics(diagnostics[this.model.activeStage]);
-  }
-
-  /** Loads the whole demo into the viewport. */
   private load(fresh = true) {
     const model = this.model;
     const definition = model.definition!;
-    clearTimeout(this.compileTimer);
+    this.cancelCompile();
     this.loadedOverlays = JSON.stringify(model.overlays ?? {});
-    const program = model.program;
     const events: RendererEvents = {
       onCameraChange: pose => this.setCameraPose(pose),
-      onShaderErrors: diagnostics => this.showDiagnostics(diagnostics),
+      onShaderErrors: diagnostics => this.showDiagnostics(this.withAnnotations(diagnostics)),
       onShaderReadbacks: values => this.applyReadbacks(values),
       onTransformChange: transform => this.applyTransform(transform),
       onObjectSelect: index => this.selectObject(index),
@@ -192,15 +162,12 @@ export class TeachingController {
       uniformValues: model.uniformValues,
       overlays: model.overlays,
       scene: definition.scenes[model.sceneIndex]!,
-      vertexShader: program.vertex,
-      fragmentShader: program.fragment,
-      shaderLineOffsets: program.lineOffsets,
+      ...model.program,
       shaderReadbacks: model.readbackRequests
     }, model.camera!, events, undefined, fresh);
     this.sync();
   }
 
-  /** Pushes every value derived from the model to the viewport. */
   private sync() {
     const renderer = this.viewport.renderer;
     if (!renderer || !this.model.definition) return;
@@ -209,7 +176,7 @@ export class TeachingController {
     renderer.setVectorVisualizations(this.model.vectors);
   }
 
-  private save() {
+  protected save() {
     const model = this.model;
     const definition = model.definition;
     if (!definition) return;

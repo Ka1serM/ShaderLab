@@ -1,146 +1,186 @@
-// js-yaml does not ship TypeScript declarations.
-// @ts-expect-error
-import yaml from 'js-yaml';
-import { marked } from 'marked';
-import katex from 'katex';
-import type { Task, Teach } from '$lib/app/types';
+import { createHash } from 'node:crypto';
+import matter from 'gray-matter';
+import { Marked, type Token, type Tokens } from 'marked';
+import markedKatex from 'marked-katex-extension';
+import type { ShaderTemplate, Task, Teach } from '$lib/app/types';
 import { slugify } from '$lib/utils/slugify';
 import type { CatalogEntry } from '$lib/catalog';
 import taskIndex from '../../content/tasks/index.txt?raw';
 import teachingIndex from '../../content/teaching/index.txt?raw';
 
-// Content is parsed once at build time. Prerendered pages carry the result, so
-// the browser never fetches or parses Markdown and no content appears late.
 const markdown = import.meta.glob<string>('/src/content/*/*.md', { query: '?raw', import: 'default', eager: true });
 
-function camelCase(value: string) {
-  return value.replace(/\s(.)/g, (_, char) => char.toUpperCase()).replace(/\s/g, '').replace(/^(.)/, (_, char) => char.toLowerCase());
-}
+const marked = new Marked(markedKatex({ throwOnError: false, nonStandard: true }));
 
-function frontmatter(raw: string) {
-  const match = raw.match(/^---\s*\r?\n([\s\S]*?)\r?\n---\s*(?:\r?\n|$)/);
-  if (!match) return { data: {}, content: raw };
-  return { data: (yaml.load(match[1]) ?? {}) as Record<string, unknown>, content: raw.slice(match[0].length) };
-}
+const TASK_SECTIONS = {
+  'Task': 'task',
+  'Theory': 'theory',
+  'Hints': 'hints',
+  'Starter Vertex Shader': 'starterVertexShader',
+  'Starter Fragment Shader': 'starterFragmentShader',
+  'Starter Compute Shader': 'starterComputeShader',
+  'Reference Vertex Shader': 'referenceVertexShader',
+  'Reference Fragment Shader': 'referenceFragmentShader',
+  'Reference Compute Shader': 'referenceComputeShader'
+} as const;
 
-function shader(source: string) {
-  return source.replace(/^```(?:glsl)?\s*/i, '').replace(/```\s*$/, '').trim();
-}
+const TEACHING_SECTIONS = {
+  'Overview': 'overview',
+  'Explanation': 'explanation',
+  'Vertex Shader': 'vertexShader',
+  'Fragment Shader': 'fragmentShader'
+} as const;
 
-function splitStudentShader(source: string) {
-  const prefixMarkers = [...source.matchAll(/^\s*\/\/\s*@prefix\s*$/gm)];
-  const suffixMarkers = [...source.matchAll(/^\s*\/\/\s*@suffix\s*$/gm)];
-  if (![0, 2].includes(prefixMarkers.length) || ![0, 2].includes(suffixMarkers.length)) throw new Error('A starter shader needs paired @prefix/@suffix markers.');
-  if (!prefixMarkers.length && !suffixMarkers.length) return { source, template: undefined };
-  const [prefixStart, prefixEnd] = prefixMarkers;
-  const [suffixStart, suffixEnd] = suffixMarkers;
-  const studentStart = prefixEnd ? (prefixEnd.index ?? 0) + prefixEnd[0].length : 0;
-  const studentEnd = suffixStart?.index ?? source.length;
-  const suffixSourceStart = suffixStart ? (suffixStart.index ?? 0) + suffixStart[0].length : source.length;
-  return {
-    source: source.slice(studentStart, studentEnd).trim(),
-    template: {
-      prefix: prefixStart && prefixEnd ? source.slice((prefixStart.index ?? 0) + prefixStart[0].length, prefixEnd.index ?? 0).trim() : '',
-      suffix: suffixStart && suffixEnd ? source.slice(suffixSourceStart, suffixEnd.index ?? source.length).trim() : ''
-    }
-  };
-}
+const PREFIX = '// @prefix';
+const SUFFIX = '// @suffix';
 
-function html(value: string, math = false) {
-  if (!value.trim()) return '';
-  const rendered = math ? value
-    .replace(/\$\$(.+?)\$\$/gs, (_, expression) => katex.renderToString(expression, { displayMode: true, throwOnError: false }))
-    .replace(/\$(.+?)\$/g, (_, expression) => katex.renderToString(expression, { throwOnError: false }))
-    : value;
-  // Markdown is bundled first-party course content, not user-provided input.
-  return marked.parse(rendered) as string;
-}
-
-function sections(content: string) {
-  const result: Record<string, string> = {};
-  let key = ''; let lines: string[] = [];
-  for (const line of content.split(/\r?\n/)) {
-    const match = line.match(/^#\s+(.*)$/);
-    if (match) { if (key) result[key] = lines.join('\n').trim(); key = match[1].trim(); lines = []; }
-    else lines.push(line);
+class ContentError extends Error {
+  constructor(file: string, message: string) {
+    super(`${file}: ${message}`);
   }
-  if (key) result[key] = lines.join('\n').trim();
+}
+
+function sections(file: string, tokens: Token[], names: Record<string, string>) {
+  const result = new Map<string, Token[]>();
+  let current: Token[] | undefined;
+  for (const token of tokens) {
+    if (token.type === 'heading' && token.depth === 1) {
+      const key = names[token.text];
+      if (!key) throw new ContentError(file, `unknown section "# ${token.text}". Known sections: ${Object.keys(names).join(', ')}.`);
+      if (result.has(key)) throw new ContentError(file, `section "# ${token.text}" appears twice.`);
+      current = [];
+      result.set(key, current);
+    } else if (current) {
+      current.push(token);
+    } else if (token.type !== 'space') {
+      throw new ContentError(file, 'content before the first "# " section.');
+    }
+  }
   return result;
 }
 
-function hints(value: string) {
-  const matches = [...value.matchAll(/^##\s+Hint(?:\s+\d+)?\s*$/gim)];
-  if (!matches.length) return value.trim() ? [html(value, true)] : [];
-  return matches.map((match, index) => {
-    const start = value.indexOf('\n', match.index ?? 0) + 1;
-    const end = index + 1 < matches.length ? matches[index + 1].index : value.length;
-    return html(value.slice(start, end).trim(), true);
+function html(tokens: Token[]) {
+  return marked.parser(tokens);
+}
+
+function code(file: string, section: string, tokens: Token[]) {
+  const blocks = tokens.filter((token): token is Tokens.Code => token.type === 'code');
+  if (blocks.length !== 1 || blocks[0].lang !== 'glsl' || tokens.some(token => token.type !== 'code' && token.type !== 'space')) {
+    throw new ContentError(file, `section "${section}" must contain exactly one \`\`\`glsl code block and nothing else.`);
+  }
+  return blocks[0].text;
+}
+
+function hints(tokens: Token[]) {
+  const groups: Token[][] = [];
+  for (const token of tokens) {
+    if (token.type === 'heading' && token.depth === 2) groups.push([]);
+    else if (groups.length) groups.at(-1)!.push(token);
+    else if (token.type !== 'space') groups.push([token]);
+  }
+  return groups.map(html);
+}
+
+function splitTemplate(file: string, source: string): { source: string; template?: ShaderTemplate } {
+  const lines = source.split('\n');
+  const markers = (marker: string) => lines.flatMap((line, index) => (line.trim() === marker ? [index] : []));
+  const prefix = markers(PREFIX);
+  const suffix = markers(SUFFIX);
+  if (![0, 2].includes(prefix.length) || ![0, 2].includes(suffix.length)) throw new ContentError(file, `${PREFIX} and ${SUFFIX} each come as a pair of lines.`);
+  if (!prefix.length && !suffix.length) return { source };
+  const [prefixStart, prefixEnd] = prefix.length ? prefix : [-1, -1];
+  const [suffixStart, suffixEnd] = suffix.length ? suffix : [lines.length, lines.length];
+  const text = (start: number, end: number) => lines.slice(start, end).join('\n').trim();
+  return {
+    source: text(prefixEnd + 1, suffixStart),
+    template: { prefix: text(prefixStart + 1, prefixEnd), suffix: text(suffixStart + 1, suffixEnd) }
+  };
+}
+
+const BLOCKS = new Set(['space', 'paragraph', 'heading', 'list_item', 'blockquote', 'table']);
+
+function plainText(tokens: Token[]) {
+  const text: string[] = [];
+  marked.walkTokens(tokens, token => {
+    if (BLOCKS.has(token.type)) text.push(' ');
+    else if (token.type !== 'code' && !('tokens' in token && token.tokens?.length) && 'text' in token) text.push(token.text);
   });
+  return text.join('').replace(/\s+/g, ' ').trim();
 }
 
-export function parseTask(raw: string): Task {
-  const parsed = frontmatter(raw); const result: Record<string, unknown> = Object.fromEntries(Object.entries(parsed.data).map(([key, value]) => [camelCase(key), value]));
-  for (const [key, value] of Object.entries(sections(parsed.content))) {
-    const name = camelCase(key);
-    if (/shader/i.test(key)) {
-      const source = shader(value);
-      if (name.startsWith('starter')) { const split = splitStudentShader(source); result[name] = split.source; if (split.template) result[`${name}Template`] = split.template; }
-      else result[name] = source;
-    } else result[name] = name === 'hints' ? hints(value) : html(value, true);
+const plainTexts = new WeakMap<object, Record<string, string>>();
+
+function parse(file: string, raw: string, names: Record<string, string>, editableShaders: readonly string[]) {
+  const { data, content } = matter(raw);
+  const result: Record<string, unknown> = { ...data };
+  const text: Record<string, string> = {};
+  plainTexts.set(result, text);
+  for (const [key, tokens] of sections(file, marked.lexer(content), names)) {
+    text[key] = plainText(tokens);
+    if (key.endsWith('Shader')) {
+      const shader = code(file, key, tokens);
+      if (!editableShaders.includes(key)) {
+        result[key] = shader;
+        continue;
+      }
+      const { source, template } = splitTemplate(file, shader);
+      result[key] = source;
+      if (template) result[`${key}Template`] = template;
+    } else {
+      result[key] = key === 'hints' ? hints(tokens) : html(tokens);
+    }
   }
-  return result as unknown as Task;
+  return result;
 }
 
-export function parseTeaching(raw: string): Teach {
-  const parsed = frontmatter(raw); const result: Record<string, unknown> = Object.fromEntries(Object.entries(parsed.data).map(([key, value]) => [camelCase(key), value]));
+export function parseTask(file: string, raw: string): Task {
+  return parse(file, raw, TASK_SECTIONS, ['starterVertexShader', 'starterFragmentShader', 'starterComputeShader']) as unknown as Task;
+}
+
+export function parseTeaching(file: string, raw: string): Teach {
+  const result = parse(file, raw, TEACHING_SECTIONS, ['vertexShader', 'fragmentShader']);
   result.id = slugify(String(result.title));
-  result.contentVersion = Array.from(raw).reduce((hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) | 0, 0).toString(36);
-  for (const [key, value] of Object.entries(sections(parsed.content))) result[camelCase(key)] = /shader/i.test(key) ? shader(value) : html(value, true);
-  for (const stage of ['vertexShader', 'fragmentShader']) {
-    if (typeof result[stage] !== 'string') continue;
-    const split = splitStudentShader(result[stage]); result[stage] = split.source; if (split.template) result[`${stage}Template`] = split.template;
-  }
+  result.contentVersion = createHash('sha256').update(raw).digest('base64url').slice(0, 12);
   return result as unknown as Teach;
 }
 
 function contentFiles(kind: 'tasks' | 'teaching', index: string) {
-  return index.split(/\r?\n/)
+  return index.split('\n')
     .map(name => name.trim())
     .filter(name => name && !name.startsWith('#'))
     .map(name => {
-      const raw = markdown[`/src/content/${kind}/${name}`];
+      const file = `src/content/${kind}/${name}`;
+      const raw = markdown[`/${file}`];
       if (raw === undefined) throw new Error(`src/content/${kind}/index.txt lists ${name}, but the file does not exist.`);
-      return { id: slugify(name.replace(/\.md$/i, '')), raw };
+      return { file, id: slugify(name.slice(0, -'.md'.length)), raw };
     });
 }
 
-function plainText(html: string) {
-  return html.replace(/<[^>]+>/g, '');
+function sectionText(content: object, section: string) {
+  return plainTexts.get(content)?.[section] ?? '';
 }
 
-function preview(html: string, maxLength = 100) {
-  const text = plainText(html);
+function preview(text: string, maxLength = 100) {
   return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
 }
 
-export const tasks = new Map(contentFiles('tasks', taskIndex).map(file => [file.id, parseTask(file.raw)]));
-export const teachings = new Map(contentFiles('teaching', teachingIndex).map(file => [file.id, parseTeaching(file.raw)]));
+export const tasks = new Map(contentFiles('tasks', taskIndex).map(({ file, id, raw }) => [id, parseTask(file, raw)]));
+export const teachings = new Map(contentFiles('teaching', teachingIndex).map(({ file, id, raw }) => [id, parseTeaching(file, raw)]));
 
 export const taskCatalog: CatalogEntry[] = [...tasks].map(([id, task]) => ({
-  id, title: task.title, category: task.category, description: preview(task.task)
+  id, title: task.title, category: task.category, description: preview(sectionText(task, 'task'))
 }));
 
 export const teachingCatalog: CatalogEntry[] = [...teachings].map(([id, teaching]) => ({
-  id, title: teaching.title, category: teaching.category, description: preview(teaching.overview)
+  id, title: teaching.title, category: teaching.category, description: preview(sectionText(teaching, 'overview'))
 }));
 
-/** Lower-case plain text that the overview pages filter by. */
 export function taskSearchText(id: string) {
   const task = tasks.get(id)!;
-  return [task.title, task.category ?? '', plainText(task.task), plainText(task.theory)].join(' ').toLowerCase();
+  return [task.title, task.category ?? '', sectionText(task, 'task'), sectionText(task, 'theory')].join(' ').toLowerCase();
 }
 
 export function teachingSearchText(id: string) {
   const teaching = teachings.get(id)!;
-  return [teaching.title, teaching.category ?? '', plainText(teaching.overview)].join(' ').toLowerCase();
+  return [teaching.title, teaching.category ?? '', sectionText(teaching, 'overview')].join(' ').toLowerCase();
 }

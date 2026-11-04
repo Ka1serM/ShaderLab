@@ -6,8 +6,6 @@
   let { data }: { data: PageData } = $props();
   const app = useApplication();
 
-  // The route only tells the app what to show. The first call also runs
-  // during prerendering, so the page HTML already contains the task.
   const open = () => app.openTask(data.slug, data.task);
   open();
   $effect.pre(open);

@@ -195,7 +195,6 @@
   dd { margin: .25rem 0 0; color: var(--foreground); font-size: .72rem; line-height: 1.35; }
   @keyframes pipeline-rise { from { opacity: .7; transform: translateY(34vh); } to { opacity: 1; transform: translateY(0); } }
   @keyframes explanation-unfold { from { opacity: 0; transform: translateY(1.25rem) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
-  /* Flexible page layout: toolbar, pipeline strip, then an optional detail area. */
   .pipeline-content { display: flex; width: min(100%, 88rem); height: 100%; min-height: 0; flex-direction: column; margin: 0 auto; padding: clamp(.65rem, 1.5vw, 1.25rem); }
   .pipeline-toolbar { display: flex; align-items: center; justify-content: space-between; gap: .65rem; padding-bottom: .4rem; }
   .pipeline-toolbar h1 { margin: 0; font-size: .8rem; font-weight: 600; letter-spacing: -.015em; }

@@ -10,7 +10,6 @@
 </div>
 
 <style>
-  /* The short delay keeps loads that finish instantly (cached assets) from flashing a spinner. */
   .loading-overlay {
     position: absolute;
     inset: 0;

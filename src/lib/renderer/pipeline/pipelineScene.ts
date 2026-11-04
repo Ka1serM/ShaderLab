@@ -23,8 +23,6 @@ const base: PipelineSceneState = {
   position: [0, 0, 0], scale: 1, rotation: [0, 0, 0], color: 0xbf2732, viewerPosition: [0, 1.3, 6.6]
 };
 
-/** One persistent scene, described by stage keyframes in pipeline order. */
-/** The model matrix applied after the cube's initial Model-Space state. */
 export const cubeModelTransform = {
   position: [.7, .25, -1] as [number, number, number],
   rotation: [.45, .55, 0] as [number, number, number]
@@ -67,7 +65,6 @@ function clipPolygon(polygon: THREE.Vector3[], signedDistance: (point: THREE.Vec
   return output;
 }
 
-/** Actual model/view/projection data and the cube clipped against all NDC planes. */
 export function createPipelineGeometry() {
   const model = new THREE.Matrix4().compose(
     new THREE.Vector3(...cubeModelTransform.position),
@@ -99,8 +96,6 @@ export function createPipelineGeometry() {
   const screenPositions = screenGeometry.getAttribute('position') as THREE.BufferAttribute;
   for (let index = 0; index < screenPositions.count; index += 1) screenPositions.setXYZ(index, screenPositions.getX(index) * 1.8, screenPositions.getY(index) * 1.25, 0);
   for (let index = 0; index < screenPositions.count; index += 1) {
-    // Keep a scaled, inverted NDC depth for the display camera. Near fragments
-    // remain in front of far fragments after the viewport transform.
     screenPositions.setZ(index, -ndcGeometry.getAttribute('position').getZ(index) * .04);
   }
   screenPositions.needsUpdate = true;
@@ -116,7 +111,7 @@ export function createPipelineGeometry() {
     const b = new THREE.Vector3(screenPositions.getX(index + 1), screenPositions.getY(index + 1), 0);
     const c = new THREE.Vector3(screenPositions.getX(index + 2), screenPositions.getY(index + 2), 0);
     const signedArea = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-    if (signedArea <= 0) continue; // Back-face culling in screen space.
+    if (signedArea <= 0) continue;
     const minX = Math.floor(Math.min(a.x, b.x, c.x) / .075) * .075;
     const maxX = Math.ceil(Math.max(a.x, b.x, c.x) / .075) * .075;
     const minY = Math.floor(Math.min(a.y, b.y, c.y) / .075) * .075;

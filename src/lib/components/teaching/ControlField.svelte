@@ -3,7 +3,6 @@
 
   export let label = '';
   export let onReset: (() => void) | undefined = undefined;
-  /** Puts the editor below the label, for editors too wide to share a row with it. */
   export let stacked = false;
 </script>
 

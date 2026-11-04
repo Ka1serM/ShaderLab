@@ -242,8 +242,6 @@
       position: absolute;
       left: 50%;
       margin: 0;
-      /* Individual property, not `transform`: it composes with the `scale` that
-         .motion-press applies on tap instead of being scaled by it. */
       translate: -50%;
     }
     .top-navigation-theme { position: relative; z-index: 1; }

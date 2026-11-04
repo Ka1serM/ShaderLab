@@ -234,7 +234,6 @@ body {
   margin-top: calc(3.5rem + env(safe-area-inset-top));
 }
 
-/* <main> takes focus only as the skip-link and focus-restore target; its ring would trace the header edge. */
 .app-main:focus {
   outline: none;
 }
@@ -640,7 +639,6 @@ body {
 }
 
 .teaching-controls {
-  /* Every control size is a multiple of this unit, so large screens can scale all controls together. */
   --control-unit: 1rem;
   --control-radius: calc(var(--radius) - 2px);
   --control-field: var(--background);
@@ -698,7 +696,6 @@ body {
   padding-bottom: calc(.75 * var(--control-unit));
 }
 
-/* Without a reset button the editor moves to the right edge. */
 .teaching-control:not(:has(> .teaching-control-reset)) {
   grid-template-areas: "label editor";
   grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
@@ -795,7 +792,6 @@ body {
 }
 
 .teaching-color-picker input::-webkit-color-swatch-wrapper { padding: 0; }
-/* Each vendor pseudo-element needs its own rule: an unknown one invalidates the whole selector list. */
 .teaching-color-picker input::-webkit-color-swatch {
   border: 1px solid color-mix(in srgb, var(--foreground) 20%, transparent);
   border-radius: calc(var(--radius) - 4px);
@@ -977,13 +973,7 @@ body {
   to { transform: scaleX(.9); }
 }
 
-/*
- * Workspaces have one layout tree. Below the desktop breakpoint the splitters
- * disappear and the leaf panes stack in one scrolling column, output before
- * reference, so the student's result follows the editor directly.
- */
 @media (max-width: 1023px) {
-  /* Like a flex column of 400px blocks: each pane shrinks to its minimum, and the column scrolls. */
   .workspace-tree {
     display: flex;
     flex-direction: column;

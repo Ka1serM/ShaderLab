@@ -144,8 +144,6 @@
 {/if}
 
 <style>
-  /* Intentionally independent of the app theme: black transparency visibly
-     dims both the light canvas and the already-dark canvas. */
   .tutorial-spotlight { box-shadow: 0 0 0 9999px rgb(0 0 0 / 72%); }
   .tutorial-dim { background: rgb(0 0 0 / 72%); }
   .tutorial-spotlight, .tutorial-gesture-frame, .tutorial-card { border-radius: .5rem; }

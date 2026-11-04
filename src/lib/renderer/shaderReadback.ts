@@ -1,3 +1,7 @@
+import type { Tree } from 'web-tree-sitter';
+import { withGlslTree } from '$lib/glsl/parser';
+import { compileProgram, type Program, type UniformValue } from './gpu/program';
+
 export type ShaderReadbackType = 'float' | 'vector3' | 'vector4' | 'matrix4';
 export type ShaderReadbackValue = number | number[];
 export type ShaderReadbackRequest = { id: string; variable: string; type: ShaderReadbackType };
@@ -16,96 +20,40 @@ const COMPONENTS: Record<ShaderReadbackType, number> = {
 	matrix4: 16
 };
 
-function statementEnd(source: string, variable: string) {
-	const declaration = new RegExp(`\\bmat4\\s+${variable.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\b`).exec(source);
-	if (!declaration) return -1;
-	let parentheses = 0;
-	for (let index = declaration.index + declaration[0].length; index < source.length; index += 1) {
-		if (source[index] === '(') parentheses += 1;
-		else if (source[index] === ')') parentheses -= 1;
-		else if (source[index] === ';' && parentheses === 0) return index + 1;
-	}
-	return -1;
+const DUMMY_FRAGMENT = 'out vec4 color; void main() { color = vec4(0.0); }';
+
+function outputs(request: ShaderReadbackRequest, index: number) {
+	return request.type === 'matrix4'
+		? [0, 1, 2, 3].map(column => ({ name: `shaderlabReadback_${index}_${column}`, type: 'vec4', value: `${request.variable}[${column}]` }))
+		: [{ name: `shaderlabReadback_${index}`, type: GLSL_TYPES[request.type], value: request.variable }];
 }
 
-function nonMatrixStatementEnd(source: string, variable: string, type: Exclude<ShaderReadbackType, 'matrix4'>) {
-	const declaration = new RegExp(`\\b${GLSL_TYPES[type]}\\s+${variable}\\b`).exec(source);
-	if (!declaration) return -1;
-	let parentheses = 0;
-	for (let index = declaration.index + declaration[0].length; index < source.length; index += 1) {
-		if (source[index] === '(') parentheses += 1;
-		else if (source[index] === ')') parentheses -= 1;
-		else if (source[index] === ';' && parentheses === 0) return index + 1;
-	}
-	return -1;
+function declarationEnd(tree: Tree, request: ShaderReadbackRequest) {
+	const declaration = tree.rootNode.descendantsOfType('declaration').find(node => {
+		const declarator = node?.childForFieldName('declarator');
+		const name = declarator?.type === 'init_declarator' ? declarator.childForFieldName('declarator') : declarator;
+		return node?.childForFieldName('type')?.text === GLSL_TYPES[request.type] && name?.text === request.variable && node.parent?.type === 'compound_statement';
+	});
+	return declaration?.endIndex;
 }
 
 function instrument(source: string, requests: ShaderReadbackRequest[]) {
-	const main = source.search(/\bvoid\s+main\s*\(/);
-	if (main < 0) return undefined;
-	const targets = requests.map((request, requestIndex) => ({
-		request,
-		requestIndex,
-		end: request.type === 'matrix4'
-			? statementEnd(source, request.variable)
-			: nonMatrixStatementEnd(source, request.variable, request.type)
-	}));
-	if (targets.some(target => target.end < 0)) return undefined;
-
-	const declarations = targets.flatMap(({ request, requestIndex }) =>
-		request.type === 'matrix4'
-			? [0, 1, 2, 3].map(column => `out vec4 shaderlabReadback_${requestIndex}_${column};`)
-			: [`out ${GLSL_TYPES[request.type]} shaderlabReadback_${requestIndex};`]
-	).join('\n');
-	let result = `${source.slice(0, main)}${declarations}\n${source.slice(main)}`;
-	const declarationOffset = declarations.length + 1;
-	for (const target of [...targets].sort((a, b) => b.end - a.end)) {
-		const end = target.end + (target.end > main ? declarationOffset : 0);
-		const assignment = target.request.type === 'matrix4'
-			? [0, 1, 2, 3]
-				.map(column => `shaderlabReadback_${target.requestIndex}_${column} = ${target.request.variable}[${column}];`)
-				.join('\n')
-			: `shaderlabReadback_${target.requestIndex} = ${target.request.variable};`;
-		result = `${result.slice(0, end)}\n${assignment}${result.slice(end)}`;
-	}
-	return result;
+	return withGlslTree(source, tree => {
+		const firstFunction = tree.rootNode.namedChildren.find(node => node?.type === 'function_definition')?.startIndex;
+		const ends = requests.map(request => declarationEnd(tree, request));
+		if (firstFunction === undefined || ends.some(end => end === undefined)) return undefined;
+		const insertions = requests.flatMap((request, index) => [
+			{ at: firstFunction, text: outputs(request, index).map(output => `out ${output.type} ${output.name};\n`).join('') },
+			{ at: ends[index]!, text: outputs(request, index).map(output => ` ${output.name} = ${output.value};`).join('') }
+		]);
+		return insertions.sort((a, b) => b.at - a.at)
+			.reduce((result, { at, text }) => result.slice(0, at) + text + result.slice(at), source);
+	});
 }
 
-function compile(gl: WebGL2RenderingContext, type: number, source: string) {
-	const shader = gl.createShader(type)!;
-	gl.shaderSource(shader, `#version 300 es\n${source}`);
-	gl.compileShader(shader);
-	if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
-	const log = gl.getShaderInfoLog(shader);
-	gl.deleteShader(shader);
-	throw new Error(`Shader readback compilation failed: ${log}`);
-}
-
-function uploadUniform(gl: WebGL2RenderingContext, uniform: ReadbackUniform, values: Record<string, number | number[] | boolean>) {
-	const { location, type, name } = uniform;
-	const supplied = values[name];
-	const array = Array.isArray(supplied) ? supplied : undefined;
-	const matrix = (size: number, identity: number[]) =>
-		array?.length === size && array.every(Number.isFinite) ? array : identity;
-	switch (type) {
-		case gl.FLOAT: gl.uniform1f(location, typeof supplied === 'number' ? supplied : 0); break;
-		case gl.INT:
-		case gl.BOOL: gl.uniform1i(location, typeof supplied === 'boolean' ? Number(supplied) : typeof supplied === 'number' ? supplied : 0); break;
-		case gl.FLOAT_VEC2: gl.uniform2fv(location, array ?? [0, 0]); break;
-		case gl.FLOAT_VEC3: gl.uniform3fv(location, array ?? [0, 0, 0]); break;
-		case gl.FLOAT_VEC4: gl.uniform4fv(location, array ?? [0, 0, 0, 0]); break;
-		case gl.FLOAT_MAT3: gl.uniformMatrix3fv(location, false, matrix(9, [1, 0, 0, 0, 1, 0, 0, 0, 1])); break;
-		case gl.FLOAT_MAT4: gl.uniformMatrix4fv(location, false, matrix(16, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])); break;
-	}
-}
-
-type ReadbackUniform = { name: string; type: number; location: WebGLUniformLocation };
-
-/** GPU objects for one instrumented vertex shader. They are reused until the shader or the requests change. */
 class ReadbackProgram {
-	readonly uniforms: ReadbackUniform[] = [];
 	readonly raw: Float32Array;
-	readonly program: WebGLProgram;
+	readonly program: Program;
 	readonly buffer: WebGLBuffer;
 	readonly feedback: WebGLTransformFeedback;
 	readonly vao: WebGLVertexArrayObject;
@@ -113,78 +61,45 @@ class ReadbackProgram {
 	constructor(private readonly gl: WebGL2RenderingContext, vertexSource: string, requests: ShaderReadbackRequest[]) {
 		const instrumented = instrument(vertexSource, requests);
 		if (!instrumented) throw new Error(`Shader readback variables ${requests.map(request => request.variable).join(', ')} were not found in the vertex shader.`);
-		this.program = this.link(instrumented, requests);
+		const feedbackVaryings = requests.flatMap((request, index) => outputs(request, index).map(output => output.name));
+		const { program } = compileProgram(gl, instrumented, DUMMY_FRAGMENT, { feedbackVaryings });
+		if (!program) throw new Error('The shader readback program did not compile.');
+		this.program = program;
 		this.buffer = gl.createBuffer()!;
 		this.feedback = gl.createTransformFeedback()!;
 		this.vao = gl.createVertexArray()!;
 		this.raw = new Float32Array(requests.reduce((total, request) => total + COMPONENTS[request.type], 0));
 		gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER, this.buffer);
-		// Not a *_READ usage: Chrome allocates a shadow copy for READ buffers at every fence, but WebGL's
-		// getBufferSubData never consumes it, so each rewrite logs a "discarded the shadow copy" warning.
 		gl.bufferData(gl.TRANSFORM_FEEDBACK_BUFFER, this.raw.byteLength, gl.DYNAMIC_COPY);
 		gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER, null);
-		const uniformCount = gl.getProgramParameter(this.program, gl.ACTIVE_UNIFORMS) as number;
-		for (let index = 0; index < uniformCount; index += 1) {
-			const info = gl.getActiveUniform(this.program, index);
-			if (!info) continue;
-			const name = info.name.replace(/\[0\]$/, '');
-			const location = gl.getUniformLocation(this.program, name);
-			if (location) this.uniforms.push({ name, type: info.type, location });
-		}
+	}
+
+	setUniforms(values: Record<string, UniformValue>) {
+		const identity: Partial<Record<number, number[]>> = {
+			[this.gl.FLOAT_MAT3]: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+			[this.gl.FLOAT_MAT4]: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+		};
+		for (const { name, type } of this.program.uniforms.values()) this.program.set(name, values[name] ?? identity[type]);
 	}
 
 	dispose() {
 		this.gl.deleteTransformFeedback(this.feedback);
 		this.gl.deleteBuffer(this.buffer);
 		this.gl.deleteVertexArray(this.vao);
-		this.gl.deleteProgram(this.program);
-	}
-
-	private link(instrumented: string, requests: ShaderReadbackRequest[]) {
-		const gl = this.gl;
-		const vertex = compile(gl, gl.VERTEX_SHADER, instrumented);
-		let fragment: WebGLShader;
-		try {
-			fragment = compile(gl, gl.FRAGMENT_SHADER, 'precision highp float; out vec4 color; void main() { color = vec4(0.0); }');
-		} catch (error) {
-			gl.deleteShader(vertex);
-			throw error;
-		}
-		const program = gl.createProgram()!;
-		gl.attachShader(program, vertex);
-		gl.attachShader(program, fragment);
-		const varyings = requests.flatMap((request, requestIndex) =>
-			request.type === 'matrix4'
-				? [0, 1, 2, 3].map(column => `shaderlabReadback_${requestIndex}_${column}`)
-				: [`shaderlabReadback_${requestIndex}`]
-		);
-		gl.transformFeedbackVaryings(program, varyings, gl.INTERLEAVED_ATTRIBS);
-		gl.linkProgram(program);
-		gl.deleteShader(vertex);
-		gl.deleteShader(fragment);
-		if (gl.getProgramParameter(program, gl.LINK_STATUS)) return program;
-		const log = gl.getProgramInfoLog(program);
-		gl.deleteProgram(program);
-		throw new Error(`Shader readback linking failed: ${log}`);
+		this.program.dispose();
 	}
 }
 
 type ReadbackInput = {
 	vertexSource: string;
 	requests: ShaderReadbackRequest[];
-	uniformValues: Record<string, number | number[] | boolean>;
+	uniformValues: Record<string, UniformValue>;
 };
 
 type PendingReadback = { input: ReadbackInput; program: ReadbackProgram; fence: WebGLSync };
 
-/**
- * Executes one vertex and captures explicitly marked local values from the GPU.
- * Reads are asynchronous: a fence marks the transform feedback result, so reading it never stalls the GPU.
- * At most one read is in flight; requests made meanwhile collapse into the latest one.
- */
 export class ShaderReadback {
 	private program?: ReadbackProgram;
-	// Identity of the source and request list that `program` was built for. A failed build stays cached as undefined.
 	private programSource?: string;
 	private programRequests?: ShaderReadbackRequest[];
 	private pending?: PendingReadback;
@@ -199,7 +114,7 @@ export class ShaderReadback {
 		return this.pending !== undefined;
 	}
 
-	request(vertexSource: string, requests: ShaderReadbackRequest[], uniformValues: Record<string, number | number[] | boolean>) {
+	request(vertexSource: string, requests: ShaderReadbackRequest[], uniformValues: Record<string, UniformValue>) {
 		const input = { vertexSource, requests, uniformValues };
 		if (this.pending) {
 			this.queued = input;
@@ -208,7 +123,6 @@ export class ShaderReadback {
 		this.issue(input);
 	}
 
-	/** Delivers a finished read and starts the queued one. Returns whether a read is still in flight. */
 	collect() {
 		const pending = this.pending;
 		if (!pending) return false;
@@ -226,7 +140,6 @@ export class ShaderReadback {
 		gl.bindBuffer(gl.COPY_READ_BUFFER, null);
 		const queued = this.queued;
 		this.queued = undefined;
-		// A result for a replaced shader or request list is outdated; only the queued read is relevant.
 		if (!queued || (queued.vertexSource === pending.input.vertexSource && queued.requests === pending.input.requests)) {
 			this.onValues(decode(pending.input.requests, pending.program.raw));
 		}
@@ -250,8 +163,8 @@ export class ShaderReadback {
 		const program = this.programFor(input.vertexSource, input.requests);
 		if (!program) return;
 		try {
-			gl.useProgram(program.program);
-			for (const uniform of program.uniforms) uploadUniform(gl, uniform, input.uniformValues);
+			program.setUniforms(input.uniformValues);
+			program.program.bind();
 			gl.bindVertexArray(program.vao);
 			gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, program.feedback);
 			gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, program.buffer);

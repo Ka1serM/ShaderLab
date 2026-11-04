@@ -1,4 +1,9 @@
-export type TeachingValue = number | number[] | string | boolean;
+import yaml from 'js-yaml';
+import { z } from 'zod';
+import type { Node } from 'web-tree-sitter';
+import { withGlslTree } from '$lib/glsl/parser';
+
+export type TeachingValue = number | number[] | boolean;
 
 export interface TeachingControl {
 	id: string;
@@ -10,206 +15,188 @@ export interface TeachingControl {
 	readOnly?: boolean;
 	visualization?: 'vector' | 'point';
 	editable?: boolean;
-	visualizationOrigin?: [number, number, number];
 	hidden?: boolean;
-	target?: string;
-	inverse?: string;
 	pivot?: string;
 	transform?: 'translate' | 'rotate' | 'scale';
-	/** Scene object index that a `transform` control belongs to. Without it, the transform belongs to every object. */
 	object?: number;
-	/** Labels of an `options` control; its int uniform holds the index of the selected label. */
 	options?: string[];
 	default: TeachingValue;
 	uniform?: string;
 	readback?: string;
 }
 
-const CONTROL_ANNOTATION = /^\s*\/\/\s*@control\b(.*)$/;
-const READBACK_ANNOTATION = /^\s*\/\/\s*@readback\b(.*)$/;
-const UNIFORM = /^\s*uniform\s+(?:lowp\s+|mediump\s+|highp\s+)?(float|int|bool|vec3|vec4|mat4)\s+([A-Za-z_]\w*)\s*;\s*(?:\/\/.*)?$/;
-const READBACK_DECLARATION = /^\s*(float|vec3|vec4|mat4)\s+([A-Za-z_]\w*)\b/;
-const MATRIX_DECLARATION = /\bmat4\s+(\w+)\b/;
-const VECTOR3_DECLARATION = /\bvec3\s+(\w+)\b/;
-const VECTOR4_DECLARATION = /\bvec4\s+(\w+)\b/;
-const FLOAT_DECLARATION = /\bfloat\s+(\w+)\b/;
-const ATTRIBUTE = /(\w+)=(["'])(.*?)\2|(\w+)=([^\s]+)/g;
+export type AnnotationError = { line: number; message: string };
+
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+const numbers = (length: number) => z.array(z.number()).length(length);
 
-const TYPES: Record<string, TeachingControl['type']> = {
-	slider: 'slider',
-	float: 'slider',
-	int: 'slider',
-	color: 'color',
-	checkbox: 'checkbox',
-	bool: 'checkbox',
-	matrix4: 'matrix4',
-	matrix: 'matrix4',
-	mat4: 'matrix4',
-	vector3: 'vector3',
-	vec3: 'vector3',
-	vector4: 'vector4',
-	vec4: 'vector4'
+const DECLARATIONS = {
+	float: { type: 'slider', value: z.number(), initial: 0, readback: true },
+	int: { type: 'slider', value: z.int(), initial: 0, readback: false },
+	bool: { type: 'checkbox', value: z.boolean(), initial: false, readback: false },
+	vec3: { type: 'vector3', value: numbers(3), initial: [0, 0, 0], readback: true },
+	vec4: { type: 'vector4', value: numbers(4), initial: [0, 0, 0, 0], readback: true },
+	mat4: { type: 'matrix4', value: numbers(16), initial: IDENTITY, readback: true }
+} as const;
+
+type GlslType = keyof typeof DECLARATIONS;
+
+const READBACK_ATTRIBUTES = {
+	label: z.string(),
+	min: z.number(),
+	max: z.number(),
+	step: z.number(),
+	hidden: z.boolean(),
+	visualize: z.enum(['point', 'vector'])
 };
 
-const READBACK_DECLARATIONS: Partial<Record<TeachingControl['type'], RegExp>> = {
-	slider: FLOAT_DECLARATION,
-	vector3: VECTOR3_DECLARATION,
-	vector4: VECTOR4_DECLARATION,
-	matrix4: MATRIX_DECLARATION
+const CONTROL_ATTRIBUTES = {
+	...READBACK_ATTRIBUTES,
+	readonly: z.boolean(),
+	display: z.literal('color'),
+	transform: z.enum(['translate', 'rotate', 'scale']),
+	pivot: z.string(),
+	object: z.int().nonnegative(),
+	options: z.array(z.string()).min(1)
 };
 
-function finiteNumberList(raw: string | undefined, length: number, fallback: number[]) {
-	if (!raw) return [...fallback];
-	const values = raw.split(',').map(Number);
-	return values.length === length && values.every(Number.isFinite) ? values : [...fallback];
+const ONLY_FOR: Partial<Record<keyof typeof CONTROL_ATTRIBUTES, GlslType>> = {
+	display: 'vec3',
+	visualize: 'vec3',
+	transform: 'mat4',
+	pivot: 'mat4',
+	object: 'mat4',
+	options: 'int'
+};
+
+const ANNOTATIONS = ['@control', '@readback'] as const;
+type Annotation = typeof ANNOTATIONS[number];
+
+function annotation(node: Node): { kind: Annotation; attributes: string } | undefined {
+	if (node.type !== 'comment' || !node.text.startsWith('//')) return undefined;
+	const text = node.text.slice(2).trim();
+	const kind = ANNOTATIONS.find(name => text === name || text.startsWith(`${name} `));
+	return kind && { kind, attributes: text.slice(kind.length).trim() };
 }
 
-function parseDefault(type: TeachingControl['type'], raw: string | undefined): TeachingValue {
-	if (type === 'matrix4') return finiteNumberList(raw, 16, IDENTITY);
-	if (type === 'vector3') return finiteNumberList(raw, 3, [0, 0, 0]);
-	if (type === 'vector4') return finiteNumberList(raw, 4, [0, 0, 0, 0]);
-	if (type === 'color') {
-		if (raw && /^#[0-9a-f]{6}$/i.test(raw)) return raw;
-		return finiteNumberList(raw, 3, [0, 0, 0]);
-	}
-	if (type === 'checkbox') return raw === 'true';
-	const value = Number(raw ?? 0);
-	return Number.isFinite(value) ? value : 0;
+function declaredVariable(node: Node | null) {
+	if (node?.type !== 'declaration') return undefined;
+	const declarator = node.childForFieldName('declarator');
+	const name = declarator?.type === 'init_declarator' ? declarator.childForFieldName('declarator') : declarator;
+	const type = node.childForFieldName('type')?.text;
+	if (name?.type !== 'identifier' || !type) return undefined;
+	return { name: name.text, type, uniform: node.children.some(child => child?.type === 'uniform') };
 }
 
-function readbackInitialValue(type: TeachingControl['type']): TeachingValue {
-	if (type === 'matrix4') return Array(16).fill(0);
-	if (type === 'vector3') return [0, 0, 0];
-	if (type === 'vector4') return [0, 0, 0, 0];
-	return 0;
+function followingDeclaration(comment: Node) {
+	let node = comment.nextNamedSibling;
+	while (node?.type === 'comment' && !annotation(node)) node = node.nextNamedSibling;
+	return declaredVariable(node);
 }
 
-function parseVector3(raw: string | undefined): [number, number, number] | undefined {
-	if (!raw) return undefined;
-	const value = raw.split(',').map(Number);
-	return value.length === 3 && value.every(Number.isFinite)
-		? value as [number, number, number]
-		: undefined;
+function readAttributes(source: string): unknown {
+	return source ? yaml.load(source, { schema: yaml.JSON_SCHEMA }) : {};
 }
 
-function parseVisualization(type: TeachingControl['type'], raw: string | undefined) {
-	if (type !== 'vector3') return undefined;
-	if (raw === 'point') return 'point' as const;
-	if (raw === 'vector') return 'vector' as const;
-	return undefined;
+function issueMessage(error: z.ZodError) {
+	const issue = error.issues[0];
+	return issue.path.length ? `${issue.path.join('.')}: ${issue.message}` : issue.message;
 }
 
-function parseAttributes(source: string): Record<string, string> | undefined {
-	const attributes: Record<string, string> = {};
-	let cursor = 0;
-	for (const match of source.matchAll(ATTRIBUTE)) {
-		if (source.slice(cursor, match.index).trim()) return undefined;
-		attributes[match[1] ?? match[4]] = match[3] ?? match[5];
-		cursor = (match.index ?? 0) + match[0].length;
-	}
-	return source.slice(cursor).trim() ? undefined : attributes;
+type Attributes = Partial<z.infer<z.ZodObject<typeof CONTROL_ATTRIBUTES>>> & { default?: TeachingValue };
+
+function control(kind: Annotation, name: string, glslType: GlslType, attributes: Attributes): TeachingControl {
+	const declaration = DECLARATIONS[glslType];
+	const readback = kind === '@readback';
+	const type = attributes.options ? 'options' : attributes.display === 'color' ? 'color' : declaration.type;
+	return {
+		id: name,
+		type,
+		label: attributes.label ?? name,
+		min: attributes.min,
+		max: attributes.max,
+		step: attributes.step,
+		readOnly: readback || attributes.readonly,
+		visualization: attributes.visualize,
+		editable: !readback && attributes.visualize !== undefined,
+		hidden: attributes.hidden ?? (readback && attributes.visualize !== undefined && attributes.label === undefined),
+		pivot: attributes.transform === 'translate' ? attributes.pivot : undefined,
+		transform: attributes.transform,
+		object: attributes.object,
+		options: attributes.options,
+		default: readback && glslType === 'mat4' ? Array(16).fill(0) : structuredClone(attributes.default ?? declaration.initial) as TeachingValue,
+		uniform: readback ? undefined : name,
+		readback: readback ? name : undefined
+	};
 }
 
-/**
- * `@control` binds an editable input to the next uniform. `@readback` binds a read-only display to
- * the next local float, vec3, vec4 or mat4 declaration, whose value is captured from the GPU by transform feedback.
- */
-export function parseShaderControls(source: string): TeachingControl[] {
+export function parseShaderControls(source: string): { controls: TeachingControl[]; errors: AnnotationError[] } {
 	const controls: TeachingControl[] = [];
-	const lines = source.split(/\r?\n/);
-	for (let index = 0; index < lines.length; index += 1) {
-		const controlAnnotation = lines[index].match(CONTROL_ANNOTATION);
-		const readbackAnnotation = lines[index].match(READBACK_ANNOTATION);
-		if (!controlAnnotation && !readbackAnnotation) continue;
-		const isReadback = Boolean(readbackAnnotation);
-		let declaration: string | undefined;
-		let declarationMatch: RegExpMatchArray | null = null;
-		for (let following = index + 1; following < lines.length; following += 1) {
-			if (CONTROL_ANNOTATION.test(lines[following]) || READBACK_ANNOTATION.test(lines[following])) break;
-			declarationMatch = lines[following].match(isReadback ? READBACK_DECLARATION : UNIFORM);
-			if (declarationMatch) {
-				declaration = lines[following];
-				break;
+	const errors: AnnotationError[] = [];
+	withGlslTree(source, tree => {
+		for (const comment of tree.rootNode.descendantsOfType('comment')) {
+			const found = comment && annotation(comment);
+			if (!comment || !found) continue;
+			const fail = (message: string) => errors.push({ line: comment.startPosition.row + 1, message: `${found.kind}: ${message}` });
+			const variable = followingDeclaration(comment);
+			const readback = found.kind === '@readback';
+			if (!variable || variable.uniform === readback) {
+				fail(readback ? 'has to stand directly above a local variable declaration.' : 'has to stand directly above a uniform declaration.');
+				continue;
 			}
+			if (!(variable.type in DECLARATIONS) || (readback && !DECLARATIONS[variable.type as GlslType].readback)) {
+				fail(`${variable.type} ${variable.name} cannot be shown.`);
+				continue;
+			}
+			const glslType = variable.type as GlslType;
+			let raw: unknown;
+			try {
+				raw = readAttributes(found.attributes);
+			} catch (error) {
+				fail(`write the attributes as { key: value, … }. ${(error as Error).message.split('\n')[0]}`);
+				continue;
+			}
+			const schema = readback
+				? z.strictObject(READBACK_ATTRIBUTES).partial()
+				: z.strictObject({ ...CONTROL_ATTRIBUTES, default: DECLARATIONS[glslType].value }).partial();
+			const parsed = schema.safeParse(raw);
+			if (!parsed.success) {
+				fail(issueMessage(parsed.error));
+				continue;
+			}
+			const misplaced = Object.keys(parsed.data).find(key => ONLY_FOR[key as keyof typeof ONLY_FOR] && ONLY_FOR[key as keyof typeof ONLY_FOR] !== glslType);
+			if (misplaced) {
+				fail(`${misplaced} only works on a ${ONLY_FOR[misplaced as keyof typeof ONLY_FOR]}.`);
+				continue;
+			}
+			if (controls.some(existing => existing.id === variable.name)) {
+				fail(`${variable.name} already has an annotation.`);
+				continue;
+			}
+			controls.push(control(found.kind, variable.name, glslType, parsed.data));
 		}
-		if (!declaration || !declarationMatch) continue;
-		const id = declarationMatch[2];
-		const attributeSource = isReadback ? readbackAnnotation![1] : controlAnnotation![1];
-		const attributes = parseAttributes(attributeSource);
-		if (!attributes) continue;
-		const declaredType = declarationMatch[1];
-		const options = !isReadback && declaredType === 'int' && attributes.options
-			? attributes.options.split(',').map(option => option.trim())
-			: undefined;
-		const type = options
-			? 'options'
-			: attributes.display === undefined
-				? TYPES[declaredType]
-				: attributes.display === 'color' && declaredType === 'vec3' ? 'color' : undefined;
-		// Half-typed annotations and unsupported declarations are skipped rather than rendered broken.
-		if (!type || (isReadback && !READBACK_DECLARATIONS[type])) continue;
-		const uniform = isReadback ? undefined : id;
-		const readback = isReadback ? id : undefined;
-		// A duplicated id would fight over one value, and would crash a keyed {#each}.
-		if (controls.some(control => control.id === id)) continue;
-		const finiteAttribute = (name: string) => {
-			if (attributes[name] === undefined) return undefined;
-			const value = Number(attributes[name]);
-			return Number.isFinite(value) ? value : undefined;
-		};
-		const visualization = parseVisualization(type, attributes.visualize);
-		const target = attributes.target ?? (!isReadback && visualization ? id : undefined);
-		const transform = type === 'matrix4' && ['translate', 'rotate', 'scale'].includes(attributes.transform)
-			? attributes.transform as TeachingControl['transform']
-			: undefined;
-		controls.push({
-			id,
-			type,
-			label: attributes.label ?? id,
-				min: finiteAttribute('min'),
-				max: finiteAttribute('max'),
-				step: finiteAttribute('step'),
-			readOnly: isReadback || attributes.readonly === 'true',
-			visualization,
-			editable: visualization !== undefined && target !== undefined,
-			visualizationOrigin: type === 'vector3' ? parseVector3(attributes.origin) : undefined,
-			hidden: attributes.hidden === 'true' || (isReadback && visualization !== undefined && attributes.label === undefined),
-			target,
-			inverse: attributes.inverse,
-			pivot: transform === 'translate' ? attributes.pivot : undefined,
-			transform,
-			object: transform && Number.isInteger(finiteAttribute('object')) ? finiteAttribute('object') : undefined,
-			options,
-			default: isReadback ? readbackInitialValue(type) : parseDefault(type, attributes.default),
-			uniform,
-			readback
-		});
-	}
-	return controls;
+	});
+	return { controls, errors };
 }
 
-/** Guards against an override left over from before a control changed its type in the editor. */
-function fits(type: TeachingControl['type'], value: TeachingValue | undefined) {
-	switch (type) {
-		case 'matrix4': return Array.isArray(value) && value.length === 16 && value.every(Number.isFinite);
-		case 'vector3': return Array.isArray(value) && value.length === 3 && value.every(Number.isFinite);
-		case 'vector4': return Array.isArray(value) && value.length === 4 && value.every(Number.isFinite);
-		case 'color': return (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)) || (Array.isArray(value) && value.length === 3 && value.every(Number.isFinite));
+function fits(control: TeachingControl, value: TeachingValue | undefined) {
+	switch (control.type) {
+		case 'matrix4': return numbers(16).safeParse(value).success;
+		case 'vector3':
+		case 'color': return numbers(3).safeParse(value).success;
+		case 'vector4': return numbers(4).safeParse(value).success;
 		case 'checkbox': return typeof value === 'boolean';
 		case 'slider': return typeof value === 'number';
-		case 'options': return Number.isInteger(value);
-		default: return value !== undefined;
+		case 'options': return Number.isInteger(value) && (value as number) < (control.options?.length ?? 0);
 	}
 }
 
-/** The value a control is showing: the user's override when usable, otherwise the annotated default. */
 export function controlValues(
 	controls: TeachingControl[],
 	overrides: Record<string, TeachingValue>
 ): Record<string, TeachingValue> {
 	return Object.fromEntries(controls.map(control => [
 		control.id,
-		fits(control.type, overrides[control.id]) ? overrides[control.id] : control.default
+		fits(control, overrides[control.id]) ? overrides[control.id] : control.default
 	]));
 }

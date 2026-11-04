@@ -18,8 +18,6 @@ scenes:
 # Vertex Shader
 
 ```glsl
-precision highp float;
-
 in vec3 position;
 in vec3 normal;
 
@@ -40,29 +38,27 @@ void main() {
 # Fragment Shader
 ```glsl
 // @prefix
-precision highp float;
-
 in vec3 vNormal;
 in vec3 vPosition;
 out vec4 fragColor;
 // @prefix
 
-// @control display=color label="Ambient" default="0.01,0.01,0.015"
+// @control { display: color, label: Ambient, default: [0.01, 0.01, 0.015] }
 uniform vec3 uAmbient;
 
-// @control display=color label="Diffuse Kd" default="0.5,0.5,0.5"
+// @control { display: color, label: Diffuse Kd, default: [0.5, 0.5, 0.5] }
 uniform vec3 uKd;
 
-// @control display=color label="Specular Ks" default="1,1,1"
+// @control { display: color, label: Specular Ks, default: [1, 1, 1] }
 uniform vec3 uKs;
 
-// @control label="Shininess n" min=1 max=256 step=1 default=32
+// @control { label: Shininess n, min: 1, max: 256, step: 1, default: 32 }
 uniform float uShininess;
 
-// @control label="Light Position" default="0,1,2" visualize=point
+// @control { label: Light Position, default: [0, 1, 2], visualize: point }
 uniform vec3 uLightPosition;
 
-// @control label="Extra lights" default=true
+// @control { label: Extra lights, default: true }
 uniform bool uExtraLights;
 
 uniform vec3 cameraPosition;
@@ -97,7 +93,7 @@ vec3 phongLight(vec3 normal, vec3 viewDir, Light light) {
 
 void main() {
   const int LIGHT_COUNT = 4;
-  Light lights[LIGHT_COUNT] = Light[](
+  Light lights[LIGHT_COUNT] = Light[LIGHT_COUNT](
     Light(uLightPosition,         vec3(1.0, 0.85, 0.7), 1.0),
     Light(vec3(-4.0, 1.0, -1.5),  vec3(1.0, 0.0, 0.0),  1.4),
     Light(vec3(4.0, 0.5, -1.5),   vec3(0.0, 1.0, 0.0),  1.2),

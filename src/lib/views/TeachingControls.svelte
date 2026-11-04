@@ -29,7 +29,7 @@
       {#if control.type === 'slider'}
         <SliderControl label={control.label} value={current as number} min={control.min ?? 0} max={control.max ?? 1} step={control.step ?? 0.01} readOnly={control.readOnly ?? false} onChange={set} onReset={reset} />
       {:else if control.type === 'color'}
-        <ColorControl label={control.label} value={current as string | number[]} readOnly={control.readOnly ?? false} onChange={set} onReset={reset} />
+        <ColorControl label={control.label} value={current as number[]} readOnly={control.readOnly ?? false} onChange={set} onReset={reset} />
       {:else if control.type === 'checkbox'}
         <CheckboxControl label={control.label} value={current as boolean} readOnly={control.readOnly ?? false} onChange={set} onReset={reset} />
       {:else if control.type === 'options'}

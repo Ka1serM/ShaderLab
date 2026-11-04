@@ -18,7 +18,6 @@
 {#if model.definition}
   {@const definition = model.definition}
   <div class="h-full w-full relative">
-    <!-- One layout for every screen. Below the desktop breakpoint, CSS stacks the panes. -->
     <div class="workspace-layout workspace-tree h-full w-full">
       <Splitpanes class="splitpanes-root" theme="my-theme" on:resized={resized('outer')}>
         <Pane size={layout.sizes.outer} class="workspace-leaf workspace-leaf--panel">
@@ -36,7 +35,7 @@
               />
             </Pane>
             <Pane size={100 - layout.sizes.inner} class="workspace-leaf workspace-leaf--output">
-              <ViewportView viewport={app.viewports.output} title="Output" panelId="output" scenes={definition.scenes} sceneIndex={model.sceneIndex} onSelectScene={index => controller.selectScene(index)} transformControls={Boolean(model.overlays?.transformControls)} showTimeControl={definition.showTimeControl ?? false} />
+              <ViewportView viewport={app.viewports.output} title="Output" panelId="output" scenes={definition.scenes} sceneIndex={model.sceneIndex} onSelectScene={index => controller.selectScene(index)} transformControls={Boolean(model.overlays?.transformControls)} normals={Boolean(model.overlays?.normals)} showTimeControl={definition.showTimeControl ?? false} />
             </Pane>
           </Splitpanes>
         </Pane>

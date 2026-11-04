@@ -7,11 +7,6 @@ import { EditorHost } from './services/editor.svelte';
 import { Persistence } from './services/persistence';
 import type { Task, Teach } from './types';
 
-/**
- * The composition root. Built once by the root layout; everything that lives
- * longer than a page (editor, viewports, storage) is created here and only
- * here. Routes tell it what to show and views read from it.
- */
 export class Application {
   readonly persistence = new Persistence();
   readonly editor = new EditorHost(this.persistence);
@@ -32,7 +27,6 @@ export class Application {
     this.teaching.open(definition);
   }
 
-  /** For routes without a workspace. */
   closeWorkspaces() {
     this.task.close();
     this.teaching.close();

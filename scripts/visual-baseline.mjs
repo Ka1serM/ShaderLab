@@ -1,10 +1,3 @@
-// Screenshots every page so a refactor can be checked for visible changes.
-//
-//   node scripts/visual-baseline.mjs capture <dir> [baseUrl]
-//   node scripts/visual-baseline.mjs compare <baselineDir> <dir> [baseUrl]
-//
-// Runs a headless Chromium with a throwaway profile. `performance.now` is
-// frozen, so shaders that read `time` render the same frame every run.
 import { chromium } from 'playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -57,10 +50,8 @@ async function routes() {
 }
 
 async function settle(page) {
-  // Viewports show a "Loading" overlay until scene, textures and shaders are ready.
   await page.waitForFunction(() => !document.querySelector('[aria-label^="Loading"], .loading-overlay'), null, { timeout: 60_000 }).catch(() => {});
   await page.waitForLoadState('networkidle').catch(() => {});
-  // Let damped cameras, fade-ins and readbacks finish.
   await page.waitForTimeout(1500);
 }
 
@@ -84,12 +75,10 @@ async function capture() {
       await settle(page);
       await page.screenshot({ path: path.join(outputDir, fileName(route, device)) });
       if (device === 'mobile' && await page.$('.workspace-layout')) {
-        // The mobile workspace scrolls inside its own container; also capture its end.
         await page.$eval('.workspace-layout', element => { element.scrollTop = element.scrollHeight; });
         await settle(page);
         await page.screenshot({ path: path.join(outputDir, fileName(route, 'mobile-end')) });
       }
-      // Monaco's text does not paint in headless Chromium, so compare the editor contents as text.
       const editor = await page.$$eval('.monaco-editor .view-line', lines => lines.map(line => line.textContent.replace(/\u00a0/g, ' ')).join('\n'));
       const tabs = await page.$$eval('[data-tutorial="editor"] [role="tab"]', tabs => tabs.map(tab => tab.textContent.trim()));
       report[`${device} ${route}`] = { messages, tabs, editor };

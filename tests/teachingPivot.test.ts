@@ -1,20 +1,24 @@
-import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { initGlslParser } from '../src/lib/glsl/parser';
 import { Euler, Matrix4, Quaternion, Vector3 } from 'three';
 import { bindShaderTransforms } from '../src/lib/utils/shaderTransforms';
 import { controlValues, parseShaderControls } from '../src/lib/utils/shaderControls';
+
+beforeAll(() => initGlslParser(readFileSync('src/lib/glsl/tree-sitter-glsl.wasm')));
 
 const translation = (v: number[]) => new Matrix4().makeTranslation(...v as [number, number, number]);
 
 describe('teaching pivot frame', () => {
   it('binds arbitrary shader names and updates only rotation when rotating', () => {
-    const controls = parseShaderControls(`
-      // @control default=2,0,0
+    const { controls } = parseShaderControls(`
+      // @control { default: [2, 0, 0] }
       uniform vec3 handleOrigin;
-      // @control transform=translate pivot=handleOrigin
+      // @control { transform: translate, pivot: handleOrigin }
       uniform mat4 move;
-      // @control transform=rotate
+      // @control { transform: rotate }
       uniform mat4 turn;
-      // @control transform=scale
+      // @control { transform: scale }
       uniform mat4 resize;
     `);
     const values = controlValues(controls, {});
@@ -26,8 +30,8 @@ describe('teaching pivot frame', () => {
   });
 
   it('places the gizmo at a pivot that the shader derives as a readback', () => {
-    const controls = parseShaderControls(`
-      // @control transform=translate pivot=pivotPoint
+    const { controls } = parseShaderControls(`
+      // @control { transform: translate, pivot: pivotPoint }
       uniform mat4 move;
       void main() {
         // @readback
@@ -41,16 +45,16 @@ describe('teaching pivot frame', () => {
   });
 
   it('supports shaders without a pivot annotation', () => {
-    const controls = parseShaderControls('// @control transform=translate\nuniform mat4 move;');
+    const { controls } = parseShaderControls('// @control { transform: translate }\nuniform mat4 move;');
     const binding = bindShaderTransforms(controls, controlValues(controls, {}), 0);
     expect(binding.state!.position).toEqual([0, 0, 0]);
     expect(binding.transformUpdates({ ...binding.state!, position: [1, 2, 3] })).toEqual({ move: translation([1, 2, 3]).toArray() });
   });
   it('binds only the transform controls of the selected object', () => {
-    const controls = parseShaderControls(`
-      // @control transform=translate object=0
+    const { controls } = parseShaderControls(`
+      // @control { transform: translate, object: 0 }
       uniform mat4 cameraMove;
-      // @control transform=translate object=1 default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,-3,1"
+      // @control { transform: translate, object: 1, default: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -3, 1] }
       uniform mat4 meshMove;
     `);
     const values = controlValues(controls, {});

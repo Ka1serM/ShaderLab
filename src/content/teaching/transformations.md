@@ -13,14 +13,17 @@ scenes:
   - label: Sphere
     objects:
       - source: models/Sphere.glb
+overlays:
+  normals:
+    position: vTransformedPosition
+    normal: vTransformedNormal
+    space: model
 ---
 
 # Vertex Shader
 
 ```glsl
 // @prefix
-precision highp float;
-
 in vec3 position;
 in vec3 normal;
 
@@ -31,26 +34,26 @@ out vec3 vTransformedPosition;
 out vec3 vTransformedNormal;
 // @prefix
 
-// @control label="Inverse transpose normals" default=true
+// @control { label: Inverse transpose normals, default: true }
 uniform bool uInverseTransposeNormals;
 
 const vec3 CENTER_PIVOT = vec3(0.0, 0.0, 0.0);
 const vec3 LEFT_PIVOT = vec3(-2.0, 0.0, 0.0);
 
-// @control label="Pivot" options="Center,Left" default=0
+// @control { label: Pivot, options: [Center, Left], default: 0 }
 uniform int uPivot;
 
-// @control label="Translation T" transform=translate pivot=pivotPoint readonly=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
+// @control { label: Translation T, transform: translate, pivot: pivotPoint, readonly: true }
 uniform mat4 uTranslationMatrix;
 
-// @control label="Rotation R" transform=rotate readonly=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
+// @control { label: Rotation R, transform: rotate, readonly: true }
 uniform mat4 uRotationMatrix;
 
-// @control label="Scale S" transform=scale readonly=true default="1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1"
+// @control { label: Scale S, transform: scale, readonly: true }
 uniform mat4 uScaleMatrix;
 
 void main() {
-    // @readback hidden=true
+    // @readback { hidden: true }
     vec3 pivotPoint = uPivot == 0 ? CENTER_PIVOT : LEFT_PIVOT;
 
     mat4 pivotMatrix = mat4(1.0);
@@ -59,10 +62,10 @@ void main() {
     mat4 inversePivotMatrix = mat4(1.0);
     inversePivotMatrix[3].xyz = -pivotPoint;
 
-    // @readback visualize=point
+    // @readback { visualize: point }
     vec3 pivotWorld = (uTranslationMatrix * vec4(pivotPoint, 1.0)).xyz;
 
-    // @readback label="Local transform (T · R · S)"
+    // @readback { label: Local transform (T · R · S) }
     mat4 localMatrix = uTranslationMatrix * uRotationMatrix * uScaleMatrix;
 
     mat4 pointMatrix = uTranslationMatrix
@@ -87,8 +90,6 @@ void main() {
 # Fragment Shader
 
 ```glsl
-precision highp float;
-
 in vec3 vTransformedPosition;
 in vec3 vTransformedNormal;
 
@@ -98,13 +99,13 @@ out vec4 fragColor;
 
 const int LIGHT_COUNT = 3;
 
-const vec3 LIGHT_DIRECTIONS[LIGHT_COUNT] = vec3[](
+const vec3 LIGHT_DIRECTIONS[LIGHT_COUNT] = vec3[LIGHT_COUNT](
     vec3( 0.6, 0.8,  0.7),
     vec3(-0.8, 0.2,  0.5),
     vec3(-0.3, 0.5, -1.0)
 );
 
-const vec3 LIGHT_COLORS[LIGHT_COUNT] = vec3[](
+const vec3 LIGHT_COLORS[LIGHT_COUNT] = vec3[LIGHT_COUNT](
     vec3(1.0, 0.88, 0.74),
     vec3(0.3, 0.4,  0.6),
     vec3(0.7, 0.8,  1.0)

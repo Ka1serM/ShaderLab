@@ -7,7 +7,6 @@ export type Splitter = keyof SplitterSizes;
 const TASK_SIZES: SplitterSizes = { outer: 35, inner: 50, viewports: 50 };
 const TEACHING_SIZES: SplitterSizes = { outer: 35, inner: 34, viewports: 50 };
 
-/** The workspace layout: splitter positions per page, and which panel is maximised. */
 export class LayoutController {
   maximized = $state<PanelId | null>(null);
   sizes = $state<SplitterSizes>({ ...TASK_SIZES });
@@ -19,7 +18,6 @@ export class LayoutController {
     });
   }
 
-  /** `page` names the storage entry, for example `task:phong` or `teaching:Phong Shading`. */
   open(page: string, kind: 'task' | 'teaching') {
     if (page === this.page) return;
     this.page = page;

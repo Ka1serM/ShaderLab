@@ -1,3 +1,5 @@
+import { rewriteRowMajorMatrixLiterals } from '$lib/utils/glslMatrixLiterals';
+
 export type ShaderDiagnostic = {
   type: 'error' | 'warning';
   line: number;
@@ -11,18 +13,18 @@ export type ShaderDiagnostics = {
   compute: ShaderDiagnostic[];
 };
 
-/** A value a uniform can take. Matrices are column-major, as three.js stores them. */
 export type UniformValue = number | boolean | ArrayLike<number>;
 
-/** A texture bound to a sampler uniform. */
 export type GpuTexture = { target: number; handle: WebGLTexture };
 
-const VERSION = '#version 300 es\n';
+const HEADER = '#version 300 es\nprecision highp float; precision highp int; precision highp sampler2D; precision highp sampler3D;\n';
+const HEADER_LINES = 2;
 
-function sourceForWebGL(source: string) {
-  return source.trimStart().startsWith('#version')
-    ? { source, addedLines: 0 }
-    : { source: VERSION + source, addedLines: 1 };
+export function sourceForWebGL(source: string) {
+  const rowMajor = rewriteRowMajorMatrixLiterals(source);
+  return rowMajor.trimStart().startsWith('#version')
+    ? { source: rowMajor, addedLines: 0 }
+    : { source: HEADER + rowMajor, addedLines: HEADER_LINES };
 }
 
 function parseLog(log: string, addedLines: number, hiddenLines: number): ShaderDiagnostic[] {
@@ -39,16 +41,10 @@ function parseLog(log: string, addedLines: number, hiddenLines: number): ShaderD
 }
 
 export type CompileOptions = {
-  /** Lines of hidden template before the editable code, so diagnostics point at editor lines. */
   hiddenLines?: { vertex: number; fragment: number };
-  /** Varyings captured by transform feedback. They must be known before linking. */
   feedbackVaryings?: string[];
 };
 
-/**
- * Compiles and links once. The compile is the validation: a valid result is
- * the program that draws, so no shader is ever compiled twice.
- */
 export function compileProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string, options: CompileOptions = {}): { program?: Program; diagnostics: ShaderDiagnostics } {
   const hiddenLines = options.hiddenLines ?? { vertex: 0, fragment: 0 };
   const diagnostics: ShaderDiagnostics = { vertex: [], fragment: [], compute: [] };
@@ -106,15 +102,12 @@ type Uniform = {
   type: number;
   size: number;
   location: WebGLUniformLocation;
-  /** Texture unit, for samplers. */
   unit?: number;
-  /** What the GPU holds, so an unchanged value is never uploaded again. */
   uploaded?: Float64Array;
 };
 
 export type Attribute = { name: string; type: number; location: number };
 
-/** Components per element of each uniform type. */
 function components(gl: WebGL2RenderingContext, type: number) {
   switch (type) {
     case gl.FLOAT_VEC2: case gl.INT_VEC2: case gl.BOOL_VEC2: case gl.UNSIGNED_INT_VEC2: return 2;
@@ -131,12 +124,6 @@ function isSampler(gl: WebGL2RenderingContext, type: number) {
     gl.INT_SAMPLER_2D, gl.INT_SAMPLER_3D, gl.UNSIGNED_INT_SAMPLER_2D, gl.UNSIGNED_INT_SAMPLER_3D] as number[]).includes(type);
 }
 
-/**
- * A linked program and what it declares. Uniform types come from the linked
- * program, so a value is always uploaded the way the shader reads it: an
- * `ivec2` gets integers, a `bool` gets 0 or 1. Values are recorded with `set()`
- * at any time and uploaded by `bind()`, and only when they changed.
- */
 export class Program {
   readonly uniforms = new Map<string, Uniform>();
   readonly attributes = new Map<string, Attribute>();
@@ -162,18 +149,15 @@ export class Program {
       if (!info || info.name.startsWith('gl_')) continue;
       this.attributes.set(info.name, { name: info.name, type: info.type, location: gl.getAttribLocation(handle, info.name) });
     }
-    // Sampler units never change, so they are assigned once.
     gl.useProgram(handle);
     for (const uniform of this.uniforms.values()) if (uniform.unit !== undefined) gl.uniform1i(uniform.location, uniform.unit);
     gl.useProgram(null);
   }
 
-  /** Whether the linked program uses `name`. The compiler drops unused uniforms. */
   uses(name: string) {
     return this.uniforms.has(name) || this.attributes.has(name);
   }
 
-  /** `undefined` resets the uniform to zero, as in a freshly linked program. */
   set(name: string, value: UniformValue | undefined) {
     if (!this.uniforms.has(name)) return;
     this.values.set(name, value);
@@ -185,7 +169,6 @@ export class Program {
     this.textures.set(name, texture);
   }
 
-  /** Makes this the current program, uploads changed values and binds its textures. */
   bind() {
     const gl = this.gl;
     gl.useProgram(this.handle);

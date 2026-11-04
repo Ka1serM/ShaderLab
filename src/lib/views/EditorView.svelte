@@ -16,7 +16,6 @@
   let { stages, activeStage, diagnostics, onStageChange, onReset }: {
     stages: ShaderStage[];
     activeStage: ShaderStage;
-    /** Diagnostics of the active stage. */
     diagnostics: ShaderDiagnostic[];
     onStageChange: (stage: ShaderStage) => void;
     onReset: () => void;
@@ -26,7 +25,6 @@
   const editor = app.editor;
   const layout = app.layout;
 
-  // A closed console stays closed until the next compile reports errors again.
   let dismissed = $state.raw<ShaderDiagnostic[] | null>(null);
   const showConsole = $derived(diagnostics.length > 0 && dismissed !== diagnostics);
 

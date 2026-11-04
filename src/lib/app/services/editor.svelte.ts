@@ -13,12 +13,9 @@ const MIN_FONT_SIZE = 8;
 const MAX_FONT_SIZE = 32;
 const PUBLIC_SIGNALING_SERVERS = ['wss://y-webrtc-eu.fly.dev'];
 
-/** The text a page shows in the editor. The editor's models own the text; `onChange` reports every edit. */
 export type EditorWorkspace = {
-  /** Identifies the page, for example `task:phong`. Models are kept per key for the whole session. */
   key: string;
   stages: ShaderStage[];
-  /** Text for a stage whose model does not exist yet. */
   initialText: Partial<Record<ShaderStage, string>>;
   onChange: (stage: ShaderStage, text: string) => void;
 };
@@ -27,7 +24,6 @@ const conf: import('monaco-editor').languages.LanguageConfiguration = { comments
 const keywords = 'const uniform break continue do for while if else switch case in out inout true false invariant discard return sampler2D samplerCube sampler3D struct radians degrees sin cos tan asin acos atan pow exp log sqrt abs floor ceil fract mod min max clamp mix step smoothstep length distance dot cross normalize reflect refract texture textureSize vec2 vec3 vec4 ivec2 ivec3 ivec4 mat2 mat3 mat4 float int uint void bool'.split(' ');
 const language: import('monaco-editor').languages.IMonarchLanguage = { tokenPostfix: '.glsl', defaultToken: 'invalid', keywords, operators: ['=', '>', '<', '!', '~', '?', ':', '==', '<=', '>=', '!=', '&&', '||', '+', '-', '*', '/', '%'], symbols: /[=><!~?:&|+\-*\/\^%]+/, tokenizer: { root: [[/[a-zA-Z_]\w*/, { cases: { '@keywords': 'keyword', '@default': 'identifier' } }], [/^\s*#\s*\w+/, 'keyword.directive'], { include: '@whitespace' }, [/[{}()\[\]]/, '@brackets'], [/@symbols/, { cases: { '@operators': 'operator', '@default': '' } }], [/\d*\.\d+([eE][\-+]?\d+)?/, 'number.float'], [/\d+/, 'number'], [/[;,.]/, 'delimiter']], whitespace: [[/[ \t\r\n]+/, 'white'], [/\/\*/, 'comment', '@comment'], [/\/\/.*$/, 'comment']], comment: [[/[^\/*]+/, 'comment'], [/\/\*/, 'comment', '@push'], ['\\*/', 'comment', '@pop'], [/[^\/*]/, 'comment']] } };
 
-// Start downloading Monaco as soon as the app loads, not when the first editor appears.
 const monacoModule: Promise<Monaco> | undefined = browser ? import('monaco-editor/editor/editor.api.js') : undefined;
 monacoModule?.catch(() => {});
 
@@ -45,16 +41,10 @@ type Collaboration = {
   bindings: import('y-monaco').MonacoBinding[];
 };
 
-/**
- * One Monaco editor for the lifetime of the app. Views move its element into
- * their layout; pages swap which models it shows. Nothing here is recreated
- * on navigation, so each task keeps its undo history and cursor.
- */
 export class EditorHost {
   ready = $state(false);
   failed = $state(false);
   fontSize = $state(DEFAULT_EDITOR_FONT_SIZE);
-  /** Set while a live collaboration session exists. */
   collaboration = $state<{ connected: boolean } | null>(null);
 
   private readonly element = browser ? document.createElement('div') : undefined;
@@ -66,7 +56,6 @@ export class EditorHost {
   private workspace?: EditorWorkspace;
   private stage: ShaderStage = 'fragment';
   private diagnostics: ShaderDiagnostic[] = [];
-  /** Model changes made by the editor itself, which are not user edits. */
   private applying = false;
   private session?: Collaboration;
   private lifecycle = 0;
@@ -76,12 +65,10 @@ export class EditorHost {
     this.fontSize = clampFontSize(persistence.editorFontSize() ?? DEFAULT_EDITOR_FONT_SIZE);
     if (this.element) {
       this.element.style.cssText = 'position: absolute; inset: 0;';
-      // Non-passive and capturing: it must stop the page zoom and Monaco's own scrolling.
       this.element.addEventListener('wheel', this.handleZoomWheel, { capture: true, passive: false });
     }
   }
 
-  /** Places the editor in `parent`. Loads Monaco on first use. */
   attach(parent: HTMLElement) {
     if (!this.element) return;
     if (this.element.parentNode !== parent) parent.appendChild(this.element);
@@ -93,7 +80,6 @@ export class EditorHost {
     if (this.element?.parentNode === parent) parent.removeChild(this.element);
   }
 
-  /** Shows `workspace`. A different workspace ends any collaboration session. */
   open(workspace: EditorWorkspace, stage: ShaderStage) {
     if (this.workspace?.key !== workspace.key) this.disconnect(false, Boolean(this.workspace));
     this.workspace = workspace;
@@ -107,13 +93,11 @@ export class EditorHost {
     this.applyWorkspace();
   }
 
-  /** Diagnostics of the shown stage, drawn as line decorations. */
   setDiagnostics(diagnostics: ShaderDiagnostic[]) {
     this.diagnostics = diagnostics;
     this.applyDiagnostics();
   }
 
-  /** Replaces a stage's text as one undoable edit. In a session, the change reaches every peer. */
   replaceText(stage: ShaderStage, text: string) {
     const model = this.workspace && this.models.get(this.modelKey(this.workspace.key, stage));
     if (!model) {
@@ -206,7 +190,6 @@ export class EditorHost {
     this.monaco.editor.setTheme(document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs-light');
   }
 
-  /** Creates missing models for the workspace and shows the current stage. */
   private applyWorkspace() {
     const monaco = this.monaco, workspace = this.workspace;
     if (!monaco || !this.editor || !workspace) return;
@@ -214,15 +197,15 @@ export class EditorHost {
       const key = this.modelKey(workspace.key, stage);
       let model = this.models.get(key);
       if (!model) {
-        model = monaco.editor.createModel(workspace.initialText[stage] ?? '', 'glsl', monaco.Uri.parse(`inmemory://shaderlab/${encodeURIComponent(workspace.key)}/${stage}.glsl`));
+        const uri = monaco.Uri.parse(`inmemory://shaderlab/${encodeURIComponent(workspace.key)}/${stage}.glsl`);
+        monaco.editor.getModel(uri)?.dispose();
+        model = monaco.editor.createModel(workspace.initialText[stage] ?? '', 'glsl', uri);
         this.models.set(key, model);
         const created = model;
         this.listeners.set(key, model.onDidChangeContent(() => {
-          // Only the open workspace reports edits; its callback belongs to the current page.
           if (!this.applying && this.workspace?.key === workspace.key) this.workspace.onChange(stage, created.getValue());
         }));
       } else if (!this.session && model.getValue() !== (workspace.initialText[stage] ?? model.getValue())) {
-        // Saved text is authoritative when it differs, for example after storage was reset.
         this.applying = true;
         try { model.setValue(workspace.initialText[stage] ?? ''); } finally { this.applying = false; }
       }
@@ -280,8 +263,6 @@ export class EditorHost {
       const provider = session.provider = new WebrtcProvider(room, document, { password: token, signaling: PUBLIC_SIGNALING_SERVERS });
       provider.awareness.setLocalStateField('user', { name: `ShaderLab ${document.clientID.toString().slice(-4)}`, color: '#bf2732' });
       provider.on('status', ({ connected }) => { if (current()) this.collaboration = { connected }; });
-      // A joining peer starts with an empty Y.Text. Binding it at once would
-      // empty the model and briefly compile an invalid shader.
       if (!seed) await this.sharedContent(document, workspace.stages, current);
       if (!current()) return;
       session.bindings = models.flatMap(([stage, model]) => model ? [new MonacoBinding(document.getText(`shader:${stage}`), model, new Set([this.editor!]), provider.awareness)] : []);
@@ -304,7 +285,6 @@ export class EditorHost {
     });
   }
 
-  /** Ends the session. The models keep the shared text, so the work continues locally. */
   private disconnect(keepText: boolean, removeParameters: boolean, message = '') {
     const session = this.session;
     if (!session) return;
@@ -320,8 +300,6 @@ export class EditorHost {
       url.searchParams.delete('collabSource');
       replaceState(url, {});
     }
-    // The bound models already hold the shared text, and their edits were reported
-    // as they arrived. Report them once more so the page saves the final state.
     const workspace = this.workspace;
     if (keepText && workspace) {
       for (const stage of workspace.stages) {

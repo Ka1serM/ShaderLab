@@ -1,11 +1,6 @@
 import { browser } from '$app/environment';
 import type { CameraPose, ShaderStage, TeachingValue } from '../types';
 
-/**
- * The only code that touches localStorage. Keys and formats are those of
- * earlier versions, so saved student work keeps loading. Writes are collected
- * per key and flushed after a short delay, and when the page is hidden.
- */
 
 export type StageCode = Partial<Record<ShaderStage, string>>;
 
@@ -13,7 +8,6 @@ export interface TaskWorkspace {
   taskSlug: string;
   userCode: StageCode;
   activeTab: ShaderStage;
-  /** Only present once the user moved the camera. */
   cameraPose?: CameraPose;
 }
 
@@ -93,7 +87,6 @@ export class Persistence {
     if (browser) window.addEventListener('pagehide', () => this.flush());
   }
 
-  /** Writes every pending value now. */
   flush() {
     clearTimeout(this.timer);
     this.timer = undefined;
@@ -101,7 +94,6 @@ export class Persistence {
       try {
         localStorage.setItem(key, value);
       } catch (error) {
-        // Storage can be disabled or full; the state still applies for this session.
         console.error(`Failed to save ${key}:`, error);
       }
     }
@@ -119,7 +111,6 @@ export class Persistence {
     this.write(TASK_WORKSPACES_KEY, JSON.stringify(workspaces));
   }
 
-  /** A teaching workspace belongs to one version of the demo's content. */
   teachingWorkspace(id: string, contentVersion: string): TeachingWorkspace | undefined {
     const value = this.read(`${TEACHING_WORKSPACE_PREFIX}${id}:${contentVersion}`);
     return isTeachingWorkspace(value) ? value : undefined;

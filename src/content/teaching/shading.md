@@ -21,13 +21,13 @@ scenes:
     objects:
       - source: models/HeadDavid.glb
         instanceCount: 3
+overlays:
+  normals: true
 ---
 
 # Vertex Shader
 
 ```glsl
-precision highp float;
-
 in vec3 position;
 in vec3 normal;
 in mat4 instanceMatrix;
@@ -37,19 +37,19 @@ uniform mat4 modelViewMatrix;
 uniform mat4 projectionMatrix;
 uniform float time;
 
-// @control display=color label="Ambient" default="0.05,0.05,0.05"
+// @control { display: color, label: Ambient, default: [0.05, 0.05, 0.05] }
 uniform vec3 uAmbient;
 
-// @control display=color label="Diffuse Kd" default="0.5,0.5,0.5"
+// @control { display: color, label: Diffuse Kd, default: [0.5, 0.5, 0.5] }
 uniform vec3 uKd;
 
-// @control display=color label="Specular Ks" default="1,1,1"
+// @control { display: color, label: Specular Ks, default: [1, 1, 1] }
 uniform vec3 uKs;
 
-// @control label="Shininess n" min=1 max=256 step=1 default=32
+// @control { label: Shininess n, min: 1, max: 256, step: 1, default: 32 }
 uniform float uShininess;
 
-// @control label="Light Direction" default="1,1,1" visualize=vector
+// @control { label: Light Direction, default: [1, 1, 1], visualize: vector }
 uniform vec3 uLightDir;
 
 uniform vec3 cameraPosition;
@@ -129,8 +129,6 @@ void main() {
 # Fragment Shader
 
 ```glsl
-precision highp float;
-
 flat in int vShadingMode;
 in vec3 vWorldPosition;
 in vec3 vWorldNormal;

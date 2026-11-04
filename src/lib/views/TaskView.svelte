@@ -3,6 +3,7 @@
   import AppTutorial from '$lib/components/AppTutorial.svelte';
   import { useApplication } from '$lib/app/application.svelte';
   import type { Splitter } from '$lib/app/controllers/layout.svelte';
+  import { hasCompute } from '$lib/app/types';
   import TaskPanel from './TaskPanel.svelte';
   import EditorView from './EditorView.svelte';
   import ViewportView from './ViewportView.svelte';
@@ -18,7 +19,6 @@
 {#if model.task}
   {@const task = model.task}
   <div class="h-full w-full overflow-hidden relative">
-    <!-- One layout for every screen. Below the desktop breakpoint, CSS stacks the panes. -->
     <div class="workspace-layout workspace-tree workspace-tree--task h-full w-full">
       <Splitpanes class="splitpanes-root" theme="my-theme" on:resized={resized('outer')}>
         <Pane size={layout.sizes.outer} class="workspace-leaf workspace-leaf--panel">
@@ -38,12 +38,11 @@
             <Pane size={100 - layout.sizes.inner}>
               <div class="workspace-group h-full" data-tutorial="viewports">
                 <Splitpanes class="splitpanes-nested" theme="my-theme" on:resized={resized('viewports')}>
-                  <Pane size={layout.sizes.viewports} class="workspace-leaf workspace-leaf--reference">
-                    <ViewportView viewport={app.viewports.reference} title="Reference" panelId="reference" scenes={task.scenes} sceneIndex={model.sceneIndex} onSelectScene={index => controller.selectScene(index)} transformControls={Boolean(task.overlays?.transformControls)} showTimeControl={task.showTimeControl ?? false} simulation={task.referenceComputeShader !== undefined ? controller.simulation : undefined} />
-                  </Pane>
-                  <Pane size={100 - layout.sizes.viewports} class="workspace-leaf workspace-leaf--output">
-                    <ViewportView viewport={app.viewports.output} title="Output" panelId="output" scenes={task.scenes} sceneIndex={model.sceneIndex} onSelectScene={index => controller.selectScene(index)} transformControls={Boolean(task.overlays?.transformControls)} showTimeControl={task.showTimeControl ?? false} simulation={task.referenceComputeShader !== undefined ? controller.simulation : undefined} />
-                  </Pane>
+                  {#each [{ id: 'reference', title: 'Reference', size: layout.sizes.viewports }, { id: 'output', title: 'Output', size: 100 - layout.sizes.viewports }] as const as pane (pane.id)}
+                    <Pane size={pane.size} class="workspace-leaf workspace-leaf--{pane.id}">
+                      <ViewportView viewport={app.viewports[pane.id]} title={pane.title} panelId={pane.id} scenes={task.scenes} sceneIndex={model.sceneIndex} onSelectScene={index => controller.selectScene(index)} transformControls={Boolean(task.overlays?.transformControls)} normals={Boolean(task.overlays?.normals)} showTimeControl={task.showTimeControl ?? false} simulation={hasCompute(task) ? controller.simulation : undefined} />
+                    </Pane>
+                  {/each}
                 </Splitpanes>
               </div>
             </Pane>

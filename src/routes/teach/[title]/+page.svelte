@@ -6,8 +6,6 @@
   let { data }: { data: PageData } = $props();
   const app = useApplication();
 
-  // The route only tells the app what to show. The first call also runs
-  // during prerendering, so the page HTML already contains the demo.
   const open = () => app.openTeaching(data.title, data.definition);
   open();
   $effect.pre(open);

@@ -1,5 +1,6 @@
 import type { ShaderInput } from '$lib/renderer/gpu/inputs';
 import type { Scene, ViewportOverlays } from '$lib/renderer/Renderer';
+import { defaultCameraPose, type ViewportCameraPose } from '$lib/renderer/camera';
 import type { ShaderDiagnostic, ShaderDiagnostics } from '$lib/renderer/gpu/program';
 import type { TeachingValue } from '$lib/utils/shaderControls';
 
@@ -20,14 +21,8 @@ export interface TaskCamera {
   fov?: number;
 }
 
-export interface CameraPose {
-  position: [number, number, number];
-  quaternion: [number, number, number, number];
-  target: [number, number, number];
-  fov: number;
-}
+export type CameraPose = ViewportCameraPose;
 
-/** A task as parsed from its Markdown file at build time. Never mutated. */
 export interface Task {
   title: string;
   category?: string;
@@ -40,7 +35,6 @@ export interface Task {
   starterFragmentShaderTemplate?: ShaderTemplate;
   referenceVertexShader: string;
   referenceFragmentShader: string;
-  /** A compute stage, which updates a buffer that the vertex shader draws. */
   starterComputeShader?: string;
   starterComputeShaderTemplate?: ShaderTemplate;
   referenceComputeShader?: string;
@@ -54,7 +48,6 @@ export interface Task {
 }
 
 export interface TaskSimulation {
-  /** Compute dispatches per frame. Defaults to 1. */
   stepsPerFrame?: number;
 }
 
@@ -63,7 +56,6 @@ export interface TeachingPreset {
   values: Record<string, TeachingValue>;
 }
 
-/** A teaching demo as parsed from its Markdown file at build time. Never mutated. */
 export interface Teach {
   id: string;
   contentVersion: string;
@@ -85,21 +77,27 @@ export interface Teach {
 
 export const emptyDiagnostics = (): ShaderDiagnostics => ({ vertex: [], fragment: [], compute: [] });
 
-export const defaultCameraPose = (): CameraPose => ({ position: [0, 0, 1], quaternion: [0, 0, 0, 1], target: [0, 0, 0], fov: 30 });
+export { defaultCameraPose };
 
 export function taskCameraPose(task: Task): CameraPose {
   const camera = task.camera;
+  const fallback = defaultCameraPose();
   return {
-    position: (camera?.position?.length === 3 ? camera.position : [0, 0, 1]) as CameraPose['position'],
-    quaternion: (camera?.quaternion?.length === 4 ? camera.quaternion : [0, 0, 0, 1]) as CameraPose['quaternion'],
-    target: (camera?.target?.length === 3 ? camera.target : [0, 0, 0]) as CameraPose['target'],
-    fov: camera?.fov ?? 30
+    position: (camera?.position?.length === 3 ? camera.position : fallback.position) as CameraPose['position'],
+    quaternion: (camera?.quaternion?.length === 4 ? camera.quaternion : fallback.quaternion) as CameraPose['quaternion'],
+    target: (camera?.target?.length === 3 ? camera.target : fallback.target) as CameraPose['target'],
+    fov: camera?.fov ?? fallback.fov
   };
 }
 
-/** The code a stage starts with. Stages students cannot edit always run the reference source. */
 export function starterShader(task: Task, stage: ShaderStage): string {
   const reference = { vertex: task.referenceVertexShader, fragment: task.referenceFragmentShader, compute: task.referenceComputeShader ?? '' }[stage];
   if (!task.shaderStages.includes(stage)) return reference;
-  return { vertex: task.starterVertexShader, fragment: task.starterFragmentShader, compute: task.starterComputeShader }[stage] ?? '';
+  return { vertex: task.starterVertexShader, fragment: task.starterFragmentShader, compute: task.starterComputeShader }[stage] ?? reference;
+}
+
+export const hasCompute = (task: Task) => task.referenceComputeShader !== undefined;
+
+export function teachingShader(definition: Teach, stage: ShaderStage): string {
+  return (stage === 'vertex' ? definition.vertexShader : stage === 'fragment' ? definition.fragmentShader : undefined) ?? '';
 }

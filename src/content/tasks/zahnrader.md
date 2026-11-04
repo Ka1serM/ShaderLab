@@ -37,8 +37,6 @@ Die drei Zahnräder werden gemeinsam in der Vorschau gerendert. Jede Animationsf
 # Starter Vertex Shader
 ```glsl
 // @prefix
-precision highp float;
-
 in vec3 position;
 in vec3 normal;
 
@@ -122,8 +120,6 @@ void render() {
 
 # Reference Vertex Shader
 ```glsl
-precision highp float;
-
 in vec3 position;
 in vec3 normal;
 
@@ -229,8 +225,6 @@ void main() {
 
 # Reference Fragment Shader
 ```glsl
-precision highp float;
-
 in vec3 vNormal;
 in vec3 vColor;
 
