@@ -4,4 +4,3 @@ phong.md
 planeten-system.md
 volumetric-raymarching.md
 zahnrader.md
-partikel-fluid.md
