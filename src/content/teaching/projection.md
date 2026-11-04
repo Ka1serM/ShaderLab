@@ -6,8 +6,6 @@ shaderStages:
 scenes:
   - label: Teapot
     frameBox: [[-4.0, -3.0, -6.0], [4.0, 3.0, 0.0]]
-    insetView:
-      aspectUniform: uAspect
     objects:
       - source: models/ProjectionEdges.glb
         wireframe: true
@@ -15,8 +13,6 @@ scenes:
       - source: models/Teapot.glb
   - label: David
     frameBox: [[-4.0, -3.0, -6.0], [4.0, 3.0, 0.0]]
-    insetView:
-      aspectUniform: uAspect
     objects:
       - source: models/ProjectionEdges.glb
         wireframe: true
@@ -24,13 +20,13 @@ scenes:
       - source: models/HeadDavid.glb
   - label: Sphere
     frameBox: [[-4.0, -3.0, -6.0], [4.0, 3.0, 0.0]]
-    insetView:
-      aspectUniform: uAspect
     objects:
       - source: models/ProjectionEdges.glb
         wireframe: true
         lineWidth: 5
       - source: models/Sphere.glb
+overlays:
+  insetView: true
 ---
 
 # Vertex Shader

@@ -14,10 +14,7 @@ scenes:
     objects:
       - source: models/Sphere.glb
 overlays:
-  normals:
-    position: vTransformedPosition
-    normal: vTransformedNormal
-    space: model
+  normals: true
 ---
 
 # Vertex Shader

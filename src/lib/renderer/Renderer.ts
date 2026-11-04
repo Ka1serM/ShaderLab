@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js';
 import { InfiniteGrid } from './InfiniteGrid';
-import { NormalsOverlay, type NormalsVaryings } from './NormalsOverlay';
+import { NormalsOverlay } from './NormalsOverlay';
 import { sameValues } from '$lib/utils/sameValues';
 import { defaultCameraPose, type ViewportCameraPose } from './camera';
 import { ShaderReadback, type ShaderReadbackRequest, type ShaderReadbackValue } from './shaderReadback';
@@ -27,6 +27,7 @@ const INSET_VIEW_MARGIN = 12;
 const INSET_VIEW_BORDER = 2;
 const INSET_VIEW_HANDLE = 12;
 const DEFAULT_LINE_WIDTH = 3.5;
+const INSET_VIEW_ASPECT_UNIFORM = 'uAspect';
 
 const PICK_FRAGMENT_SHADER = 'uniform int uObjectIndex; out vec4 fragColor; void main() { fragColor = vec4(float(uObjectIndex + 1) / 255.0, 0.0, 0.0, 1.0); }';
 
@@ -65,7 +66,6 @@ export type Scene = {
   objects: Object[];
   frameBox?: [[number, number, number], [number, number, number]];
   background?: [number, number, number];
-  insetView?: { aspectUniform: string };
 };
 
 export type SceneDefinition = Scene & {
@@ -88,7 +88,8 @@ export type ViewportOverlays = {
     mode?: TransformMode;
   };
   orbitControls?: boolean;
-  normals?: boolean | NormalsVaryings;
+  normals?: boolean;
+  insetView?: boolean;
 };
 
 export type ViewportVector = {
@@ -193,10 +194,8 @@ export class Renderer implements LinkedCamera {
   private settledResizeFrame = 0;
   private resizeRetryFrame = 0;
   private resizeRetries = 0;
-  private insetView?: Scene['insetView'];
   private acceptedTransform?: ViewportTransform;
   private insetScale = INSET_VIEW_SCALE;
-  private insetAspectReported = false;
   private insetResizing = false;
   private renderedWidth = 0;
   private renderedHeight = 0;
@@ -921,7 +920,6 @@ export class Renderer implements LinkedCamera {
     const generation = ++this.sceneGeneration;
     this.frameBox = sceneDefinition.frameBox;
     this.background = sceneDefinition.background && new THREE.Color().setRGB(...sceneDefinition.background, THREE.SRGBColorSpace);
-    this.insetView = sceneDefinition.insetView;
     this.autoFrame = !this.cameraPoseSaved;
     this.editingVectorId = undefined;
     this.transformControls?.detach();
@@ -1248,20 +1246,11 @@ export class Renderer implements LinkedCamera {
   }
 
   private drawNormals() {
-    const varyings = typeof this.overlays?.normals === 'object' ? this.overlays.normals : undefined;
     this.normals ??= new NormalsOverlay(this.gl);
     projectScreen.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
     const parts = this.parts.map(part => ({ source: part.geometry.source, matrixWorld: part.node.matrixWorld }));
-    this.normals.draw(this.vertexShader, varyings, parts, this.prepareNormalsCapture, projectScreen);
+    this.normals.draw(parts, projectScreen);
   }
-
-  private prepareNormalsCapture = (program: Program, index: number) => {
-    for (const uniform of program.uniforms.values()) {
-      if (uniform.unit === undefined && !RENDERER_UNIFORMS.has(uniform.name)) program.set(uniform.name, this.uniformValues[uniform.name]);
-    }
-    this.setViewUniforms(program, false);
-    this.setPartUniforms(program, this.parts[index]);
-  };
 
   private setViewUniforms(program: Program, inset: boolean) {
     const camera = this.camera;
@@ -1333,13 +1322,10 @@ export class Renderer implements LinkedCamera {
   }
 
   private insetAspect() {
-    if (!this.insetView) return undefined;
-    const { aspectUniform } = this.insetView;
-    const aspect = this.uniformValues[aspectUniform];
-    const valid = typeof aspect === 'number' && aspect > 0;
-    if (!valid && !this.insetAspectReported) console.error(`Inset view aspect uniform ${aspectUniform} must be a positive float, got ${aspect}.`);
-    this.insetAspectReported = !valid;
-    return valid ? aspect : undefined;
+    if (!this.overlays?.insetView) return undefined;
+    const aspect = this.uniformValues[INSET_VIEW_ASPECT_UNIFORM];
+    if (typeof aspect === 'number' && aspect > 0) return aspect;
+    return this.renderedHeight > 0 ? this.renderedWidth / this.renderedHeight : undefined;
   }
 
   private insetSize(aspect: number) {
