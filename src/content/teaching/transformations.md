@@ -15,7 +15,6 @@ scenes:
       - source: models/Sphere.glb
 overlays:
   normals:
-    position: vTransformedPosition
     normal: vTransformedNormal
     space: model
 ---

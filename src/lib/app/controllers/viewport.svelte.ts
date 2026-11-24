@@ -11,6 +11,7 @@ export class ViewportSlot {
   unavailable = $state(false);
   timePaused = $state(false);
   normalsVisible = $state(false);
+  normalsAvailable = $state(false);
   transformMode = $state<TransformMode>('translate');
   transformSpace = $state<TransformSpace>('local');
 
@@ -21,7 +22,12 @@ export class ViewportSlot {
   get renderer(): Renderer | undefined {
     if (this.instance || this.unavailable || !browser) return this.instance;
     try {
-      this.instance = new Renderer();
+      const renderer = new Renderer();
+      this.instance = renderer;
+      this.normalsAvailable = false;
+      renderer.onNormalsAvailabilityChange = available => {
+        if (this.instance === renderer) this.normalsAvailable = available;
+      };
       if (this.parent) this.instance.attach(this.parent);
     } catch (error) {
       console.error('Viewport could not be created:', error);

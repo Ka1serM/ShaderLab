@@ -39,7 +39,7 @@ export class GpuGeometry {
     this.vertexCount = source.getAttribute('position')?.count ?? 0;
   }
 
-  draw(program: Program, instances = this.instanceCount, mode = this.gl.TRIANGLES) {
+  draw(program: Program, instances = this.instanceCount, mode: number = this.gl.TRIANGLES) {
     const gl = this.gl;
     if (instances < 1) return;
     if (instances > this.instanceCapacity && this.instanceBuffer) {

@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js';
 import { InfiniteGrid } from './InfiniteGrid';
-import { NormalsOverlay, type NormalsVaryings } from './NormalsOverlay';
+import { NormalsOverlay, type NormalsOptions } from './NormalsOverlay';
 import { VectorArrow } from './VectorArrow';
 import { sameValues } from '$lib/utils/sameValues';
 import { defaultCameraPose, type ViewportCameraPose } from './camera';
@@ -89,7 +89,7 @@ export type ViewportOverlays = {
     mode?: TransformMode;
   };
   orbitControls?: boolean;
-  normals?: boolean | NormalsVaryings;
+  normals?: boolean | NormalsOptions;
   insetView?: boolean;
 };
 
@@ -217,6 +217,9 @@ export class Renderer implements LinkedCamera {
   private overlays: ViewportOverlays | undefined;
   private normals?: NormalsOverlay;
   private normalsVisible = false;
+  private normalsAvailable = false;
+  // Called when the current scene gains or loses something to draw normals for.
+  onNormalsAvailabilityChange?: (available: boolean) => void;
   private overlaysKey = '';
   private vectorsKey = '';
   private infiniteGrid?: InfiniteGrid;
@@ -1228,6 +1231,7 @@ export class Renderer implements LinkedCamera {
     three.setClearColor(0x000000, 0);
     three.autoClear = false;
     const program = this.shaderRenderable ? this.program : undefined;
+    this.syncNormalsAvailability();
     if (program) {
       if (this.transparent) three.render(this.overlayScene, this.camera);
       this.drawParts(program, false);
@@ -1243,12 +1247,18 @@ export class Renderer implements LinkedCamera {
     this.device.present(this.context);
   }
 
+  private syncNormalsAvailability() {
+    const available = Boolean(this.overlays?.normals) && this.parts.some(part => part.geometry.source.getAttribute('position'));
+    if (available === this.normalsAvailable) return;
+    this.normalsAvailable = available;
+    this.onNormalsAvailabilityChange?.(available);
+  }
+
   private drawNormals() {
-    const varyings = typeof this.overlays?.normals === 'object' ? this.overlays.normals : undefined;
+    const options = typeof this.overlays?.normals === 'object' ? this.overlays.normals : undefined;
     this.normals ??= new NormalsOverlay(this.gl);
-    projectScreen.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
-    const parts = this.parts.map(part => ({ source: part.geometry.source, matrixWorld: part.node.matrixWorld }));
-    this.normals.draw(this.vertexShader, varyings, parts, this.prepareNormalsCapture, projectScreen);
+    const parts = this.parts.map(part => ({ source: part.geometry.source, matrixWorld: part.node.matrixWorld, instances: part.geometry.instanceCount }));
+    this.normals.draw(this.vertexShader, options, parts, this.prepareNormalsCapture, this.camera);
   }
 
   private prepareNormalsCapture = (program: Program, index: number) => {

@@ -22,7 +22,8 @@ scenes:
       - source: models/HeadDavid.glb
         instanceCount: 3
 overlays:
-  normals: true
+  normals:
+    flat: [true, false, false]
 ---
 
 # Vertex Shader

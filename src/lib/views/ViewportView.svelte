@@ -14,6 +14,7 @@
   import Pause from 'phosphor-svelte/lib/PauseIcon';
   import SkipForward from 'phosphor-svelte/lib/SkipForwardIcon';
   import ArrowCounterClockwise from 'phosphor-svelte/lib/ArrowCounterClockwiseIcon';
+  import ArrowLineUp from 'phosphor-svelte/lib/ArrowLineUpIcon';
 
   let { viewport: slot, title, panelId, scenes, sceneIndex, onSelectScene, transformControls = false, normals = false, showTimeControl = false, simulation }: {
     viewport: ViewportSlot;
@@ -113,13 +114,14 @@
           onChange={space => slot.setTransformSpace(space)}
         />
       {/if}
-      {#if normals}
+      {#if normals && slot.normalsAvailable}
         <div class="relative z-10 flex w-fit flex-none rounded-md bg-muted">
           <Toggle
-            class="h-10 px-4 transition-colors hover:bg-muted/50 data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30"
-            aria-label="Show vertex normals"
+            class="h-10 w-10 min-w-10 px-0 transition-colors hover:bg-muted/50 data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30 [&_svg]:size-5"
+            title={slot.normalsVisible ? 'Hide normals' : 'Show normals'}
+            aria-label="Show normals"
             bind:pressed={() => slot.normalsVisible, () => slot.toggleNormals()}
-          >Normals</Toggle>
+          ><ArrowLineUp weight="bold" /></Toggle>
         </div>
       {/if}
     </div>
